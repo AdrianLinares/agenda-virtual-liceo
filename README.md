@@ -132,7 +132,7 @@ WHERE email = 'admin@liceo.com';
 1. Ve a **Authentication** > **Users**
 2. Clic en **Add user** > **Create new user**
 3. Ingresa:
-   - Email: `admin@liceo.com`
+   - Email: `admin@liceoag.com`
    - Password: `Admin123!`
    - Confirmar password
 4. Guarda el usuario
@@ -154,22 +154,22 @@ Te recomendamos crear estos usuarios de prueba:
 
 ```
 Administrador:
-- Email: admin@liceo.com
-- Password: Admin123!
-- Rol: administrador
+- Email: administrativo@liceoag.com
+- Password: Adminintrativo123!
+- Rol: administrativo
 
 Docente:
-- Email: docente@liceo.com
+- Email: docente@liceoag.com
 - Password: Docente123!
 - Rol: docente
 
 Estudiante:
-- Email: estudiante@liceo.com
+- Email: estudiante@liceoag.com
 - Password: Estudiante123!
 - Rol: estudiante
 
 Padre:
-- Email: padre@liceo.com
+- Email: padre@liceoag.com
 - Password: Padre123!
 - Rol: padre
 ```

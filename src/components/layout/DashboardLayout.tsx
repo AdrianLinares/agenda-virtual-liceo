@@ -126,9 +126,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     navigate('/login')
   }
 
-  const filteredMenuItems = menuItems.filter((item) =>
-    item.roles.includes(profile?.rol || '')
-  )
+  const filteredMenuItems = menuItems.filter((item) => {
+    const userRole = profile?.rol
+    // Si no hay rol, mostrar todos los items (para testing)
+    if (!userRole) {
+      return true
+    }
+    return item.roles.includes(userRole)
+  })
 
   const getInitials = (name: string) => {
     return name
@@ -238,10 +243,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   className={`
                     flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium
                     transition-colors
-                    ${
-                      isActive
-                        ? 'bg-blue-50 text-blue-700'
-                        : 'text-gray-700 hover:bg-gray-100'
+                    ${isActive
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'text-gray-700 hover:bg-gray-100'
                     }
                   `}
                 >
