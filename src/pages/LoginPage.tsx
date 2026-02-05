@@ -11,7 +11,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  
+
   const signIn = useAuthStore((state) => state.signIn)
   const navigate = useNavigate()
 
@@ -51,7 +51,7 @@ export default function LoginPage() {
             </svg>
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Liceo Ángel de la Guardia
+            Liceo Ángel de la Guarda
           </h1>
           <p className="text-gray-600">Agenda Virtual</p>
         </div>
@@ -116,7 +116,7 @@ export default function LoginPage() {
         </Card>
 
         <p className="text-center text-sm text-gray-500 mt-6">
-          © 2026 Liceo Ángel de la Guardia. Todos los derechos reservados.
+          © 2026 Liceo Ángel de la Guarda. Todos los derechos reservados.
         </p>
       </div>
     </div>

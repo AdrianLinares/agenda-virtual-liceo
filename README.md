@@ -1,4 +1,4 @@
-# 📚 Agenda Virtual - Liceo Ángel de la Guardia
+# 📚 Agenda Virtual - Liceo Ángel de la Guarda
 
 Plataforma completa de gestión académica desarrollada con React, TypeScript, Vite, Tailwind CSS, Shadcn-ui y Supabase PostgreSQL.
 
@@ -288,4 +288,4 @@ Si tienes problemas con la configuración:
 
 ---
 
-Desarrollado con ❤️ para el Liceo Ángel de la Guardia
+Desarrollado con ❤️ para el Liceo Ángel de la Guarda

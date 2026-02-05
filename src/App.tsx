@@ -4,6 +4,17 @@ import { useAuthStore } from '@/lib/auth-store'
 import LoginPage from '@/pages/LoginPage'
 import DashboardPage from '@/pages/DashboardPage'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import BoletinesPage from '@/pages/BoletinesPage'
+import NotasPage from '@/pages/NotasPage'
+import AsistenciaPage from '@/pages/AsistenciaPage'
+import AnunciosPage from '@/pages/AnunciosPage'
+import CalendarioPage from '@/pages/CalendarioPage'
+import MensajesPage from '@/pages/MensajesPage'
+import PermisosPage from '@/pages/PermisosPage'
+import SeguimientoPage from '@/pages/SeguimientoPage'
+import HorariosPage from '@/pages/HorariosPage'
+import CitacionesPage from '@/pages/CitacionesPage'
+import AdminPage from '@/pages/AdminPage'
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -87,10 +98,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DashboardLayout>
-                <div className="text-center py-12">
-                  <h2 className="text-2xl font-bold mb-2">Boletines de Notas</h2>
-                  <p className="text-gray-600">Módulo en desarrollo</p>
-                </div>
+                <BoletinesPage />
               </DashboardLayout>
             </ProtectedRoute>
           }
@@ -101,10 +109,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DashboardLayout>
-                <div className="text-center py-12">
-                  <h2 className="text-2xl font-bold mb-2">Registro de Asistencia</h2>
-                  <p className="text-gray-600">Módulo en desarrollo</p>
-                </div>
+                <AsistenciaPage />
               </DashboardLayout>
             </ProtectedRoute>
           }
@@ -115,10 +120,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DashboardLayout>
-                <div className="text-center py-12">
-                  <h2 className="text-2xl font-bold mb-2">Notas Parciales</h2>
-                  <p className="text-gray-600">Módulo en desarrollo</p>
-                </div>
+                <NotasPage />
               </DashboardLayout>
             </ProtectedRoute>
           }
@@ -129,10 +131,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DashboardLayout>
-                <div className="text-center py-12">
-                  <h2 className="text-2xl font-bold mb-2">Anuncios</h2>
-                  <p className="text-gray-600">Módulo en desarrollo</p>
-                </div>
+                <AnunciosPage />
               </DashboardLayout>
             </ProtectedRoute>
           }
@@ -143,10 +142,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DashboardLayout>
-                <div className="text-center py-12">
-                  <h2 className="text-2xl font-bold mb-2">Mensajes</h2>
-                  <p className="text-gray-600">Módulo en desarrollo</p>
-                </div>
+                <MensajesPage />
               </DashboardLayout>
             </ProtectedRoute>
           }
@@ -157,10 +153,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DashboardLayout>
-                <div className="text-center py-12">
-                  <h2 className="text-2xl font-bold mb-2">Calendario</h2>
-                  <p className="text-gray-600">Módulo en desarrollo</p>
-                </div>
+                <CalendarioPage />
               </DashboardLayout>
             </ProtectedRoute>
           }
@@ -171,10 +164,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DashboardLayout>
-                <div className="text-center py-12">
-                  <h2 className="text-2xl font-bold mb-2">Permisos y Excusas</h2>
-                  <p className="text-gray-600">Módulo en desarrollo</p>
-                </div>
+                <PermisosPage />
               </DashboardLayout>
             </ProtectedRoute>
           }
@@ -185,10 +175,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DashboardLayout>
-                <div className="text-center py-12">
-                  <h2 className="text-2xl font-bold mb-2">Seguimiento del Estudiante</h2>
-                  <p className="text-gray-600">Módulo en desarrollo</p>
-                </div>
+                <SeguimientoPage />
               </DashboardLayout>
             </ProtectedRoute>
           }
@@ -199,10 +186,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DashboardLayout>
-                <div className="text-center py-12">
-                  <h2 className="text-2xl font-bold mb-2">Horarios</h2>
-                  <p className="text-gray-600">Módulo en desarrollo</p>
-                </div>
+                <HorariosPage />
               </DashboardLayout>
             </ProtectedRoute>
           }
@@ -213,10 +197,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DashboardLayout>
-                <div className="text-center py-12">
-                  <h2 className="text-2xl font-bold mb-2">Citaciones</h2>
-                  <p className="text-gray-600">Módulo en desarrollo</p>
-                </div>
+                <CitacionesPage />
               </DashboardLayout>
             </ProtectedRoute>
           }
@@ -227,10 +208,7 @@ function App() {
           element={
             <ProtectedRoute>
               <DashboardLayout>
-                <div className="text-center py-12">
-                  <h2 className="text-2xl font-bold mb-2">Editar Sitio</h2>
-                  <p className="text-gray-600">Módulo en desarrollo</p>
-                </div>
+                <AdminPage />
               </DashboardLayout>
             </ProtectedRoute>
           }
@@ -238,7 +216,7 @@ function App() {
 
         {/* Default redirect */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        
+
         {/* 404 */}
         <Route
           path="*"

@@ -345,6 +345,40 @@ CREATE TRIGGER on_auth_user_created
     EXECUTE FUNCTION public.handle_new_user();
 
 -- =====================================================
+-- FUNCIONES DE ROL (EVITAR RECURSIÓN EN RLS)
+-- =====================================================
+
+CREATE OR REPLACE FUNCTION public.get_user_role()
+RETURNS user_role
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+SET row_security = off
+AS $$
+    SELECT rol FROM public.profiles WHERE id = auth.uid();
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+SET row_security = off
+AS $$
+    SELECT COALESCE(public.get_user_role() = 'administrador', false);
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_docente()
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+SET row_security = off
+AS $$
+    SELECT COALESCE(public.get_user_role() = 'docente', false);
+$$;
+
+-- =====================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- =====================================================
 
@@ -380,20 +414,13 @@ CREATE POLICY "Users can view own profile"
 -- Los administradores pueden ver todos los perfiles
 CREATE POLICY "Admins can view all profiles"
     ON profiles FOR SELECT
-    USING (
-        EXISTS (
-            SELECT 1 FROM profiles
-            WHERE id = auth.uid() AND rol = 'administrador'
-        )
-    );
+    USING (public.is_admin());
 
 -- Docentes pueden ver estudiantes de sus grupos
 CREATE POLICY "Teachers view their students"
     ON profiles FOR SELECT
     USING (
-        EXISTS (
-            SELECT 1 FROM profiles WHERE id = auth.uid() AND rol = 'docente'
-        ) AND (
+        public.is_docente() AND (
             rol = 'estudiante' AND EXISTS (
                 SELECT 1 FROM estudiantes_grupos eg
                 JOIN asignaciones_docentes ad ON ad.grupo_id = eg.grupo_id
@@ -416,12 +443,8 @@ CREATE POLICY "Parents view their children"
 -- Solo administradores pueden modificar perfiles
 CREATE POLICY "Only admins modify profiles"
     ON profiles FOR ALL
-    USING (
-        EXISTS (
-            SELECT 1 FROM profiles
-            WHERE id = auth.uid() AND rol = 'administrador'
-        )
-    );
+    USING (public.is_admin())
+    WITH CHECK (public.is_admin());
 
 -- =====================================================
 -- POLÍTICAS PARA NOTAS

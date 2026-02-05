@@ -180,7 +180,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               </div>
               <div className="hidden sm:block">
                 <h1 className="text-lg font-semibold text-gray-900">
-                  Liceo Ángel de la Guardia
+                  Liceo Ángel de la Guarda
                 </h1>
                 <p className="text-xs text-gray-500">Agenda Virtual</p>
               </div>

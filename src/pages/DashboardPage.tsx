@@ -1,9 +1,104 @@
+import { useEffect, useState } from 'react'
 import { useAuthStore } from '@/lib/auth-store'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Calendar, Bell, Clock, Users } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+
+interface Evento {
+  id: string
+  titulo: string
+  fecha_inicio: string
+  lugar: string
+  tipo: string
+}
+
+interface Anuncio {
+  id: string
+  titulo: string
+  contenido: string
+  fecha_publicacion: string
+  importante: boolean
+}
 
 export default function DashboardPage() {
-  const { profile } = useAuthStore()
+  const { profile, user } = useAuthStore()
+  const [eventos, setEventos] = useState<Evento[]>([])
+  const [anuncios, setAnuncios] = useState<Anuncio[]>([])
+  const [loadingEventos, setLoadingEventos] = useState(true)
+  const [loadingAnuncios, setLoadingAnuncios] = useState(true)
+
+  useEffect(() => {
+    console.log('DashboardPage - User:', user)
+    console.log('DashboardPage - Profile:', profile)
+    loadEventos()
+    loadAnuncios()
+  }, [user, profile])
+
+  const loadEventos = async () => {
+    try {
+      const hoy = new Date()
+      const unaSemana = new Date()
+      unaSemana.setDate(hoy.getDate() + 7)
+
+      const { data, error } = await supabase
+        .from('eventos')
+        .select('*')
+        .gte('fecha_inicio', hoy.toISOString())
+        .lte('fecha_inicio', unaSemana.toISOString())
+        .order('fecha_inicio', { ascending: true })
+        .limit(5)
+
+      if (error) throw error
+      setEventos(data || [])
+    } catch (error) {
+      console.error('Error cargando eventos:', error)
+    } finally {
+      setLoadingEventos(false)
+    }
+  }
+
+  const loadAnuncios = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('anuncios')
+        .select('*')
+        .order('fecha_publicacion', { ascending: false })
+        .limit(3)
+
+      if (error) throw error
+      setAnuncios(data || [])
+    } catch (error) {
+      console.error('Error cargando anuncios:', error)
+    } finally {
+      setLoadingAnuncios(false)
+    }
+  }
+
+  const formatFecha = (fecha: string) => {
+    const date = new Date(fecha)
+    const dias = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+    return {
+      dia: dias[date.getDay()],
+      numero: date.getDate()
+    }
+  }
+
+  const formatHora = (fecha: string) => {
+    const date = new Date(fecha)
+    return date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  const tiempoDesde = (fecha: string) => {
+    const ahora = new Date()
+    const entonces = new Date(fecha)
+    const diff = Math.floor((ahora.getTime() - entonces.getTime()) / 1000)
+
+    if (diff < 60) return 'Hace un momento'
+    if (diff < 3600) return `Hace ${Math.floor(diff / 60)} minutos`
+    if (diff < 86400) return `Hace ${Math.floor(diff / 3600)} horas`
+    if (diff < 604800) return `Hace ${Math.floor(diff / 86400)} días`
+    return 'Hace más de una semana'
+  }
 
   return (
     <div className="space-y-6">
@@ -27,7 +122,7 @@ export default function DashboardPage() {
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">3</div>
+            <div className="text-2xl font-bold">{eventos.length}</div>
             <p className="text-xs text-muted-foreground">
               eventos esta semana
             </p>
@@ -42,9 +137,9 @@ export default function DashboardPage() {
             <Bell className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">5</div>
+            <div className="text-2xl font-bold">{anuncios.length}</div>
             <p className="text-xs text-muted-foreground">
-              anuncios nuevos
+              anuncios recientes
             </p>
           </CardContent>
         </Card>
@@ -52,29 +147,29 @@ export default function DashboardPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Asistencia
-            </CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">98%</div>
-            <p className="text-xs text-muted-foreground">
-              este periodo
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Cumpleaños
+              Rol
             </CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">2</div>
+            <div className="text-2xl font-bold capitalize">{profile?.rol}</div>
             <p className="text-xs text-muted-foreground">
-              esta semana
+              tu perfil
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Estado
+            </CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{profile?.activo ? 'Activo' : 'Inactivo'}</div>
+            <p className="text-xs text-muted-foreground">
+              tu cuenta
             </p>
           </CardContent>
         </Card>
@@ -91,38 +186,37 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50 border border-blue-100">
-              <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-blue-600 text-white flex flex-col items-center justify-center">
-                <span className="text-xs font-medium">Lun</span>
-                <span className="text-lg font-bold">3</span>
-              </div>
-              <div>
-                <p className="font-medium text-gray-900">Reunión de padres</p>
-                <p className="text-sm text-gray-600">4:00 PM - Auditorio</p>
-              </div>
-            </div>
+            {loadingEventos ? (
+              <p className="text-sm text-gray-500">Cargando eventos...</p>
+            ) : eventos.length === 0 ? (
+              <p className="text-sm text-gray-500">No hay eventos esta semana</p>
+            ) : (
+              eventos.map((evento) => {
+                const fecha = formatFecha(evento.fecha_inicio)
+                const hora = formatHora(evento.fecha_inicio)
+                const colors = {
+                  'Reunión': 'blue',
+                  'Evaluación': 'purple',
+                  'Festivo': 'green',
+                  'Cultural': 'pink',
+                  'Académico': 'indigo',
+                }
+                const color = colors[evento.tipo as keyof typeof colors] || 'gray'
 
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-purple-50 border border-purple-100">
-              <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-purple-600 text-white flex flex-col items-center justify-center">
-                <span className="text-xs font-medium">Mié</span>
-                <span className="text-lg font-bold">5</span>
-              </div>
-              <div>
-                <p className="font-medium text-gray-900">Examen de Matemáticas</p>
-                <p className="text-sm text-gray-600">8:00 AM - Salón 201</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-green-50 border border-green-100">
-              <div className="flex-shrink-0 w-12 h-12 rounded-lg bg-green-600 text-white flex flex-col items-center justify-center">
-                <span className="text-xs font-medium">Vie</span>
-                <span className="text-lg font-bold">7</span>
-              </div>
-              <div>
-                <p className="font-medium text-gray-900">Día Cultural</p>
-                <p className="text-sm text-gray-600">Todo el día - Patio</p>
-              </div>
-            </div>
+                return (
+                  <div key={evento.id} className={`flex items-start gap-3 p-3 rounded-lg bg-${color}-50 border border-${color}-100`}>
+                    <div className={`flex-shrink-0 w-12 h-12 rounded-lg bg-${color}-600 text-white flex flex-col items-center justify-center`}>
+                      <span className="text-xs font-medium">{fecha.dia}</span>
+                      <span className="text-lg font-bold">{fecha.numero}</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">{evento.titulo}</p>
+                      <p className="text-sm text-gray-600">{hora} - {evento.lugar}</p>
+                    </div>
+                  </div>
+                )
+              })
+            )}
           </CardContent>
         </Card>
 
@@ -135,69 +229,79 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="border-l-4 border-blue-600 pl-4 py-2">
-              <p className="font-medium text-gray-900">
-                Nuevos horarios de atención
-              </p>
-              <p className="text-sm text-gray-600 mt-1">
-                A partir de la próxima semana, el horario de atención será de 7:00 AM a 3:00 PM.
-              </p>
-              <p className="text-xs text-gray-500 mt-2">Hace 2 horas</p>
-            </div>
+            {loadingAnuncios ? (
+              <p className="text-sm text-gray-500">Cargando anuncios...</p>
+            ) : anuncios.length === 0 ? (
+              <p className="text-sm text-gray-500">No hay anuncios recientes</p>
+            ) : (
+              anuncios.map((anuncio, index) => {
+                const colors = ['blue', 'purple', 'green', 'orange']
+                const color = colors[index % colors.length]
 
-            <div className="border-l-4 border-purple-600 pl-4 py-2">
-              <p className="font-medium text-gray-900">
-                Recordatorio: Entrega de boletines
-              </p>
-              <p className="text-sm text-gray-600 mt-1">
-                Los boletines del primer periodo estarán disponibles el viernes.
-              </p>
-              <p className="text-xs text-gray-500 mt-2">Hace 1 día</p>
-            </div>
-
-            <div className="border-l-4 border-green-600 pl-4 py-2">
-              <p className="font-medium text-gray-900">
-                Inscripciones abiertas para actividades extracurriculares
-              </p>
-              <p className="text-sm text-gray-600 mt-1">
-                Ya están abiertas las inscripciones para deportes y artes.
-              </p>
-              <p className="text-xs text-gray-500 mt-2">Hace 2 días</p>
-            </div>
+                return (
+                  <div key={anuncio.id} className={`border-l-4 border-${color}-600 pl-4 py-2`}>
+                    <p className="font-medium text-gray-900 flex items-center gap-2">
+                      {anuncio.titulo}
+                      {anuncio.importante && (
+                        <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Importante</span>
+                      )}
+                    </p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {anuncio.contenido.substring(0, 100)}{anuncio.contenido.length > 100 ? '...' : ''}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-2">{tiempoDesde(anuncio.fecha_publicacion)}</p>
+                  </div>
+                )
+              })
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Cumpleaños de la semana */}
+      {/* Información de perfil */}
       <Card>
         <CardHeader>
-          <CardTitle>🎉 Cumpleaños de esta semana</CardTitle>
+          <CardTitle>📋 Información de tu perfil</CardTitle>
           <CardDescription>
-            Felicitemos a nuestros compañeros
+            Detalles de tu cuenta
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-br from-pink-50 to-purple-50 border border-purple-100">
-              <div className="w-12 h-12 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold">
-                JS
+          {!profile ? (
+            <div className="text-center py-4">
+              <p className="text-sm text-gray-500">Cargando información del perfil...</p>
+              <p className="text-xs text-gray-400 mt-2">User ID: {user?.id || 'No disponible'}</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="flex flex-col gap-1">
+                <span className="text-sm text-gray-500">Nombre completo</span>
+                <span className="font-medium">{profile.nombre_completo || 'No disponible'}</span>
               </div>
-              <div>
-                <p className="font-medium">Juan Sánchez</p>
-                <p className="text-sm text-gray-600">Miércoles 5 de Feb</p>
+              <div className="flex flex-col gap-1">
+                <span className="text-sm text-gray-500">Email</span>
+                <span className="font-medium">{profile.email || 'No disponible'}</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-sm text-gray-500">Teléfono</span>
+                <span className="font-medium">{profile.telefono || 'No registrado'}</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-sm text-gray-500">Rol</span>
+                <span className="font-medium capitalize">{profile.rol || 'No asignado'}</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-sm text-gray-500">Dirección</span>
+                <span className="font-medium">{profile.direccion || 'No registrada'}</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-sm text-gray-500">Estado</span>
+                <span className={`font-medium ${profile.activo ? 'text-green-600' : 'text-red-600'}`}>
+                  {profile.activo ? 'Activo' : 'Inactivo'}
+                </span>
               </div>
             </div>
-
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-br from-blue-50 to-cyan-50 border border-cyan-100">
-              <div className="w-12 h-12 rounded-full bg-cyan-600 text-white flex items-center justify-center font-bold">
-                MG
-              </div>
-              <div>
-                <p className="font-medium">María González</p>
-                <p className="text-sm text-gray-600">Viernes 7 de Feb</p>
-              </div>
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
     </div>
