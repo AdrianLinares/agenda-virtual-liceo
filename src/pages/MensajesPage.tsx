@@ -53,6 +53,7 @@ export default function MensajesPage() {
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState<string | null>(null)
 
+    const [categoriaUsuario, setCategoriaUsuario] = useState<string>('')
     const [destinatarioId, setDestinatarioId] = useState('')
     const [asunto, setAsunto] = useState('')
     const [contenido, setContenido] = useState('')
@@ -206,6 +207,22 @@ export default function MensajesPage() {
         }
     }
 
+    const filteredRecipients = useMemo(() => {
+        if (!categoriaUsuario || categoriaUsuario === 'todos') return recipients
+
+        const rolMap: Record<string, string[]> = {
+            'administrativo': ['administrador', 'administrativo'],
+            'docente': ['docente'],
+            'estudiante': ['estudiante'],
+            'padre': ['padre']
+        }
+
+        const rolesPermitidos = rolMap[categoriaUsuario.toLowerCase()] || []
+        return recipients.filter((user) =>
+            rolesPermitidos.includes(user.rol.toLowerCase())
+        )
+    }, [recipients, categoriaUsuario])
+
     const headerDescription = useMemo(() => {
         if (profile?.rol === 'estudiante') return 'Envía y recibe mensajes institucionales'
         if (profile?.rol === 'padre') return 'Comunícate con docentes y directivos'
@@ -265,15 +282,41 @@ export default function MensajesPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="grid gap-4 md:grid-cols-2">
+                    <div className="grid gap-4 md:grid-cols-3">
+                        <div className="space-y-2">
+                            <Label>Categoría de usuario (filtro opcional)</Label>
+                            <Select value={categoriaUsuario} onValueChange={(value) => {
+                                setCategoriaUsuario(value)
+                                setDestinatarioId('') // Limpiar destinatario al cambiar categoría
+                            }}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Todos" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="todos">Todos</SelectItem>
+                                    <SelectItem value="administrativo">Administrativo</SelectItem>
+                                    <SelectItem value="docente">Docente</SelectItem>
+                                    <SelectItem value="estudiante">Estudiante</SelectItem>
+                                    <SelectItem value="padre">Padre/Madre</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
                         <div className="space-y-2">
                             <Label>Destinatario</Label>
-                            <Select value={destinatarioId} onValueChange={setDestinatarioId}>
+                            <Select
+                                value={destinatarioId}
+                                onValueChange={setDestinatarioId}
+                            >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Selecciona un destinatario" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {recipients.map((user) => (
+                                    {filteredRecipients.length === 0 && (
+                                        <div className="px-2 py-1.5 text-sm text-gray-500">
+                                            No hay usuarios disponibles
+                                        </div>
+                                    )}
+                                    {filteredRecipients.map((user) => (
                                         <SelectItem key={user.id} value={user.id}>
                                             {user.nombre_completo} • {user.rol}
                                         </SelectItem>
