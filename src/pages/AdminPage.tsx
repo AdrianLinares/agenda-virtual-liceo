@@ -23,6 +23,16 @@ export default function AdminPage() {
     // Estados para usuarios
     const [usuarios, setUsuarios] = useState<Profile[]>([])
     const [loadingUsuarios, setLoadingUsuarios] = useState(true)
+    const [editingUsuario, setEditingUsuario] = useState<Profile | null>(null)
+    const [showUsuarioModal, setShowUsuarioModal] = useState(false)
+    const [usuarioForm, setUsuarioForm] = useState({
+        nombre_completo: '',
+        email: '',
+        rol: 'estudiante' as Database['public']['Enums']['user_role'],
+        telefono: '',
+        direccion: '',
+        activo: true
+    })
 
     // Estados para grados
     const [grados, setGrados] = useState<Grado[]>([])
@@ -171,6 +181,91 @@ export default function AdminPage() {
 
             if (error) throw error
             setMessage({ type: 'success', text: 'Usuario actualizado correctamente' })
+            loadUsuarios()
+        } catch (error: any) {
+            setMessage({ type: 'error', text: error.message })
+        }
+    }
+
+    const handleOpenCreateUsuario = () => {
+        setEditingUsuario(null)
+        setUsuarioForm({
+            nombre_completo: '',
+            email: '',
+            rol: 'estudiante',
+            telefono: '',
+            direccion: '',
+            activo: true
+        })
+        setShowUsuarioModal(true)
+    }
+
+    const handleOpenEditUsuario = (usuario: Profile) => {
+        setEditingUsuario(usuario)
+        setUsuarioForm({
+            nombre_completo: usuario.nombre_completo,
+            email: usuario.email,
+            rol: usuario.rol,
+            telefono: usuario.telefono || '',
+            direccion: usuario.direccion || '',
+            activo: usuario.activo
+        })
+        setShowUsuarioModal(true)
+    }
+
+    const handleSaveUsuario = async (e: React.FormEvent) => {
+        e.preventDefault()
+
+        if (!usuarioForm.nombre_completo || !usuarioForm.email || !usuarioForm.rol) {
+            setMessage({ type: 'error', text: 'Completa todos los campos obligatorios' })
+            return
+        }
+
+        try {
+            if (editingUsuario) {
+                // Actualizar usuario existente
+                const { error } = await (supabase as any)
+                    .from('profiles')
+                    .update({
+                        nombre_completo: usuarioForm.nombre_completo,
+                        email: usuarioForm.email,
+                        rol: usuarioForm.rol,
+                        telefono: usuarioForm.telefono || null,
+                        direccion: usuarioForm.direccion || null,
+                        activo: usuarioForm.activo
+                    })
+                    .eq('id', editingUsuario.id)
+
+                if (error) throw error
+                setMessage({ type: 'success', text: 'Usuario actualizado correctamente' })
+            } else {
+                // Crear nuevo usuario - Nota: requiere crear usuario en auth.users primero
+                setMessage({
+                    type: 'error',
+                    text: 'Para crear usuarios nuevos, primero debes crearlos en Supabase Authentication y luego se sincronizarán automáticamente'
+                })
+                setShowUsuarioModal(false)
+                return
+            }
+
+            setShowUsuarioModal(false)
+            loadUsuarios()
+        } catch (error: any) {
+            setMessage({ type: 'error', text: error.message })
+        }
+    }
+
+    const handleDeleteUsuario = async (userId: string, userName: string) => {
+        if (!confirm(`¿Estás seguro de eliminar al usuario "${userName}"? Esta acción no se puede deshacer.`)) return
+
+        try {
+            const { error } = await supabase
+                .from('profiles')
+                .delete()
+                .eq('id', userId)
+
+            if (error) throw error
+            setMessage({ type: 'success', text: 'Usuario eliminado correctamente' })
             loadUsuarios()
         } catch (error: any) {
             setMessage({ type: 'error', text: error.message })
@@ -329,8 +424,8 @@ export default function AdminPage() {
                 <button
                     onClick={() => setActiveTab('usuarios')}
                     className={`px-4 py-2 font-medium transition-colors ${activeTab === 'usuarios'
-                            ? 'border-b-2 border-blue-600 text-blue-600'
-                            : 'text-gray-600 hover:text-gray-900'
+                        ? 'border-b-2 border-blue-600 text-blue-600'
+                        : 'text-gray-600 hover:text-gray-900'
                         }`}
                 >
                     Usuarios
@@ -338,8 +433,8 @@ export default function AdminPage() {
                 <button
                     onClick={() => setActiveTab('grados')}
                     className={`px-4 py-2 font-medium transition-colors ${activeTab === 'grados'
-                            ? 'border-b-2 border-blue-600 text-blue-600'
-                            : 'text-gray-600 hover:text-gray-900'
+                        ? 'border-b-2 border-blue-600 text-blue-600'
+                        : 'text-gray-600 hover:text-gray-900'
                         }`}
                 >
                     Grados
@@ -347,8 +442,8 @@ export default function AdminPage() {
                 <button
                     onClick={() => setActiveTab('asignaturas')}
                     className={`px-4 py-2 font-medium transition-colors ${activeTab === 'asignaturas'
-                            ? 'border-b-2 border-blue-600 text-blue-600'
-                            : 'text-gray-600 hover:text-gray-900'
+                        ? 'border-b-2 border-blue-600 text-blue-600'
+                        : 'text-gray-600 hover:text-gray-900'
                         }`}
                 >
                     Asignaturas
@@ -356,8 +451,8 @@ export default function AdminPage() {
                 <button
                     onClick={() => setActiveTab('grupos')}
                     className={`px-4 py-2 font-medium transition-colors ${activeTab === 'grupos'
-                            ? 'border-b-2 border-blue-600 text-blue-600'
-                            : 'text-gray-600 hover:text-gray-900'
+                        ? 'border-b-2 border-blue-600 text-blue-600'
+                        : 'text-gray-600 hover:text-gray-900'
                         }`}
                 >
                     Grupos
@@ -366,65 +461,191 @@ export default function AdminPage() {
 
             {/* Usuarios Tab */}
             {activeTab === 'usuarios' && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Gestión de Usuarios</CardTitle>
-                        <CardDescription>Administra los usuarios del sistema</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {loadingUsuarios ? (
-                            <div className="text-center py-8">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <div className="space-y-6">
+                    <Card>
+                        <CardHeader>
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <CardTitle>Gestión de Usuarios</CardTitle>
+                                    <CardDescription>Administra los usuarios del sistema</CardDescription>
+                                </div>
+                                <Button onClick={handleOpenCreateUsuario}>
+                                    + Crear Usuario
+                                </Button>
                             </div>
-                        ) : (
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead className="bg-gray-50">
-                                        <tr>
-                                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Nombre</th>
-                                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Email</th>
-                                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Rol</th>
-                                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Estado</th>
-                                            <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Acciones</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-200">
-                                        {usuarios.map((usuario) => (
-                                            <tr key={usuario.id} className="hover:bg-gray-50">
-                                                <td className="px-4 py-3 text-sm">{usuario.nombre_completo}</td>
-                                                <td className="px-4 py-3 text-sm">{usuario.email}</td>
-                                                <td className="px-4 py-3 text-sm">
-                                                    <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
-                                                        {usuario.rol}
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-3 text-sm">
-                                                    <span
-                                                        className={`px-2 py-1 rounded-full text-xs ${usuario.activo
+                        </CardHeader>
+                        <CardContent>
+                            {loadingUsuarios ? (
+                                <div className="text-center py-8">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead className="bg-gray-50">
+                                            <tr>
+                                                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Nombre</th>
+                                                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Email</th>
+                                                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Rol</th>
+                                                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Estado</th>
+                                                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-200">
+                                            {usuarios.map((usuario) => (
+                                                <tr key={usuario.id} className="hover:bg-gray-50">
+                                                    <td className="px-4 py-3 text-sm">{usuario.nombre_completo}</td>
+                                                    <td className="px-4 py-3 text-sm">{usuario.email}</td>
+                                                    <td className="px-4 py-3 text-sm">
+                                                        <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                                                            {usuario.rol}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-sm">
+                                                        <span
+                                                            className={`px-2 py-1 rounded-full text-xs ${usuario.activo
                                                                 ? 'bg-green-100 text-green-800'
                                                                 : 'bg-red-100 text-red-800'
-                                                            }`}
-                                                    >
-                                                        {usuario.activo ? 'Activo' : 'Inactivo'}
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-3 text-sm">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => handleToggleUsuarioActivo(usuario.id, usuario.activo)}
-                                                    >
-                                                        {usuario.activo ? 'Desactivar' : 'Activar'}
-                                                    </Button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
+                                                                }`}
+                                                        >
+                                                            {usuario.activo ? 'Activo' : 'Inactivo'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-sm">
+                                                        <div className="flex gap-2">
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => handleOpenEditUsuario(usuario)}
+                                                            >
+                                                                Editar
+                                                            </Button>
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => handleToggleUsuarioActivo(usuario.id, usuario.activo)}
+                                                            >
+                                                                {usuario.activo ? 'Desactivar' : 'Activar'}
+                                                            </Button>
+                                                            <Button
+                                                                variant="destructive"
+                                                                size="sm"
+                                                                onClick={() => handleDeleteUsuario(usuario.id, usuario.nombre_completo)}
+                                                            >
+                                                                Eliminar
+                                                            </Button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    {/* Modal de Crear/Editar Usuario */}
+                    {showUsuarioModal && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                            <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                                <CardHeader>
+                                    <CardTitle>{editingUsuario ? 'Editar Usuario' : 'Crear Nuevo Usuario'}</CardTitle>
+                                    <CardDescription>
+                                        {editingUsuario ? 'Modifica la información del usuario' : 'Ingresa los datos del nuevo usuario'}
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <form onSubmit={handleSaveUsuario} className="space-y-4">
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <div>
+                                                <Label htmlFor="usuario-nombre">Nombre Completo *</Label>
+                                                <Input
+                                                    id="usuario-nombre"
+                                                    value={usuarioForm.nombre_completo}
+                                                    onChange={(e) => setUsuarioForm({ ...usuarioForm, nombre_completo: e.target.value })}
+                                                    required
+                                                />
+                                            </div>
+                                            <div>
+                                                <Label htmlFor="usuario-email">Email *</Label>
+                                                <Input
+                                                    id="usuario-email"
+                                                    type="email"
+                                                    value={usuarioForm.email}
+                                                    onChange={(e) => setUsuarioForm({ ...usuarioForm, email: e.target.value })}
+                                                    required
+                                                    disabled={!!editingUsuario}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <div>
+                                                <Label htmlFor="usuario-rol">Rol *</Label>
+                                                <select
+                                                    id="usuario-rol"
+                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                                    value={usuarioForm.rol}
+                                                    onChange={(e) => setUsuarioForm({ ...usuarioForm, rol: e.target.value as any })}
+                                                    required
+                                                >
+                                                    <option value="estudiante">Estudiante</option>
+                                                    <option value="padre">Padre/Madre</option>
+                                                    <option value="docente">Docente</option>
+                                                    <option value="administrativo">Administrativo</option>
+                                                    <option value="administrador">Administrador</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <Label htmlFor="usuario-telefono">Teléfono</Label>
+                                                <Input
+                                                    id="usuario-telefono"
+                                                    value={usuarioForm.telefono}
+                                                    onChange={(e) => setUsuarioForm({ ...usuarioForm, telefono: e.target.value })}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <Label htmlFor="usuario-direccion">Dirección</Label>
+                                            <Input
+                                                id="usuario-direccion"
+                                                value={usuarioForm.direccion}
+                                                onChange={(e) => setUsuarioForm({ ...usuarioForm, direccion: e.target.value })}
+                                            />
+                                        </div>
+
+                                        {editingUsuario && (
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="checkbox"
+                                                    id="usuario-activo"
+                                                    checked={usuarioForm.activo}
+                                                    onChange={(e) => setUsuarioForm({ ...usuarioForm, activo: e.target.checked })}
+                                                />
+                                                <Label htmlFor="usuario-activo">Usuario activo</Label>
+                                            </div>
+                                        )}
+
+                                        <div className="flex gap-2 justify-end">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                onClick={() => setShowUsuarioModal(false)}
+                                            >
+                                                Cancelar
+                                            </Button>
+                                            <Button type="submit">
+                                                {editingUsuario ? 'Guardar Cambios' : 'Crear Usuario'}
+                                            </Button>
+                                        </div>
+                                    </form>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    )}
+                </div>
             )}
 
             {/* Grados Tab */}
