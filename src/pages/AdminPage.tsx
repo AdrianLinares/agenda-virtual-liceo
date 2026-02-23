@@ -135,6 +135,9 @@ export default function AdminPage() {
     const [creatingAsignatura, setCreatingAsignatura] = useState(false)
     const [deletingAsignaturaId, setDeletingAsignaturaId] = useState<string | null>(null)
     const [newAsignatura, setNewAsignatura] = useState({ nombre: '', codigo: '', descripcion: '' })
+    const [asignaturaDocenteId, setAsignaturaDocenteId] = useState('')
+    const [asignaturaGrupoIds, setAsignaturaGrupoIds] = useState<string[]>([])
+    const [asignaturaAno, setAsignaturaAno] = useState(new Date().getFullYear())
 
     const [grupos, setGrupos] = useState<GroupRow[]>([])
     const [docentes, setDocentes] = useState<Profile[]>([])
@@ -236,6 +239,8 @@ export default function AdminPage() {
 
         if (activeTab === 'asignaturas') {
             loadAsignaturas()
+            loadDocentes()
+            loadGrupos()
         }
 
         if (activeTab === 'grupos') {
@@ -547,6 +552,12 @@ export default function AdminPage() {
             return
         }
 
+        if ((asignaturaDocenteId && asignaturaGrupoIds.length === 0)
+            || (!asignaturaDocenteId && asignaturaGrupoIds.length > 0)) {
+            asignaturasMessage.show('error', 'Selecciona docente y al menos un grupo para asignar la materia')
+            return
+        }
+
         try {
             setCreatingAsignatura(true)
             const payload: Database['public']['Tables']['asignaturas']['Insert'] = {
@@ -554,10 +565,31 @@ export default function AdminPage() {
                 codigo: newAsignatura.codigo || null,
                 descripcion: newAsignatura.descripcion || null
             }
-            const { error } = await dbClient.from('asignaturas').insert(payload as never)
-            if (error) throw error
+            const { data, error } = await dbClient
+                .from('asignaturas')
+                .insert(payload as never)
+                .select('id')
+                .single<{ id: string }>()
+            if (error || !data) throw error
+
+            if (asignaturaDocenteId && asignaturaGrupoIds.length > 0) {
+                const asignacionPayload: Array<Database['public']['Tables']['asignaciones_docentes']['Insert']> =
+                    asignaturaGrupoIds.map((grupoId) => ({
+                        docente_id: asignaturaDocenteId,
+                        grupo_id: grupoId,
+                        asignatura_id: data.id,
+                        año_academico: asignaturaAno
+                    }))
+                const { error: asignacionError } = await dbClient
+                    .from('asignaciones_docentes')
+                    .insert(asignacionPayload as never)
+                if (asignacionError) throw asignacionError
+            }
 
             setNewAsignatura({ nombre: '', codigo: '', descripcion: '' })
+            setAsignaturaDocenteId('')
+            setAsignaturaGrupoIds([])
+            setAsignaturaAno(new Date().getFullYear())
             asignaturasMessage.show('success', 'Asignatura creada correctamente')
             await loadAsignaturas()
         } catch (error) {
@@ -582,6 +614,12 @@ export default function AdminPage() {
         } finally {
             setDeletingAsignaturaId(null)
         }
+    }
+
+    const toggleAsignaturaGrupo = (grupoId: string) => {
+        setAsignaturaGrupoIds((prev) =>
+            prev.includes(grupoId) ? prev.filter((id) => id !== grupoId) : [...prev, grupoId]
+        )
     }
 
     const onCreateGrupo = async (e: React.FormEvent) => {
@@ -661,8 +699,8 @@ export default function AdminPage() {
                         type="button"
                         onClick={() => setActiveTab(tab.key)}
                         className={`px-4 py-2 font-medium transition-colors ${activeTab === tab.key
-                                ? 'border-b-2 border-primary text-primary'
-                                : 'text-muted-foreground hover:text-foreground'
+                            ? 'border-b-2 border-primary text-primary'
+                            : 'text-muted-foreground hover:text-foreground'
                             }`}
                     >
                         {tab.label}
@@ -910,6 +948,56 @@ export default function AdminPage() {
                                         id="asignatura-descripcion"
                                         value={newAsignatura.descripcion}
                                         onChange={(e) => setNewAsignatura((prev) => ({ ...prev, descripcion: e.target.value }))}
+                                    />
+                                </div>
+                                <div>
+                                    <Label htmlFor="asignatura-docente">Docente que dictará</Label>
+                                    <select
+                                        id="asignatura-docente"
+                                        className="w-full px-3 py-2 border rounded-md bg-background"
+                                        value={asignaturaDocenteId}
+                                        onChange={(e) => setAsignaturaDocenteId(e.target.value)}
+                                    >
+                                        <option value="">Sin asignar</option>
+                                        {docentes.map((docente) => (
+                                            <option key={docente.id} value={docente.id}>
+                                                {docente.nombre_completo}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <Label>Grupos</Label>
+                                    <div className="space-y-2 rounded-md border p-3">
+                                        {grupos.length === 0 ? (
+                                            <p className="text-sm text-muted-foreground">No hay grupos registrados.</p>
+                                        ) : (
+                                            grupos.map((grupo) => (
+                                                <label key={grupo.id} className="flex items-center gap-2 text-sm">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={asignaturaGrupoIds.includes(grupo.id)}
+                                                        onChange={() => toggleAsignaturaGrupo(grupo.id)}
+                                                    />
+                                                    <span>
+                                                        {grupo.grado?.nombre ?? 'Sin grado'} - Grupo {grupo.nombre}
+                                                    </span>
+                                                </label>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                                <div>
+                                    <Label htmlFor="asignatura-anio">Año académico</Label>
+                                    <Input
+                                        id="asignatura-anio"
+                                        type="number"
+                                        value={asignaturaAno}
+                                        onChange={(e) =>
+                                            setAsignaturaAno(Number.isNaN(Number(e.target.value))
+                                                ? asignaturaAno
+                                                : Number(e.target.value))
+                                        }
                                     />
                                 </div>
                                 <Button type="submit" className="w-full" disabled={creatingAsignatura}>

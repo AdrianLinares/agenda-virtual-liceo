@@ -38,6 +38,7 @@ DROP POLICY IF EXISTS "Admin modify periodos" ON periodos;
 DROP POLICY IF EXISTS "Admin modify estudiantes_grupos" ON estudiantes_grupos;
 DROP POLICY IF EXISTS "Admin modify padres_estudiantes" ON padres_estudiantes;
 DROP POLICY IF EXISTS "Admin modify asignaciones" ON asignaciones_docentes;
+DROP POLICY IF EXISTS "Staff manage horarios" ON horarios;
 
 -- =====================================================
 -- 2. CREAR/RECREAR FUNCIONES HELPER (SIN RECURSIÓN)
@@ -261,6 +262,14 @@ CREATE POLICY "Admin modify padres_estudiantes" ON padres_estudiantes FOR ALL
 CREATE POLICY "Admin modify asignaciones" ON asignaciones_docentes FOR ALL
     USING (public.is_admin_or_staff())
     WITH CHECK (public.is_admin_or_staff());
+
+-- =====================================================
+-- 9. POLÍTICAS PARA HORARIOS (SIN RECURSIÓN)
+-- =====================================================
+
+CREATE POLICY "Staff manage horarios" ON horarios FOR ALL
+    USING (public.is_staff_or_teacher())
+    WITH CHECK (public.is_staff_or_teacher());
 
 -- =====================================================
 -- 9. POLÍTICAS PARA BOLETINES (SIN RECURSIÓN)

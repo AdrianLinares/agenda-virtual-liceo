@@ -13,7 +13,7 @@ import {
     SelectValue,
 } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { AlertCircle, CalendarClock, CheckCircle2, Loader2 } from 'lucide-react'
+import { AlertCircle, CalendarClock, CheckCircle2, Loader2, Pencil, Trash2, X } from 'lucide-react'
 import type { Database } from '@/types/database.types'
 
 interface Horario {
@@ -47,6 +47,11 @@ interface GrupoOption {
     grado: string
 }
 
+interface DocenteOption {
+    id: string
+    nombre_completo: string
+}
+
 const DIAS = [
     { value: 1, label: 'Lunes' },
     { value: 2, label: 'Martes' },
@@ -65,6 +70,8 @@ export default function HorariosPage() {
 
     const [grupos, setGrupos] = useState<GrupoOption[]>([])
     const [selectedGrupo, setSelectedGrupo] = useState('')
+    const [docentes, setDocentes] = useState<DocenteOption[]>([])
+    const [docenteId, setDocenteId] = useState('')
 
     const [diaSemana, setDiaSemana] = useState(1)
     const [horaInicio, setHoraInicio] = useState('')
@@ -73,12 +80,24 @@ export default function HorariosPage() {
     const [asignaturaId, setAsignaturaId] = useState('')
     const [asignaturas, setAsignaturas] = useState<Array<{ id: string; nombre: string }>>([])
 
+    const [editingHorarioId, setEditingHorarioId] = useState<string | null>(null)
+    const [updatingHorarioId, setUpdatingHorarioId] = useState<string | null>(null)
+    const [deletingHorarioId, setDeletingHorarioId] = useState<string | null>(null)
+    const [editAsignaturaId, setEditAsignaturaId] = useState('')
+    const [editDocenteId, setEditDocenteId] = useState('')
+    const [editDiaSemana, setEditDiaSemana] = useState(1)
+    const [editHoraInicio, setEditHoraInicio] = useState('')
+    const [editHoraFin, setEditHoraFin] = useState('')
+    const [editAula, setEditAula] = useState('')
+
     const isStaff = profile?.rol === 'administrador' || profile?.rol === 'administrativo' || profile?.rol === 'docente'
+    const canManageHorarios = profile?.rol === 'administrador' || profile?.rol === 'administrativo'
 
     useEffect(() => {
         if (profile) {
             loadGrupos()
             loadAsignaturas()
+            loadDocentes()
         }
     }, [profile])
 
@@ -130,6 +149,23 @@ export default function HorariosPage() {
         }
     }
 
+    const loadDocentes = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('id, nombre_completo')
+                .eq('rol', 'docente')
+                .eq('activo', true)
+                .order('nombre_completo', { ascending: true })
+
+            if (error) throw error
+
+            setDocentes((data || []) as DocenteOption[])
+        } catch (err) {
+            console.error('Error loading docentes:', err)
+        }
+    }
+
     const loadHorarios = async () => {
         if (!selectedGrupo) return
 
@@ -166,10 +202,18 @@ export default function HorariosPage() {
     }
 
     const handleCreateHorario = async () => {
-        if (!profile) return
+        if (!profile || !canManageHorarios) {
+            setError('No tienes permisos para editar horarios')
+            return
+        }
 
         if (!selectedGrupo || !asignaturaId || !horaInicio || !horaFin) {
             setError('Completa grupo, asignatura y horario')
+            return
+        }
+
+        if (profile.rol !== 'docente' && !docenteId) {
+            setError('Selecciona el docente para este horario')
             return
         }
 
@@ -181,7 +225,7 @@ export default function HorariosPage() {
             const payload = {
                 grupo_id: selectedGrupo,
                 asignatura_id: asignaturaId,
-                docente_id: profile.rol === 'docente' ? profile.id : null,
+                docente_id: profile.rol === 'docente' ? profile.id : docenteId,
                 dia_semana: diaSemana,
                 hora_inicio: horaInicio,
                 hora_fin: horaFin,
@@ -200,6 +244,7 @@ export default function HorariosPage() {
             setHoraFin('')
             setAula('')
             setAsignaturaId('')
+            setDocenteId('')
             setSuccess('Horario registrado')
             await loadHorarios()
         } catch (err) {
@@ -207,6 +252,93 @@ export default function HorariosPage() {
             setError('Error al registrar el horario')
         } finally {
             setSaving(false)
+        }
+    }
+
+    const startEditHorario = (item: Horario) => {
+        setEditingHorarioId(item.id)
+        setEditAsignaturaId(item.asignatura_id)
+        setEditDocenteId(item.docente_id ?? '')
+        setEditDiaSemana(item.dia_semana)
+        setEditHoraInicio(item.hora_inicio)
+        setEditHoraFin(item.hora_fin)
+        setEditAula(item.aula ?? '')
+    }
+
+    const cancelEditHorario = () => {
+        setEditingHorarioId(null)
+    }
+
+    const handleUpdateHorario = async (itemId: string) => {
+        if (!profile || !canManageHorarios) {
+            setError('No tienes permisos para eliminar horarios')
+            return
+        }
+
+        if (!editAsignaturaId || !editHoraInicio || !editHoraFin) {
+            setError('Completa asignatura y horario')
+            return
+        }
+
+        if (profile.rol !== 'docente' && !editDocenteId) {
+            setError('Selecciona el docente para este horario')
+            return
+        }
+
+        setUpdatingHorarioId(itemId)
+        setError(null)
+        setSuccess(null)
+
+        try {
+            const payload = {
+                asignatura_id: editAsignaturaId,
+                docente_id: profile.rol === 'docente' ? profile.id : editDocenteId,
+                dia_semana: editDiaSemana,
+                hora_inicio: editHoraInicio,
+                hora_fin: editHoraFin,
+                aula: editAula.trim() ? editAula.trim() : null,
+            } satisfies Database['public']['Tables']['horarios']['Update']
+
+            const { error } = await (supabase as any)
+                .from('horarios')
+                .update(payload)
+                .eq('id', itemId)
+
+            if (error) throw error
+
+            setSuccess('Horario actualizado')
+            setEditingHorarioId(null)
+            await loadHorarios()
+        } catch (err) {
+            console.error('Error updating horario:', err)
+            setError('Error al actualizar el horario')
+        } finally {
+            setUpdatingHorarioId(null)
+        }
+    }
+
+    const handleDeleteHorario = async (itemId: string) => {
+        if (!window.confirm('¿Eliminar este horario?')) return
+
+        setDeletingHorarioId(itemId)
+        setError(null)
+        setSuccess(null)
+
+        try {
+            const { error } = await (supabase as any)
+                .from('horarios')
+                .delete()
+                .eq('id', itemId)
+
+            if (error) throw error
+
+            setSuccess('Horario eliminado')
+            await loadHorarios()
+        } catch (err) {
+            console.error('Error deleting horario:', err)
+            setError('Error al eliminar el horario')
+        } finally {
+            setDeletingHorarioId(null)
         }
     }
 
@@ -262,7 +394,7 @@ export default function HorariosPage() {
                 </CardContent>
             </Card>
 
-            {isStaff && (
+            {canManageHorarios && (
                 <Card>
                     <CardHeader>
                         <CardTitle>Registrar horario</CardTitle>
@@ -301,6 +433,24 @@ export default function HorariosPage() {
                                 </Select>
                             </div>
                         </div>
+
+                        {profile?.rol !== 'docente' && (
+                            <div className="space-y-2">
+                                <Label>Docente</Label>
+                                <Select value={docenteId} onValueChange={setDocenteId}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Selecciona docente" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {docentes.map((docente) => (
+                                            <SelectItem key={docente.id} value={docente.id}>
+                                                {docente.nombre_completo}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
 
                         <div className="grid gap-4 md:grid-cols-3">
                             <div className="space-y-2">
@@ -349,10 +499,37 @@ export default function HorariosPage() {
                     {horarios.map((item) => (
                         <Card key={item.id}>
                             <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <CalendarClock className="h-4 w-4 text-blue-600" />
-                                    {item.asignatura?.nombre}
-                                </CardTitle>
+                                <div className="flex items-start justify-between gap-3">
+                                    <CardTitle className="flex items-center gap-2">
+                                        <CalendarClock className="h-4 w-4 text-blue-600" />
+                                        {item.asignatura?.nombre}
+                                    </CardTitle>
+                                    {canManageHorarios && (
+                                        <div className="flex gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="icon"
+                                                onClick={() => startEditHorario(item)}
+                                                title="Editar horario"
+                                            >
+                                                <Pencil className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                                variant="destructive"
+                                                size="icon"
+                                                onClick={() => handleDeleteHorario(item.id)}
+                                                disabled={deletingHorarioId === item.id}
+                                                title="Eliminar horario"
+                                            >
+                                                {deletingHorarioId === item.id ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                    <Trash2 className="h-4 w-4" />
+                                                )}
+                                            </Button>
+                                        </div>
+                                    )}
+                                </div>
                                 <CardDescription>
                                     {dayLabel(item.dia_semana)} • {item.hora_inicio} - {item.hora_fin}
                                 </CardDescription>
@@ -366,6 +543,96 @@ export default function HorariosPage() {
                                 )}
                                 {item.aula && (
                                     <p className="text-xs text-gray-500">Aula: {item.aula}</p>
+                                )}
+
+                                {editingHorarioId === item.id && (
+                                    <div className="mt-4 space-y-4 border-t pt-4">
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <div className="space-y-2">
+                                                <Label>Asignatura</Label>
+                                                <Select value={editAsignaturaId} onValueChange={setEditAsignaturaId}>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Selecciona asignatura" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {asignaturas.map((asignatura) => (
+                                                            <SelectItem key={asignatura.id} value={asignatura.id}>
+                                                                {asignatura.nombre}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label>Día</Label>
+                                                <Select value={String(editDiaSemana)} onValueChange={(value) => setEditDiaSemana(Number(value))}>
+                                                    <SelectTrigger>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {DIAS.map((dia) => (
+                                                            <SelectItem key={dia.value} value={String(dia.value)}>
+                                                                {dia.label}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        </div>
+
+                                        {profile?.rol !== 'docente' && (
+                                            <div className="space-y-2">
+                                                <Label>Docente</Label>
+                                                <Select value={editDocenteId} onValueChange={setEditDocenteId}>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Selecciona docente" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {docentes.map((docente) => (
+                                                            <SelectItem key={docente.id} value={docente.id}>
+                                                                {docente.nombre_completo}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        )}
+
+                                        <div className="grid gap-4 md:grid-cols-3">
+                                            <div className="space-y-2">
+                                                <Label>Hora inicio</Label>
+                                                <Input type="time" value={editHoraInicio} onChange={(e) => setEditHoraInicio(e.target.value)} />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label>Hora fin</Label>
+                                                <Input type="time" value={editHoraFin} onChange={(e) => setEditHoraFin(e.target.value)} />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label>Aula</Label>
+                                                <Input value={editAula} onChange={(e) => setEditAula(e.target.value)} />
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-wrap gap-2">
+                                            <Button
+                                                onClick={() => handleUpdateHorario(item.id)}
+                                                disabled={updatingHorarioId === item.id}
+                                            >
+                                                {updatingHorarioId === item.id ? (
+                                                    <>
+                                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                        Guardando...
+                                                    </>
+                                                ) : (
+                                                    'Guardar cambios'
+                                                )}
+                                            </Button>
+                                            <Button variant="outline" onClick={cancelEditHorario}>
+                                                <X className="mr-2 h-4 w-4" />
+                                                Cancelar
+                                            </Button>
+                                        </div>
+                                    </div>
                                 )}
                             </CardContent>
                         </Card>

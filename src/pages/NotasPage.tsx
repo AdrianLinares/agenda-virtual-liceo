@@ -129,7 +129,27 @@ export default function NotasPage() {
                     query = query.in('estudiante_id', hijosIds)
                 }
             } else if (profile.rol === 'docente') {
-                query = query.eq('docente_id', profile.id)
+                const { data: asignaciones, error: asignacionesError } = await supabase
+                    .from('asignaciones_docentes')
+                    .select('grupo_id, asignatura_id')
+                    .eq('docente_id', profile.id)
+
+                if (asignacionesError) throw asignacionesError
+
+                const gruposAsignados = Array.from(
+                    new Set((asignaciones || []).map((item) => item.grupo_id))
+                )
+                const asignaturasAsignadas = Array.from(
+                    new Set((asignaciones || []).map((item) => item.asignatura_id))
+                )
+
+                if (gruposAsignados.length === 0 || asignaturasAsignadas.length === 0) {
+                    setNotas([])
+                    setLoading(false)
+                    return
+                }
+
+                query = query.in('grupo_id', gruposAsignados).in('asignatura_id', asignaturasAsignadas)
             }
 
             const { data, error } = await query
