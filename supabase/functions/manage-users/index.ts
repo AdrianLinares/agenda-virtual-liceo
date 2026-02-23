@@ -64,7 +64,7 @@ function getBearerToken(authHeader: string | null) {
     return token
 }
 
-function decodeJWT(token: string): { sub?: string; [key: string]: unknown } | null {
+function decodeJWT(token: string): { sub?: string;[key: string]: unknown } | null {
     try {
         const parts = token.split('.')
         if (parts.length !== 3) return null
