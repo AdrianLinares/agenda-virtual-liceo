@@ -151,6 +151,14 @@ export default function AdminPage() {
         director_grupo_id: ''
     })
 
+    const [estudiantes, setEstudiantes] = useState<Profile[]>([])
+    const [selectedGrupoId, setSelectedGrupoId] = useState<string | null>(null)
+    const [estudiantesEnGrupo, setEstudiantesEnGrupo] = useState<Profile[]>([])
+    const [loadingEstudiantes, setLoadingEstudiantes] = useState(false)
+    const [asignandoEstudiante, setAsignandoEstudiante] = useState(false)
+    const [eliminandoEstudianteId, setEliminandoEstudianteId] = useState<string | null>(null)
+    const [estudianteSeleccionado, setEstudianteSeleccionado] = useState('')
+
     const isAdmin = profile?.rol === 'administrador'
 
     const loadUsuarios = useCallback(async () => {
@@ -225,6 +233,40 @@ export default function AdminPage() {
         }
     }, [gruposMessage.show])
 
+    const loadEstudiantes = useCallback(async () => {
+        try {
+            const { data, error } = await dbClient
+                .from('profiles')
+                .select('*')
+                .eq('rol', 'estudiante')
+                .eq('activo', true)
+                .order('nombre_completo')
+            if (error) throw error
+            setEstudiantes(data ?? [])
+        } catch (error) {
+            gruposMessage.show('error', error instanceof Error ? error.message : 'Error cargando estudiantes')
+        }
+    }, [gruposMessage.show])
+
+    const loadEstudiantesEnGrupo = useCallback(async (grupoId: string) => {
+        try {
+            setLoadingEstudiantes(true)
+            const { data, error } = await dbClient
+                .from('estudiantes_grupos')
+                .select('estudiante:estudiante_id (id, nombre_completo, email)')
+                .eq('grupo_id', grupoId)
+                .eq('estado', 'activo')
+
+            if (error) throw error
+            const estudiantes = (data ?? []).map((item: any) => item.estudiante).filter(Boolean)
+            setEstudiantesEnGrupo(estudiantes)
+        } catch (error) {
+            gruposMessage.show('error', error instanceof Error ? error.message : 'Error cargando estudiantes del grupo')
+        } finally {
+            setLoadingEstudiantes(false)
+        }
+    }, [gruposMessage.show])
+
     useEffect(() => {
         if (!isAdmin) return
         loadUsuarios()
@@ -244,9 +286,9 @@ export default function AdminPage() {
         }
 
         if (activeTab === 'grupos') {
-            void Promise.all([loadGrupos(), loadDocentes(), loadGrados()])
+            void Promise.all([loadGrupos(), loadDocentes(), loadGrados(), loadEstudiantes()])
         }
-    }, [activeTab, isAdmin, loadAsignaturas, loadDocentes, loadGrados, loadGrupos])
+    }, [activeTab, isAdmin, loadAsignaturas, loadDocentes, loadGrados, loadGrupos, loadEstudiantes])
 
     useEffect(() => {
         if (!isAdmin) return
@@ -671,6 +713,84 @@ export default function AdminPage() {
         } finally {
             setDeletingGrupoId(null)
         }
+    }
+
+    const onAsignarEstudiante = async (e: React.FormEvent) => {
+        e.preventDefault()
+
+        if (!estudianteSeleccionado || !selectedGrupoId) {
+            gruposMessage.show('error', 'Selecciona un estudiante')
+            return
+        }
+
+        try {
+            setAsignandoEstudiante(true)
+
+            // Verificar si ya está asignado
+            const { data: existing } = await dbClient
+                .from('estudiantes_grupos')
+                .select('id')
+                .eq('estudiante_id', estudianteSeleccionado)
+                .eq('grupo_id', selectedGrupoId)
+                .eq('estado', 'activo')
+                .single()
+
+            if (existing) {
+                gruposMessage.show('error', 'El estudiante ya está asignado a este grupo')
+                return
+            }
+
+            const payload = {
+                estudiante_id: estudianteSeleccionado,
+                grupo_id: selectedGrupoId,
+                año_academico: new Date().getFullYear(),
+                estado: 'activo'
+            }
+
+            const { error } = await dbClient.from('estudiantes_grupos').insert(payload as never)
+            if (error) throw error
+
+            setEstudianteSeleccionado('')
+            gruposMessage.show('success', 'Estudiante asignado correctamente')
+            await loadEstudiantesEnGrupo(selectedGrupoId)
+        } catch (error) {
+            gruposMessage.show('error', error instanceof Error ? error.message : 'No se pudo asignar el estudiante')
+        } finally {
+            setAsignandoEstudiante(false)
+        }
+    }
+
+    const onEliminarEstudianteDeGrupo = async (estudianteId: string) => {
+        if (!selectedGrupoId || !window.confirm('¿Remover este estudiante del grupo?')) return
+
+        try {
+            setEliminandoEstudianteId(estudianteId)
+            const { error } = await dbClient
+                .from('estudiantes_grupos')
+                .delete()
+                .eq('estudiante_id', estudianteId)
+                .eq('grupo_id', selectedGrupoId)
+
+            if (error) throw error
+
+            gruposMessage.show('success', 'Estudiante removido del grupo')
+            setEstudiantesEnGrupo((prev) => prev.filter((e) => e.id !== estudianteId))
+        } catch (error) {
+            gruposMessage.show('error', error instanceof Error ? error.message : 'No se pudo remover el estudiante')
+        } finally {
+            setEliminandoEstudianteId(null)
+        }
+    }
+
+    const handleVerEstudiantes = (grupoId: string) => {
+        setSelectedGrupoId(grupoId)
+        void loadEstudiantesEnGrupo(grupoId)
+    }
+
+    const handleCerrarEstudiantes = () => {
+        setSelectedGrupoId(null)
+        setEstudiantesEnGrupo([])
+        setEstudianteSeleccionado('')
     }
 
     if (!isAdmin) {
@@ -1136,7 +1256,7 @@ export default function AdminPage() {
                         </CardContent>
                     </Card>
 
-                    <Card>
+                    <Card className={selectedGrupoId ? 'md:col-span-2' : ''}>
                         <CardHeader>
                             <CardTitle>Grupos existentes</CardTitle>
                             <CardDescription>Listado de grupos por grado</CardDescription>
@@ -1153,7 +1273,7 @@ export default function AdminPage() {
                                     ) : (
                                         grupos.map((grupo) => (
                                             <div key={grupo.id} className="flex justify-between items-center p-3 border rounded-lg">
-                                                <div>
+                                                <div className="flex-1">
                                                     <p className="font-medium">
                                                         {grupo.grado?.nombre ?? 'Sin grado'} - Grupo {grupo.nombre}
                                                     </p>
@@ -1164,15 +1284,24 @@ export default function AdminPage() {
                                                         </p>
                                                     )}
                                                 </div>
-                                                <Button
-                                                    variant="destructive"
-                                                    size="sm"
-                                                    onClick={() => void onDeleteGrupo(grupo.id)}
-                                                    disabled={deletingGrupoId === grupo.id}
-                                                >
-                                                    {deletingGrupoId === grupo.id && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                                                    Eliminar
-                                                </Button>
+                                                <div className="flex gap-2">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => handleVerEstudiantes(grupo.id)}
+                                                    >
+                                                        Ver Estudiantes
+                                                    </Button>
+                                                    <Button
+                                                        variant="destructive"
+                                                        size="sm"
+                                                        onClick={() => void onDeleteGrupo(grupo.id)}
+                                                        disabled={deletingGrupoId === grupo.id}
+                                                    >
+                                                        {deletingGrupoId === grupo.id && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                                                        Eliminar
+                                                    </Button>
+                                                </div>
                                             </div>
                                         ))
                                     )}
@@ -1180,6 +1309,98 @@ export default function AdminPage() {
                             )}
                         </CardContent>
                     </Card>
+
+                    {selectedGrupoId && (
+                        <Card className="md:col-span-2 border-2 border-blue-500">
+                            <CardHeader>
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <CardTitle>Estudiantes del grupo</CardTitle>
+                                        <CardDescription>
+                                            {grupos.find((g) => g.id === selectedGrupoId)?.grado?.nombre} -
+                                            Grupo {grupos.find((g) => g.id === selectedGrupoId)?.nombre}
+                                        </CardDescription>
+                                    </div>
+                                    <Button variant="outline" size="sm" onClick={handleCerrarEstudiantes}>
+                                        Cerrar
+                                    </Button>
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="grid md:grid-cols-2 gap-6">
+                                    <div>
+                                        <h3 className="font-semibold mb-3">Asignar estudiante</h3>
+                                        <form onSubmit={onAsignarEstudiante} className="space-y-4">
+                                            <div>
+                                                <Label htmlFor="estudiante-select">Seleccionar estudiante</Label>
+                                                <select
+                                                    id="estudiante-select"
+                                                    className="w-full px-3 py-2 border rounded-md bg-background"
+                                                    value={estudianteSeleccionado}
+                                                    onChange={(e) => setEstudianteSeleccionado(e.target.value)}
+                                                    required
+                                                >
+                                                    <option value="">Seleccionar estudiante</option>
+                                                    {estudiantes
+                                                        .filter((est) => !estudiantesEnGrupo.some((eg) => eg.id === est.id))
+                                                        .map((estudiante) => (
+                                                            <option key={estudiante.id} value={estudiante.id}>
+                                                                {estudiante.nombre_completo} ({estudiante.email})
+                                                            </option>
+                                                        ))}
+                                                </select>
+                                            </div>
+                                            <Button type="submit" className="w-full" disabled={asignandoEstudiante}>
+                                                {asignandoEstudiante && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                                                Asignar estudiante
+                                            </Button>
+                                        </form>
+                                    </div>
+
+                                    <div>
+                                        <h3 className="font-semibold mb-3">Estudiantes asignados ({estudiantesEnGrupo.length})</h3>
+                                        {loadingEstudiantes ? (
+                                            <div className="flex justify-center py-8">
+                                                <Loader2 className="h-6 w-6 animate-spin" />
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2 max-h-96 overflow-y-auto">
+                                                {estudiantesEnGrupo.length === 0 ? (
+                                                    <p className="text-sm text-muted-foreground text-center py-4">
+                                                        No hay estudiantes asignados a este grupo.
+                                                    </p>
+                                                ) : (
+                                                    estudiantesEnGrupo.map((estudiante) => (
+                                                        <div
+                                                            key={estudiante.id}
+                                                            className="flex justify-between items-center p-2 border rounded-md"
+                                                        >
+                                                            <div>
+                                                                <p className="text-sm font-medium">{estudiante.nombre_completo}</p>
+                                                                <p className="text-xs text-muted-foreground">{estudiante.email}</p>
+                                                            </div>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => void onEliminarEstudianteDeGrupo(estudiante.id)}
+                                                                disabled={eliminandoEstudianteId === estudiante.id}
+                                                            >
+                                                                {eliminandoEstudianteId === estudiante.id ? (
+                                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                                ) : (
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                )}
+                                                            </Button>
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
                 </section>
             )}
 

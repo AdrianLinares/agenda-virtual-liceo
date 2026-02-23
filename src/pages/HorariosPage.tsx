@@ -90,7 +90,6 @@ export default function HorariosPage() {
     const [editHoraFin, setEditHoraFin] = useState('')
     const [editAula, setEditAula] = useState('')
 
-    const isStaff = profile?.rol === 'administrador' || profile?.rol === 'administrativo' || profile?.rol === 'docente'
     const canManageHorarios = profile?.rol === 'administrador' || profile?.rol === 'administrativo'
 
     useEffect(() => {
