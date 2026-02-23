@@ -418,7 +418,14 @@ export default function MensajesPage() {
                             ) : (
                                 <div className="space-y-4">
                                     <div>
-                                        <h3 className="text-lg font-semibold text-gray-900">{selectedMessage.asunto}</h3>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <h3 className="text-lg font-semibold text-gray-900">{selectedMessage.asunto}</h3>
+                                            <span
+                                                className={`rounded-full px-2 py-1 text-[11px] font-medium ${estadoBadge(selectedMessage.estado)}`}
+                                            >
+                                                {estadoLabel(selectedMessage.estado)}
+                                            </span>
+                                        </div>
                                         <p className="text-xs text-gray-500">
                                             {tab === 'recibidos'
                                                 ? `De: ${selectedMessage.remitente?.nombre_completo || 'Sistema'}`
