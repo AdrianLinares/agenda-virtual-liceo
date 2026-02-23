@@ -236,6 +236,11 @@ export default function MensajesPage() {
         return 'bg-blue-50 text-blue-700'
     }
 
+    const estadoLabel = (estado: Mensaje['estado']) => {
+        if (tab === 'recibidos' && estado === 'enviado') return 'recibido'
+        return estado
+    }
+
     return (
         <div className="space-y-6">
             <div>
@@ -318,7 +323,7 @@ export default function MensajesPage() {
                                     )}
                                     {filteredRecipients.map((user) => (
                                         <SelectItem key={user.id} value={user.id}>
-                                            {user.nombre_completo} • {user.rol}
+                                            {user.nombre_completo}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -381,7 +386,7 @@ export default function MensajesPage() {
                                     <div className="flex items-center justify-between gap-2">
                                         <p className="text-sm font-semibold text-gray-900 line-clamp-1">{mensaje.asunto}</p>
                                         <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${estadoBadge(mensaje.estado)}`}>
-                                            {mensaje.estado}
+                                            {estadoLabel(mensaje.estado)}
                                         </span>
                                     </div>
                                     <p className="text-xs text-gray-500 mt-1">
