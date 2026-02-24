@@ -39,6 +39,8 @@ DROP POLICY IF EXISTS "Admin modify estudiantes_grupos" ON estudiantes_grupos;
 DROP POLICY IF EXISTS "Admin modify padres_estudiantes" ON padres_estudiantes;
 DROP POLICY IF EXISTS "Admin modify asignaciones" ON asignaciones_docentes;
 DROP POLICY IF EXISTS "Staff manage horarios" ON horarios;
+DROP POLICY IF EXISTS "Public read padres_estudiantes" ON padres_estudiantes;
+DROP POLICY IF EXISTS "Read own padres_estudiantes" ON padres_estudiantes;
 
 -- =====================================================
 -- 2. CREAR/RECREAR FUNCIONES HELPER (SIN RECURSIÓN)
@@ -258,6 +260,13 @@ CREATE POLICY "Admin modify estudiantes_grupos" ON estudiantes_grupos FOR ALL
 CREATE POLICY "Admin modify padres_estudiantes" ON padres_estudiantes FOR ALL
     USING (public.is_admin_or_staff())
     WITH CHECK (public.is_admin_or_staff());
+
+CREATE POLICY "Read own padres_estudiantes" ON padres_estudiantes FOR SELECT
+    USING (
+        padre_id = auth.uid()
+        OR estudiante_id = auth.uid()
+        OR public.is_admin_or_staff()
+    );
 
 CREATE POLICY "Admin modify asignaciones" ON asignaciones_docentes FOR ALL
     USING (public.is_admin_or_staff())

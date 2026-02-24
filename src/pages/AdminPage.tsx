@@ -21,6 +21,7 @@ type Profile = Database['public']['Tables']['profiles']['Row']
 type Grado = Database['public']['Tables']['grados']['Row']
 type Asignatura = Database['public']['Tables']['asignaturas']['Row']
 type Grupo = Database['public']['Tables']['grupos']['Row']
+type PadreEstudiante = Database['public']['Tables']['padres_estudiantes']['Row']
 
 type TableWithRelationships<T> = T & { Relationships: [] }
 
@@ -36,6 +37,11 @@ type WritableDatabase = {
 type GroupRow = Grupo & {
     grado: { nombre: string } | null
     director_grupo: { nombre_completo: string } | null
+}
+
+type PadreEstudianteRow = PadreEstudiante & {
+    padre: { id: string; nombre_completo: string; email: string } | null
+    estudiante: { id: string; nombre_completo: string; email: string } | null
 }
 
 type Tab = 'usuarios' | 'grados' | 'asignaturas' | 'grupos'
@@ -98,6 +104,15 @@ export default function AdminPage() {
     const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
     const [togglingUserId, setTogglingUserId] = useState<string | null>(null)
     const [savingUser, setSavingUser] = useState(false)
+
+    const [padresEstudiantes, setPadresEstudiantes] = useState<PadreEstudianteRow[]>([])
+    const [loadingPadresEstudiantes, setLoadingPadresEstudiantes] = useState(false)
+    const [savingPadreEstudiante, setSavingPadreEstudiante] = useState(false)
+    const [deletingPadreEstudianteId, setDeletingPadreEstudianteId] = useState<string | null>(null)
+    const [padreSeleccionadoId, setPadreSeleccionadoId] = useState('')
+    const [estudiantePadreSeleccionadoId, setEstudiantePadreSeleccionadoId] = useState('')
+    const [parentescoPadreEstudiante, setParentescoPadreEstudiante] = useState('Padre/Madre')
+    const [principalPadreEstudiante, setPrincipalPadreEstudiante] = useState(false)
 
     const [userModal, setUserModal] = useState<UserModalState>(null)
     const [createForm, setCreateForm] = useState<CreateUserPayload>({
@@ -187,6 +202,25 @@ export default function AdminPage() {
         }
     }, [gradosMessage.show])
 
+    const loadPadresEstudiantes = useCallback(async () => {
+        try {
+            setLoadingPadresEstudiantes(true)
+            const { data, error } = await dbClient
+                .from('padres_estudiantes')
+                .select(
+                    'id, padre_id, estudiante_id, parentesco, principal, created_at, padre:padre_id(id, nombre_completo, email), estudiante:estudiante_id(id, nombre_completo, email)'
+                )
+                .order('created_at', { ascending: false })
+
+            if (error) throw error
+            setPadresEstudiantes((data as PadreEstudianteRow[]) ?? [])
+        } catch (error) {
+            usersMessage.show('error', error instanceof Error ? error.message : 'Error cargando relaciones padre-estudiante')
+        } finally {
+            setLoadingPadresEstudiantes(false)
+        }
+    }, [usersMessage.show])
+
     const loadAsignaturas = useCallback(async () => {
         try {
             setLoadingAsignaturasList(true)
@@ -269,8 +303,8 @@ export default function AdminPage() {
 
     useEffect(() => {
         if (!isAdmin) return
-        loadUsuarios()
-    }, [isAdmin, loadUsuarios])
+        void Promise.all([loadUsuarios(), loadPadresEstudiantes()])
+    }, [isAdmin, loadPadresEstudiantes, loadUsuarios])
 
     useEffect(() => {
         if (!isAdmin) return
@@ -331,6 +365,21 @@ export default function AdminPage() {
     }, [isAdmin])
 
     const currentUserId = profile?.id ?? null
+
+    const padresDisponibles = useMemo(
+        () => usuarios.filter((usuario) => usuario.rol === 'padre' && usuario.activo),
+        [usuarios]
+    )
+
+    const estudiantesDisponibles = useMemo(
+        () => usuarios.filter((usuario) => usuario.rol === 'estudiante' && usuario.activo),
+        [usuarios]
+    )
+
+    const estudiantesAsignadosAlPadre = useMemo(
+        () => new Set(padresEstudiantes.filter((item) => item.padre_id === padreSeleccionadoId).map((item) => item.estudiante_id)),
+        [padreSeleccionadoId, padresEstudiantes]
+    )
 
     const currentModalTitle = useMemo(() => {
         if (!userModal) return ''
@@ -539,6 +588,68 @@ export default function AdminPage() {
             usersMessage.show('error', error instanceof Error ? error.message : 'No se pudo eliminar el usuario')
         } finally {
             setDeletingUserId(null)
+        }
+    }
+
+    const onCreatePadreEstudiante = async (e: React.FormEvent) => {
+        e.preventDefault()
+
+        if (!padreSeleccionadoId || !estudiantePadreSeleccionadoId) {
+            usersMessage.show('error', 'Selecciona padre y estudiante')
+            return
+        }
+
+        const padreValido = padresDisponibles.some((usuario) => usuario.id === padreSeleccionadoId)
+        const estudianteValido = estudiantesDisponibles.some((usuario) => usuario.id === estudiantePadreSeleccionadoId)
+
+        if (!padreValido || !estudianteValido) {
+            usersMessage.show('error', 'La relación es inválida para los roles seleccionados')
+            return
+        }
+
+        if (padresEstudiantes.some((item) => item.padre_id === padreSeleccionadoId && item.estudiante_id === estudiantePadreSeleccionadoId)) {
+            usersMessage.show('error', 'Esta relación ya existe')
+            return
+        }
+
+        try {
+            setSavingPadreEstudiante(true)
+            const payload: Database['public']['Tables']['padres_estudiantes']['Insert'] = {
+                padre_id: padreSeleccionadoId,
+                estudiante_id: estudiantePadreSeleccionadoId,
+                parentesco: parentescoPadreEstudiante.trim() || 'Padre/Madre',
+                principal: principalPadreEstudiante
+            }
+
+            const { error } = await dbClient.from('padres_estudiantes').insert(payload as never)
+            if (error) throw error
+
+            setEstudiantePadreSeleccionadoId('')
+            setParentescoPadreEstudiante('Padre/Madre')
+            setPrincipalPadreEstudiante(false)
+            usersMessage.show('success', 'Relación padre-estudiante creada correctamente')
+            await loadPadresEstudiantes()
+        } catch (error) {
+            usersMessage.show('error', error instanceof Error ? error.message : 'No se pudo crear la relación')
+        } finally {
+            setSavingPadreEstudiante(false)
+        }
+    }
+
+    const onDeletePadreEstudiante = async (relationId: string) => {
+        if (!window.confirm('¿Eliminar esta relación padre-estudiante?')) return
+
+        try {
+            setDeletingPadreEstudianteId(relationId)
+            const { error } = await dbClient.from('padres_estudiantes').delete().eq('id', relationId)
+            if (error) throw error
+
+            usersMessage.show('success', 'Relación eliminada correctamente')
+            setPadresEstudiantes((prev) => prev.filter((item) => item.id !== relationId))
+        } catch (error) {
+            usersMessage.show('error', error instanceof Error ? error.message : 'No se pudo eliminar la relación')
+        } finally {
+            setDeletingPadreEstudianteId(null)
         }
     }
 
@@ -846,8 +957,14 @@ export default function AdminPage() {
                                             }`}
                                         title={realtimeConnected ? 'Conectado' : 'Desconectado'}
                                     />
-                                    <Button variant="outline" onClick={() => void loadUsuarios()} disabled={loadingUsuarios}>
-                                        <RefreshCw className={`h-4 w-4 mr-2 ${loadingUsuarios ? 'animate-spin' : ''}`} />
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => void Promise.all([loadUsuarios(), loadPadresEstudiantes()])}
+                                        disabled={loadingUsuarios || loadingPadresEstudiantes}
+                                    >
+                                        <RefreshCw
+                                            className={`h-4 w-4 mr-2 ${loadingUsuarios || loadingPadresEstudiantes ? 'animate-spin' : ''}`}
+                                        />
                                         Refrescar
                                     </Button>
                                     <Button onClick={openCreateUserModal}>Nuevo usuario</Button>
@@ -950,6 +1067,132 @@ export default function AdminPage() {
                             )}
                         </CardContent>
                     </Card>
+
+                    <div className="grid gap-6 md:grid-cols-2">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Relacionar padre con estudiantes</CardTitle>
+                                <CardDescription>
+                                    Asigna uno o más estudiantes por padre para restringir su acceso de información
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <form onSubmit={onCreatePadreEstudiante} className="space-y-4">
+                                    <div>
+                                        <Label htmlFor="padre-select">Padre</Label>
+                                        <select
+                                            id="padre-select"
+                                            className="w-full px-3 py-2 border rounded-md bg-background"
+                                            value={padreSeleccionadoId}
+                                            onChange={(e) => {
+                                                setPadreSeleccionadoId(e.target.value)
+                                                setEstudiantePadreSeleccionadoId('')
+                                            }}
+                                            required
+                                        >
+                                            <option value="">Seleccionar padre</option>
+                                            {padresDisponibles.map((padre) => (
+                                                <option key={padre.id} value={padre.id}>
+                                                    {padre.nombre_completo} ({padre.email})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <Label htmlFor="hijo-select">Estudiante</Label>
+                                        <select
+                                            id="hijo-select"
+                                            className="w-full px-3 py-2 border rounded-md bg-background"
+                                            value={estudiantePadreSeleccionadoId}
+                                            onChange={(e) => setEstudiantePadreSeleccionadoId(e.target.value)}
+                                            required
+                                        >
+                                            <option value="">Seleccionar estudiante</option>
+                                            {estudiantesDisponibles
+                                                .filter((estudiante) => !estudiantesAsignadosAlPadre.has(estudiante.id))
+                                                .map((estudiante) => (
+                                                    <option key={estudiante.id} value={estudiante.id}>
+                                                        {estudiante.nombre_completo} ({estudiante.email})
+                                                    </option>
+                                                ))}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <Label htmlFor="parentesco-input">Parentesco</Label>
+                                        <Input
+                                            id="parentesco-input"
+                                            value={parentescoPadreEstudiante}
+                                            onChange={(e) => setParentescoPadreEstudiante(e.target.value)}
+                                            required
+                                        />
+                                    </div>
+
+                                    <label className="flex items-center gap-2 text-sm">
+                                        <input
+                                            type="checkbox"
+                                            checked={principalPadreEstudiante}
+                                            onChange={(e) => setPrincipalPadreEstudiante(e.target.checked)}
+                                        />
+                                        <span>Marcar como contacto principal</span>
+                                    </label>
+
+                                    <Button type="submit" className="w-full" disabled={savingPadreEstudiante}>
+                                        {savingPadreEstudiante && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                                        Guardar relación
+                                    </Button>
+                                </form>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Relaciones registradas</CardTitle>
+                                <CardDescription>Listado de padres con estudiantes relacionados</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {loadingPadresEstudiantes ? (
+                                    <div className="flex justify-center py-8">
+                                        <Loader2 className="h-6 w-6 animate-spin" />
+                                    </div>
+                                ) : padresEstudiantes.length === 0 ? (
+                                    <p className="text-sm text-muted-foreground text-center py-4">
+                                        No hay relaciones padre-estudiante registradas.
+                                    </p>
+                                ) : (
+                                    <div className="space-y-2 max-h-[420px] overflow-y-auto">
+                                        {padresEstudiantes.map((relation) => (
+                                            <div key={relation.id} className="flex items-center justify-between p-3 border rounded-lg">
+                                                <div>
+                                                    <p className="text-sm font-medium">
+                                                        {relation.padre?.nombre_completo ?? 'Padre no disponible'} →{' '}
+                                                        {relation.estudiante?.nombre_completo ?? 'Estudiante no disponible'}
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        {relation.parentesco}
+                                                        {relation.principal ? ' · Principal' : ''}
+                                                    </p>
+                                                </div>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => void onDeletePadreEstudiante(relation.id)}
+                                                    disabled={deletingPadreEstudianteId === relation.id}
+                                                >
+                                                    {deletingPadreEstudianteId === relation.id ? (
+                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                        <Trash2 className="h-4 w-4" />
+                                                    )}
+                                                </Button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </div>
                 </section>
             )}
 

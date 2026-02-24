@@ -633,7 +633,12 @@ CREATE POLICY "Admin modify periodos" ON periodos FOR ALL USING (
 
 -- Lectura pública de relaciones
 CREATE POLICY "Public read estudiantes_grupos" ON estudiantes_grupos FOR SELECT USING (true);
-CREATE POLICY "Public read padres_estudiantes" ON padres_estudiantes FOR SELECT USING (true);
+CREATE POLICY "Read own padres_estudiantes" ON padres_estudiantes FOR SELECT
+    USING (
+        padre_id = auth.uid()
+        OR estudiante_id = auth.uid()
+        OR public.is_admin()
+    );
 CREATE POLICY "Public read asignaciones_docentes" ON asignaciones_docentes FOR SELECT USING (true);
 
 -- Admin modifica relaciones
