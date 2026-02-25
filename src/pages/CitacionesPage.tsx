@@ -254,8 +254,8 @@ export default function CitacionesPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-3xl font-bold text-gray-900">Citaciones</h1>
-                <p className="text-gray-600 mt-1">{headerDescription}</p>
+                <h1 className="text-3xl font-bold text-foreground">Citaciones</h1>
+                <p className="text-muted-foreground mt-1">{headerDescription}</p>
             </div>
 
             {error && (
@@ -353,7 +353,7 @@ export default function CitacionesPage() {
 
             {loading && (
                 <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
             )}
 
@@ -372,19 +372,19 @@ export default function CitacionesPage() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         {citaciones.map((item) => (
-                            <div key={item.id} className="rounded-lg border border-gray-200 p-4 space-y-2">
+                            <div key={item.id} className="rounded-lg border border-border p-4 space-y-2">
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                     <div>
-                                        <p className="text-sm font-semibold text-gray-900">
+                                        <p className="text-sm font-semibold text-foreground">
                                             {item.estudiante?.nombre_completo || 'Estudiante'}
                                         </p>
-                                        <p className="text-xs text-gray-500">Citado: {item.citado}</p>
+                                        <p className="text-xs text-muted-foreground">Citado: {item.citado}</p>
                                     </div>
                                     {item.asistio !== null && (
                                         <span
                                             className={`rounded-full px-2 py-1 text-xs font-medium ${item.asistio
-                                                    ? 'bg-emerald-50 text-emerald-700'
-                                                    : 'bg-rose-50 text-rose-700'
+                                                ? 'bg-emerald-50 text-emerald-700'
+                                                : 'bg-rose-50 text-rose-700'
                                                 }`}
                                         >
                                             {item.asistio ? 'Asistió' : 'No asistió'}
@@ -392,18 +392,18 @@ export default function CitacionesPage() {
                                     )}
                                 </div>
 
-                                <p className="text-sm font-medium text-gray-900">{item.motivo}</p>
+                                <p className="text-sm font-medium text-foreground">{item.motivo}</p>
                                 {item.descripcion && (
-                                    <p className="text-sm text-gray-700">{item.descripcion}</p>
+                                    <p className="text-sm text-foreground">{item.descripcion}</p>
                                 )}
 
-                                <p className="text-xs text-gray-500">
+                                <p className="text-xs text-muted-foreground">
                                     {new Date(item.fecha_citacion).toLocaleString()}
                                     {item.lugar && ` • ${item.lugar}`}
                                 </p>
 
                                 {item.observaciones && (
-                                    <p className="text-xs text-gray-600">Observaciones: {item.observaciones}</p>
+                                    <p className="text-xs text-muted-foreground">Observaciones: {item.observaciones}</p>
                                 )}
 
                                 {isStaff && item.asistio === null && (

@@ -291,8 +291,8 @@ export default function PermisosPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-3xl font-bold text-gray-900">Permisos y Excusas</h1>
-                <p className="text-gray-600 mt-1">{headerDescription}</p>
+                <h1 className="text-3xl font-bold text-foreground">Permisos y Excusas</h1>
+                <p className="text-muted-foreground mt-1">{headerDescription}</p>
             </div>
 
             {error && (
@@ -389,7 +389,7 @@ export default function PermisosPage() {
 
             {loading && (
                 <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
             )}
 
@@ -410,33 +410,33 @@ export default function PermisosPage() {
                         {permisos.map((permiso) => (
                             <div
                                 key={permiso.id}
-                                className="rounded-lg border border-gray-200 p-4 space-y-2"
+                                className="rounded-lg border border-border p-4 space-y-2"
                             >
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                     <div>
-                                        <p className="text-sm font-semibold text-gray-900">
+                                        <p className="text-sm font-semibold text-foreground">
                                             {permiso.estudiante?.nombre_completo || 'Estudiante'}
                                         </p>
-                                        <p className="text-xs text-gray-500">{permiso.tipo}</p>
+                                        <p className="text-xs text-muted-foreground">{permiso.tipo}</p>
                                     </div>
                                     <span className={`rounded-full px-2 py-1 text-xs font-medium ${estadoBadge(permiso.estado)}`}>
                                         {permiso.estado}
                                     </span>
                                 </div>
 
-                                <p className="text-sm text-gray-700">Motivo: {permiso.motivo}</p>
+                                <p className="text-sm text-foreground">Motivo: {permiso.motivo}</p>
                                 {permiso.descripcion && (
-                                    <p className="text-xs text-gray-600">{permiso.descripcion}</p>
+                                    <p className="text-xs text-muted-foreground">{permiso.descripcion}</p>
                                 )}
 
-                                <p className="text-xs text-gray-500">
+                                <p className="text-xs text-muted-foreground">
                                     {new Date(permiso.fecha_inicio).toLocaleDateString()} - {new Date(permiso.fecha_fin).toLocaleDateString()}
                                 </p>
 
                                 {permiso.soporte_url && (
                                     <a
                                         href={permiso.soporte_url}
-                                        className="text-xs text-blue-600 hover:underline"
+                                        className="text-xs text-primary hover:underline"
                                         target="_blank"
                                         rel="noreferrer"
                                     >

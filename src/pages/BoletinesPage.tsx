@@ -359,13 +359,13 @@ export default function BoletinesPage() {
             <CardContent>
               <div className="space-y-4">
                 {/* Promedio General */}
-                <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-100">
+                <div className="p-4 bg-gradient-to-r from-background to-muted rounded-lg border border-primary/20">
                   <div className="text-center">
-                    <p className="text-sm text-gray-600 mb-1">Promedio General</p>
-                    <p className="text-4xl font-bold text-blue-600">
+                    <p className="text-sm text-muted-foreground mb-1">Promedio General</p>
+                    <p className="text-4xl font-bold text-primary">
                       {boletin.promedio_general?.toFixed(1) || 'N/A'}
                     </p>
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                       Generado el {new Date(boletin.fecha_generacion).toLocaleDateString()}
                     </p>
                   </div>
@@ -374,21 +374,21 @@ export default function BoletinesPage() {
                 {/* Observaciones */}
                 {boletin.observaciones_generales && (
                   <div className="border-l-4 border-yellow-500 pl-4 py-2 bg-yellow-50">
-                    <p className="font-medium text-sm text-gray-900 mb-1">
+                    <p className="font-medium text-sm text-foreground mb-1">
                       Observaciones Generales
                     </p>
-                    <p className="text-sm text-gray-700">
+                    <p className="text-sm text-foreground">
                       {boletin.observaciones_generales}
                     </p>
                   </div>
                 )}
 
                 {boletin.observaciones_director && (
-                  <div className="border-l-4 border-blue-500 pl-4 py-2 bg-blue-50">
-                    <p className="font-medium text-sm text-gray-900 mb-1">
+                  <div className="border-l-4 border-primary pl-4 py-2 bg-secondary">
+                    <p className="font-medium text-sm text-foreground mb-1">
                       Observaciones del Director
                     </p>
-                    <p className="text-sm text-gray-700">
+                    <p className="text-sm text-foreground">
                       {boletin.observaciones_director}
                     </p>
                   </div>
@@ -428,13 +428,13 @@ export default function BoletinesPage() {
                 {boletines.map((boletin) => (
                   <div
                     key={boletin.id}
-                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50"
+                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted"
                   >
                     <div>
                       <p className="font-medium">
                         {boletin.estudiante.nombre_completo}
                       </p>
-                      <p className="text-sm text-gray-600">
+                      <p className="text-sm text-muted-foreground">
                         {boletin.grupo.grado.nombre} - Grupo {boletin.grupo.nombre} •
                         Promedio: {boletin.promedio_general?.toFixed(1) || 'N/A'}
                       </p>
@@ -465,8 +465,8 @@ export default function BoletinesPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Boletines de Notas</h1>
-        <p className="text-gray-600 mt-1">
+        <h1 className="text-3xl font-bold text-foreground">Boletines de Notas</h1>
+        <p className="text-muted-foreground mt-1">
           {profile?.rol === 'estudiante' && 'Consulta tus boletines académicos'}
           {profile?.rol === 'padre' && 'Consulta los boletines de tus hijos'}
           {(profile?.rol === 'administrador' || profile?.rol === 'administrativo') &&
@@ -509,7 +509,7 @@ export default function BoletinesPage() {
       {/* Loading */}
       {loading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       )}
 

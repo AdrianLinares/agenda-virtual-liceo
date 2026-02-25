@@ -953,7 +953,7 @@ export default function AdminPage() {
                                 <div className="flex items-center gap-2">
                                     <span className="text-xs text-muted-foreground">Realtime</span>
                                     <span
-                                        className={`h-3 w-3 rounded-full ${realtimeConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
+                                        className={`h-3 w-3 rounded-full ${realtimeConnected ? 'bg-primary animate-pulse' : 'bg-muted-foreground'
                                             }`}
                                         title={realtimeConnected ? 'Conectado' : 'Desconectado'}
                                     />
@@ -1005,7 +1005,7 @@ export default function AdminPage() {
                                                         </td>
                                                         <td className="px-4 py-3 text-sm">
                                                             <span
-                                                                className={`px-2 py-1 rounded-full text-xs ${usuario.activo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                                                className={`px-2 py-1 rounded-full text-xs ${usuario.activo ? 'bg-secondary text-primary' : 'bg-destructive/10 text-destructive'
                                                                     }`}
                                                             >
                                                                 {usuario.activo ? 'Activo' : 'Inactivo'}
@@ -1554,7 +1554,7 @@ export default function AdminPage() {
                     </Card>
 
                     {selectedGrupoId && (
-                        <Card className="md:col-span-2 border-2 border-blue-500">
+                        <Card className="md:col-span-2 border-2 border-primary">
                             <CardHeader>
                                 <div className="flex justify-between items-start">
                                     <div>

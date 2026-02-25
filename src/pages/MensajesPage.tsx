@@ -232,8 +232,8 @@ export default function MensajesPage() {
 
     const estadoBadge = (estado: Mensaje['estado']) => {
         if (estado === 'leido') return 'bg-emerald-50 text-emerald-700'
-        if (estado === 'archivado') return 'bg-gray-100 text-gray-700'
-        return 'bg-blue-50 text-blue-700'
+        if (estado === 'archivado') return 'bg-muted text-foreground'
+        return 'bg-secondary text-primary'
     }
 
     const estadoLabel = (estado: Mensaje['estado']) => {
@@ -244,8 +244,8 @@ export default function MensajesPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-3xl font-bold text-gray-900">Mensajes</h1>
-                <p className="text-gray-600 mt-1">{headerDescription}</p>
+                <h1 className="text-3xl font-bold text-foreground">Mensajes</h1>
+                <p className="text-muted-foreground mt-1">{headerDescription}</p>
             </div>
 
             {error && (
@@ -317,7 +317,7 @@ export default function MensajesPage() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     {filteredRecipients.length === 0 && (
-                                        <div className="px-2 py-1.5 text-sm text-gray-500">
+                                        <div className="px-2 py-1.5 text-sm text-muted-foreground">
                                             No hay usuarios disponibles
                                         </div>
                                     )}
@@ -355,7 +355,7 @@ export default function MensajesPage() {
 
             {loading && (
                 <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
             )}
 
@@ -380,21 +380,21 @@ export default function MensajesPage() {
                                 <button
                                     key={mensaje.id}
                                     onClick={() => handleOpenMessage(mensaje)}
-                                    className={`w-full rounded-lg border p-3 text-left transition hover:bg-gray-50 ${selectedMessage?.id === mensaje.id ? 'border-blue-400 bg-blue-50' : 'border-gray-200'
+                                    className={`w-full rounded-lg border p-3 text-left transition hover:bg-muted ${selectedMessage?.id === mensaje.id ? 'border-primary/60 bg-secondary' : 'border-border'
                                         }`}
                                 >
                                     <div className="flex items-center justify-between gap-2">
-                                        <p className="text-sm font-semibold text-gray-900 line-clamp-1">{mensaje.asunto}</p>
+                                        <p className="text-sm font-semibold text-foreground line-clamp-1">{mensaje.asunto}</p>
                                         <span className={`rounded-full px-2 py-1 text-[11px] font-medium ${estadoBadge(mensaje.estado)}`}>
                                             {estadoLabel(mensaje.estado)}
                                         </span>
                                     </div>
-                                    <p className="text-xs text-gray-500 mt-1">
+                                    <p className="text-xs text-muted-foreground mt-1">
                                         {tab === 'recibidos'
                                             ? mensaje.remitente?.nombre_completo || 'Sistema'
                                             : mensaje.destinatario?.nombre_completo || 'Destinatario'}
                                     </p>
-                                    <p className="text-[11px] text-gray-400">
+                                    <p className="text-[11px] text-muted-foreground">
                                         {new Date(mensaje.created_at).toLocaleString()}
                                     </p>
                                 </button>
@@ -411,7 +411,7 @@ export default function MensajesPage() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             {!selectedMessage ? (
-                                <div className="flex flex-col items-center justify-center gap-2 py-12 text-gray-500">
+                                <div className="flex flex-col items-center justify-center gap-2 py-12 text-muted-foreground">
                                     <Inbox className="h-10 w-10" />
                                     <p>Selecciona un mensaje para ver su contenido</p>
                                 </div>
@@ -419,26 +419,26 @@ export default function MensajesPage() {
                                 <div className="space-y-4">
                                     <div>
                                         <div className="flex flex-wrap items-center gap-2">
-                                            <h3 className="text-lg font-semibold text-gray-900">{selectedMessage.asunto}</h3>
+                                            <h3 className="text-lg font-semibold text-foreground">{selectedMessage.asunto}</h3>
                                             <span
                                                 className={`rounded-full px-2 py-1 text-[11px] font-medium ${estadoBadge(selectedMessage.estado)}`}
                                             >
                                                 {estadoLabel(selectedMessage.estado)}
                                             </span>
                                         </div>
-                                        <p className="text-xs text-gray-500">
+                                        <p className="text-xs text-muted-foreground">
                                             {tab === 'recibidos'
                                                 ? `De: ${selectedMessage.remitente?.nombre_completo || 'Sistema'}`
                                                 : `Para: ${selectedMessage.destinatario?.nombre_completo || 'Destinatario'}`}
                                         </p>
-                                        <p className="text-xs text-gray-400">
+                                        <p className="text-xs text-muted-foreground">
                                             {new Date(selectedMessage.created_at).toLocaleString()}
                                         </p>
                                         {markingRead === selectedMessage.id && (
-                                            <p className="text-xs text-blue-500">Marcando como leído...</p>
+                                            <p className="text-xs text-primary">Marcando como leído...</p>
                                         )}
                                     </div>
-                                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700 whitespace-pre-line">
+                                    <div className="rounded-lg border border-border bg-muted p-4 text-sm text-foreground whitespace-pre-line">
                                         {selectedMessage.contenido}
                                     </div>
                                 </div>

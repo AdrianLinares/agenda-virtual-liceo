@@ -39,7 +39,7 @@ export function GradeTable({
             <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
                     <thead>
-                        <tr className="bg-gray-100">
+                        <tr className="bg-muted">
                             <th className="border p-2 text-left font-medium">Categoría</th>
                             {Array.from({ length: Math.max(...categories.map(c => gradeCounts[c])) }, (_, i) => (
                                 <th key={i} className="border p-2 text-center font-medium">
@@ -51,7 +51,7 @@ export function GradeTable({
                     <tbody>
                         {categories.map((category) => (
                             <tr key={category}>
-                                <td className="border p-2 font-medium bg-gray-50">
+                                <td className="border p-2 font-medium bg-muted">
                                     {categoryLabels[category]}
                                 </td>
                                 {Array.from({ length: gradeCounts[category] }, (_, i) => {
@@ -67,12 +67,12 @@ export function GradeTable({
                                                     onChange={(e) =>
                                                         handleChange(category, i, e.target.value)
                                                     }
-                                                    className={`w-full text-center ${isInvalid ? 'border-red-500' : ''
+                                                    className={`w-full text-center ${isInvalid ? 'border-destructive' : ''
                                                         }`}
                                                     placeholder="0-100"
                                                 />
                                                 {isInvalid && (
-                                                    <AlertCircle className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500" />
+                                                    <AlertCircle className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-accent" />
                                                 )}
                                             </div>
                                         </td>
@@ -82,7 +82,7 @@ export function GradeTable({
                                 {Array.from(
                                     { length: Math.max(...categories.map(c => gradeCounts[c])) - gradeCounts[category] },
                                     (_, i) => (
-                                        <td key={`empty-${i}`} className="border p-2 bg-gray-50"></td>
+                                        <td key={`empty-${i}`} className="border p-2 bg-muted"></td>
                                     )
                                 )}
                             </tr>

@@ -353,8 +353,8 @@ export default function HorariosPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-3xl font-bold text-gray-900">Horarios</h1>
-                <p className="text-gray-600 mt-1">{headerDescription}</p>
+                <h1 className="text-3xl font-bold text-foreground">Horarios</h1>
+                <p className="text-muted-foreground mt-1">{headerDescription}</p>
             </div>
 
             {error && (
@@ -482,7 +482,7 @@ export default function HorariosPage() {
 
             {loading && (
                 <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
             )}
 
@@ -500,7 +500,7 @@ export default function HorariosPage() {
                             <CardHeader>
                                 <div className="flex items-start justify-between gap-3">
                                     <CardTitle className="flex items-center gap-2">
-                                        <CalendarClock className="h-4 w-4 text-blue-600" />
+                                        <CalendarClock className="h-4 w-4 text-primary" />
                                         {item.asignatura?.nombre}
                                     </CardTitle>
                                     {canManageHorarios && (
@@ -534,14 +534,14 @@ export default function HorariosPage() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-2">
-                                <p className="text-sm text-gray-700">
+                                <p className="text-sm text-foreground">
                                     {item.grupo.grado.nombre} - Grupo {item.grupo.nombre}
                                 </p>
                                 {item.docente?.nombre_completo && (
-                                    <p className="text-xs text-gray-500">Docente: {item.docente.nombre_completo}</p>
+                                    <p className="text-xs text-muted-foreground">Docente: {item.docente.nombre_completo}</p>
                                 )}
                                 {item.aula && (
-                                    <p className="text-xs text-gray-500">Aula: {item.aula}</p>
+                                    <p className="text-xs text-muted-foreground">Aula: {item.aula}</p>
                                 )}
 
                                 {editingHorarioId === item.id && (

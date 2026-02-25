@@ -280,8 +280,8 @@ export default function AsistenciaPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-3xl font-bold text-gray-900">Registro de Asistencia</h1>
-                <p className="text-gray-600 mt-1">{headerDescription}</p>
+                <h1 className="text-3xl font-bold text-foreground">Registro de Asistencia</h1>
+                <p className="text-muted-foreground mt-1">{headerDescription}</p>
             </div>
 
             <Card>
@@ -317,7 +317,7 @@ export default function AsistenciaPage() {
 
             {loading && (
                 <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
             )}
 
@@ -325,7 +325,7 @@ export default function AsistenciaPage() {
                 <div className="grid gap-4 md:grid-cols-4">
                     <Card>
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium text-gray-600">Presentes</CardTitle>
+                            <CardTitle className="text-sm font-medium text-muted-foreground">Presentes</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold text-emerald-600">{resumen.presente}</div>
@@ -333,7 +333,7 @@ export default function AsistenciaPage() {
                     </Card>
                     <Card>
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium text-gray-600">Ausentes</CardTitle>
+                            <CardTitle className="text-sm font-medium text-muted-foreground">Ausentes</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold text-rose-600">{resumen.ausente}</div>
@@ -341,7 +341,7 @@ export default function AsistenciaPage() {
                     </Card>
                     <Card>
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium text-gray-600">Tarde</CardTitle>
+                            <CardTitle className="text-sm font-medium text-muted-foreground">Tarde</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold text-amber-600">{resumen.tarde}</div>
@@ -349,7 +349,7 @@ export default function AsistenciaPage() {
                     </Card>
                     <Card>
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium text-gray-600">Excusas</CardTitle>
+                            <CardTitle className="text-sm font-medium text-muted-foreground">Excusas</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold text-sky-600">{resumen.excusa}</div>
@@ -447,20 +447,20 @@ export default function AsistenciaPage() {
                         {asistencias.map((item) => (
                             <div
                                 key={item.id}
-                                className="flex flex-col gap-3 rounded-lg border border-gray-200 p-4 md:flex-row md:items-center md:justify-between"
+                                className="flex flex-col gap-3 rounded-lg border border-border p-4 md:flex-row md:items-center md:justify-between"
                             >
                                 <div>
-                                    <p className="text-sm font-semibold text-gray-900">
+                                    <p className="text-sm font-semibold text-foreground">
                                         {item.estudiante.nombre_completo}
                                     </p>
-                                    <p className="text-xs text-gray-500">
+                                    <p className="text-xs text-muted-foreground">
                                         {item.grupo.grado.nombre} - Grupo {item.grupo.nombre}
                                     </p>
                                     {item.asignatura?.nombre && (
-                                        <p className="text-xs text-gray-500">Asignatura: {item.asignatura.nombre}</p>
+                                        <p className="text-xs text-muted-foreground">Asignatura: {item.asignatura.nombre}</p>
                                     )}
                                     {item.observaciones && (
-                                        <p className="text-xs text-gray-600 mt-1">Obs: {item.observaciones}</p>
+                                        <p className="text-xs text-muted-foreground mt-1">Obs: {item.observaciones}</p>
                                     )}
                                 </div>
 

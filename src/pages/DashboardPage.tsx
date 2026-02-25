@@ -104,10 +104,10 @@ export default function DashboardPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">
+        <h1 className="text-3xl font-bold text-foreground">
           ¡Bienvenido, {profile?.nombre_completo}!
         </h1>
-        <p className="text-gray-600 mt-1">
+        <p className="text-muted-foreground mt-1">
           Aquí encontrarás un resumen de tu actividad académica
         </p>
       </div>
@@ -187,9 +187,9 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {loadingEventos ? (
-              <p className="text-sm text-gray-500">Cargando eventos...</p>
+              <p className="text-sm text-muted-foreground">Cargando eventos...</p>
             ) : eventos.length === 0 ? (
-              <p className="text-sm text-gray-500">No hay eventos esta semana</p>
+              <p className="text-sm text-muted-foreground">No hay eventos esta semana</p>
             ) : (
               eventos.map((evento) => {
                 const fecha = formatFecha(evento.fecha_inicio)
@@ -210,8 +210,8 @@ export default function DashboardPage() {
                       <span className="text-lg font-bold">{fecha.numero}</span>
                     </div>
                     <div>
-                      <p className="font-medium text-gray-900">{evento.titulo}</p>
-                      <p className="text-sm text-gray-600">{hora} - {evento.lugar}</p>
+                      <p className="font-medium text-foreground">{evento.titulo}</p>
+                      <p className="text-sm text-muted-foreground">{hora} - {evento.lugar}</p>
                     </div>
                   </div>
                 )
@@ -230,9 +230,9 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {loadingAnuncios ? (
-              <p className="text-sm text-gray-500">Cargando anuncios...</p>
+              <p className="text-sm text-muted-foreground">Cargando anuncios...</p>
             ) : anuncios.length === 0 ? (
-              <p className="text-sm text-gray-500">No hay anuncios recientes</p>
+              <p className="text-sm text-muted-foreground">No hay anuncios recientes</p>
             ) : (
               anuncios.map((anuncio, index) => {
                 const colors = ['blue', 'purple', 'green', 'orange']
@@ -240,16 +240,16 @@ export default function DashboardPage() {
 
                 return (
                   <div key={anuncio.id} className={`border-l-4 border-${color}-600 pl-4 py-2`}>
-                    <p className="font-medium text-gray-900 flex items-center gap-2">
+                    <p className="font-medium text-foreground flex items-center gap-2">
                       {anuncio.titulo}
                       {anuncio.importante && (
-                        <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Importante</span>
+                        <span className="text-xs bg-destructive/10 text-destructive px-2 py-0.5 rounded-full">Importante</span>
                       )}
                     </p>
-                    <p className="text-sm text-gray-600 mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                       {anuncio.contenido.substring(0, 100)}{anuncio.contenido.length > 100 ? '...' : ''}
                     </p>
-                    <p className="text-xs text-gray-500 mt-2">{tiempoDesde(anuncio.fecha_publicacion)}</p>
+                    <p className="text-xs text-muted-foreground mt-2">{tiempoDesde(anuncio.fecha_publicacion)}</p>
                   </div>
                 )
               })
@@ -269,34 +269,34 @@ export default function DashboardPage() {
         <CardContent>
           {!profile ? (
             <div className="text-center py-4">
-              <p className="text-sm text-gray-500">Cargando información del perfil...</p>
-              <p className="text-xs text-gray-400 mt-2">User ID: {user?.id || 'No disponible'}</p>
+              <p className="text-sm text-muted-foreground">Cargando información del perfil...</p>
+              <p className="text-xs text-muted-foreground mt-2">User ID: {user?.id || 'No disponible'}</p>
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-3">
               <div className="flex flex-col gap-1">
-                <span className="text-sm text-gray-500">Nombre completo</span>
+                <span className="text-sm text-muted-foreground">Nombre completo</span>
                 <span className="font-medium">{profile.nombre_completo || 'No disponible'}</span>
               </div>
               <div className="flex flex-col gap-1">
-                <span className="text-sm text-gray-500">Email</span>
+                <span className="text-sm text-muted-foreground">Email</span>
                 <span className="font-medium">{profile.email || 'No disponible'}</span>
               </div>
               <div className="flex flex-col gap-1">
-                <span className="text-sm text-gray-500">Teléfono</span>
+                <span className="text-sm text-muted-foreground">Teléfono</span>
                 <span className="font-medium">{profile.telefono || 'No registrado'}</span>
               </div>
               <div className="flex flex-col gap-1">
-                <span className="text-sm text-gray-500">Rol</span>
+                <span className="text-sm text-muted-foreground">Rol</span>
                 <span className="font-medium capitalize">{profile.rol || 'No asignado'}</span>
               </div>
               <div className="flex flex-col gap-1">
-                <span className="text-sm text-gray-500">Dirección</span>
+                <span className="text-sm text-muted-foreground">Dirección</span>
                 <span className="font-medium">{profile.direccion || 'No registrada'}</span>
               </div>
               <div className="flex flex-col gap-1">
-                <span className="text-sm text-gray-500">Estado</span>
-                <span className={`font-medium ${profile.activo ? 'text-green-600' : 'text-red-600'}`}>
+                <span className="text-sm text-muted-foreground">Estado</span>
+                <span className={`font-medium ${profile.activo ? 'text-primary' : 'text-destructive'}`}>
                   {profile.activo ? 'Activo' : 'Inactivo'}
                 </span>
               </div>

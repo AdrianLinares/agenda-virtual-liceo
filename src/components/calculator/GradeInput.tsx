@@ -45,8 +45,8 @@ export function GradeInput({
                 <h3 className="text-lg font-semibold">Configuración de categorías</h3>
                 <div
                     className={`flex items-center gap-2 px-3 py-1 rounded-md ${totalWeight > 100
-                            ? 'bg-red-100 text-red-700'
-                            : 'bg-blue-100 text-blue-700'
+                            ? 'bg-destructive/10 text-destructive'
+                            : 'bg-secondary text-primary'
                         }`}
                 >
                     <Percent className="h-4 w-4" />
@@ -67,7 +67,7 @@ export function GradeInput({
                         </div>
 
                         <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-600">Porcentaje:</span>
+                            <span className="text-sm text-muted-foreground">Porcentaje:</span>
                             <Input
                                 type="number"
                                 min="0"
@@ -80,7 +80,7 @@ export function GradeInput({
                         </div>
 
                         <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-600">Cantidad de notas:</span>
+                            <span className="text-sm text-muted-foreground">Cantidad de notas:</span>
                             <Button
                                 type="button"
                                 variant="outline"

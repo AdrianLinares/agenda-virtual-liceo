@@ -24,8 +24,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Cargando...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Cargando...</p>
         </div>
       </div>
     )
@@ -46,8 +46,8 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Cargando...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Cargando...</p>
         </div>
       </div>
     )
@@ -223,9 +223,9 @@ function App() {
           element={
             <div className="min-h-screen flex items-center justify-center">
               <div className="text-center">
-                <h1 className="text-6xl font-bold text-gray-900 mb-4">404</h1>
-                <p className="text-xl text-gray-600 mb-8">Página no encontrada</p>
-                <a href="/dashboard" className="text-blue-600 hover:underline">
+                <h1 className="text-6xl font-bold text-foreground mb-4">404</h1>
+                <p className="text-xl text-muted-foreground mb-8">Página no encontrada</p>
+                <a href="/dashboard" className="text-primary hover:underline">
                   Volver al inicio
                 </a>
               </div>

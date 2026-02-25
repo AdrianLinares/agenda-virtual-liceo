@@ -145,9 +145,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-muted">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
+      <header className="bg-white border-b border-border sticky top-0 z-40">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-4">
             <Button
@@ -163,9 +163,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               )}
             </Button>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center">
                 <svg
-                  className="w-6 h-6 text-white"
+                  className="w-6 h-6 text-primary-foreground"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -179,10 +179,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 </svg>
               </div>
               <div className="hidden sm:block">
-                <h1 className="text-lg font-semibold text-gray-900">
+                <h1 className="text-lg font-semibold text-foreground">
                   Liceo Ángel de la Guarda
                 </h1>
-                <p className="text-xs text-gray-500">Agenda Virtual</p>
+                <p className="text-xs text-muted-foreground">Agenda Virtual</p>
               </div>
             </div>
           </div>
@@ -226,7 +226,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Sidebar */}
         <aside
           className={`
-            fixed lg:static inset-y-0 left-0 z-30 w-64 bg-white border-r border-gray-200
+            fixed lg:static inset-y-0 left-0 z-30 w-64 bg-white border-r border-border
             transform transition-transform duration-200 ease-in-out lg:translate-x-0
             ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
             mt-[57px] lg:mt-0
@@ -244,8 +244,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium
                     transition-colors
                     ${isActive
-                      ? 'bg-blue-50 text-blue-700'
-                      : 'text-gray-700 hover:bg-gray-100'
+                      ? 'bg-secondary text-primary'
+                      : 'text-foreground hover:bg-muted'
                     }
                   `}
                 >

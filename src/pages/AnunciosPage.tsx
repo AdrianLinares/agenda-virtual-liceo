@@ -153,8 +153,8 @@ export default function AnunciosPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-3xl font-bold text-gray-900">Anuncios</h1>
-                <p className="text-gray-600 mt-1">{headerDescription}</p>
+                <h1 className="text-3xl font-bold text-foreground">Anuncios</h1>
+                <p className="text-muted-foreground mt-1">{headerDescription}</p>
             </div>
 
             {error && (
@@ -220,7 +220,7 @@ export default function AnunciosPage() {
                                 <input
                                     id="importante"
                                     type="checkbox"
-                                    className="h-4 w-4 rounded border-gray-300"
+                                    className="h-4 w-4 rounded border-input"
                                     checked={importante}
                                     onChange={(e) => setImportante(e.target.checked)}
                                 />
@@ -244,7 +244,7 @@ export default function AnunciosPage() {
 
             {loading && (
                 <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
             )}
 
@@ -276,13 +276,13 @@ export default function AnunciosPage() {
                                             {anuncio.autor?.nombre_completo ? ` ${anuncio.autor.nombre_completo}` : ' Sistema'}
                                         </CardDescription>
                                     </div>
-                                    <span className="text-xs text-gray-500">
+                                    <span className="text-xs text-muted-foreground">
                                         {anuncio.destinatarios.join(', ')}
                                     </span>
                                 </div>
                             </CardHeader>
                             <CardContent>
-                                <p className="text-sm text-gray-700 whitespace-pre-line">{anuncio.contenido}</p>
+                                <p className="text-sm text-foreground whitespace-pre-line">{anuncio.contenido}</p>
                             </CardContent>
                         </Card>
                     ))}

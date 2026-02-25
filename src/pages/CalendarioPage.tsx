@@ -167,8 +167,8 @@ export default function CalendarioPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-3xl font-bold text-gray-900">Calendario</h1>
-                <p className="text-gray-600 mt-1">{headerDescription}</p>
+                <h1 className="text-3xl font-bold text-foreground">Calendario</h1>
+                <p className="text-muted-foreground mt-1">{headerDescription}</p>
             </div>
 
             {error && (
@@ -275,7 +275,7 @@ export default function CalendarioPage() {
                                 <input
                                     id="todo-el-dia"
                                     type="checkbox"
-                                    className="h-4 w-4 rounded border-gray-300"
+                                    className="h-4 w-4 rounded border-input"
                                     checked={todoElDia}
                                     onChange={(e) => setTodoElDia(e.target.checked)}
                                 />
@@ -299,7 +299,7 @@ export default function CalendarioPage() {
 
             {loading && (
                 <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
             )}
 
@@ -316,7 +316,7 @@ export default function CalendarioPage() {
                         <Card key={evento.id}>
                             <CardHeader className="space-y-1">
                                 <CardTitle className="flex items-center gap-2">
-                                    <CalendarDays className="h-4 w-4 text-blue-600" />
+                                    <CalendarDays className="h-4 w-4 text-primary" />
                                     {evento.titulo}
                                 </CardTitle>
                                 <CardDescription>
@@ -328,15 +328,15 @@ export default function CalendarioPage() {
                             </CardHeader>
                             <CardContent className="space-y-2">
                                 {evento.descripcion && (
-                                    <p className="text-sm text-gray-700 whitespace-pre-line">{evento.descripcion}</p>
+                                    <p className="text-sm text-foreground whitespace-pre-line">{evento.descripcion}</p>
                                 )}
                                 {evento.lugar && (
-                                    <p className="text-xs text-gray-500 flex items-center gap-1">
+                                    <p className="text-xs text-muted-foreground flex items-center gap-1">
                                         <MapPin className="h-3 w-3" />
                                         {evento.lugar}
                                     </p>
                                 )}
-                                <p className="text-xs text-gray-500">Destinatarios: {evento.destinatarios.join(', ')}</p>
+                                <p className="text-xs text-muted-foreground">Destinatarios: {evento.destinatarios.join(', ')}</p>
                             </CardContent>
                         </Card>
                     ))}

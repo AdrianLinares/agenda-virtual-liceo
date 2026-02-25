@@ -415,24 +415,24 @@ export default function NotasPage() {
                 ]
 
                 return (
-                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 mt-3">
-                        <p className="text-xs font-semibold text-blue-800 mb-3 uppercase tracking-wide">
+                    <div className="bg-gradient-to-br from-background to-muted border border-primary/30 rounded-lg p-4 mt-3">
+                        <p className="text-xs font-semibold text-primary mb-3 uppercase tracking-wide">
                             Desglose de Evaluación
                         </p>
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
                                 <thead>
-                                    <tr className="border-b border-blue-200">
-                                        <th className="text-left py-2 px-3 font-semibold text-blue-900">Categoría</th>
-                                        <th className="text-center py-2 px-3 font-semibold text-blue-900">Notas</th>
-                                        <th className="text-center py-2 px-3 font-semibold text-blue-900">Promedio</th>
-                                        <th className="text-center py-2 px-3 font-semibold text-blue-900">Ponderación</th>
+                                    <tr className="border-b border-primary/30">
+                                        <th className="text-left py-2 px-3 font-semibold text-primary">Categoría</th>
+                                        <th className="text-center py-2 px-3 font-semibold text-primary">Notas</th>
+                                        <th className="text-center py-2 px-3 font-semibold text-primary">Promedio</th>
+                                        <th className="text-center py-2 px-3 font-semibold text-primary">Ponderación</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {categories.map(({ key, data }) => (
-                                        <tr key={key} className="border-b border-blue-100 hover:bg-white/50 transition-colors">
-                                            <td className="py-2 px-3 font-medium text-gray-900">
+                                        <tr key={key} className="border-b border-primary/20 hover:bg-white/50 transition-colors">
+                                            <td className="py-2 px-3 font-medium text-foreground">
                                                 {categoryLabels[key]}
                                             </td>
                                             <td className="py-2 px-3 text-center">
@@ -440,17 +440,17 @@ export default function NotasPage() {
                                                     {data.notas && data.notas.map((nota: number, idx: number) => (
                                                         <span
                                                             key={idx}
-                                                            className="inline-block px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-medium"
+                                                            className="inline-block px-2 py-0.5 bg-secondary text-primary rounded text-xs font-medium"
                                                         >
                                                             {nota.toFixed(1)}
                                                         </span>
                                                     ))}
                                                 </div>
                                             </td>
-                                            <td className="py-2 px-3 text-center font-semibold text-gray-900">
+                                            <td className="py-2 px-3 text-center font-semibold text-foreground">
                                                 {data.promedio?.toFixed(2) || '0.00'}
                                             </td>
-                                            <td className="py-2 px-3 text-center font-bold text-blue-700">
+                                            <td className="py-2 px-3 text-center font-bold text-primary">
                                                 {data.ponderacion?.toFixed(2) || '0.00'}
                                             </td>
                                         </tr>
@@ -467,9 +467,9 @@ export default function NotasPage() {
 
         // Mostrar como texto plano
         return (
-            <div className="bg-blue-50 border border-blue-100 rounded-md p-3 mt-3">
-                <p className="text-xs font-medium text-blue-800">Observaciones</p>
-                <p className="text-sm text-blue-900 mt-1">{observaciones}</p>
+            <div className="bg-secondary border border-primary/20 rounded-md p-3 mt-3">
+                <p className="text-xs font-medium text-primary">Observaciones</p>
+                <p className="text-sm text-primary mt-1">{observaciones}</p>
             </div>
         )
     }
@@ -478,8 +478,8 @@ export default function NotasPage() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Notas Parciales</h1>
-                    <p className="text-gray-600 mt-1">{headerDescription}</p>
+                    <h1 className="text-3xl font-bold text-foreground">Notas Parciales</h1>
+                    <p className="text-muted-foreground mt-1">{headerDescription}</p>
                 </div>
                 {profile?.rol === 'docente' && !showCalculator && (
                     <Button onClick={() => setShowCalculator(true)}>
@@ -490,7 +490,7 @@ export default function NotasPage() {
             </div>
 
             {showCalculator && profile?.rol === 'docente' && (
-                <Card className="border-2 border-blue-500">
+                <Card className="border-2 border-primary">
                     <CardHeader>
                         <CardTitle>Registrar nueva nota</CardTitle>
                         <CardDescription>
@@ -617,7 +617,7 @@ export default function NotasPage() {
 
             {loading && (
                 <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
             )}
 
@@ -635,7 +635,7 @@ export default function NotasPage() {
                     <Card className="lg:col-span-1">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
-                                <TrendingUp className="h-5 w-5 text-blue-600" />
+                                <TrendingUp className="h-5 w-5 text-primary" />
                                 Promedios por asignatura
                             </CardTitle>
                             <CardDescription>
@@ -646,23 +646,23 @@ export default function NotasPage() {
                             {resumenAsignaturas.map((asignatura) => (
                                 <div key={asignatura.nombre} className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-sm font-medium text-gray-900">
+                                        <p className="text-sm font-medium text-foreground">
                                             {asignatura.nombre}
                                         </p>
-                                        <p className="text-xs text-gray-500">
+                                        <p className="text-xs text-muted-foreground">
                                             {asignatura.codigo || 'Sin código'} • {asignatura.cantidad} nota(s)
                                         </p>
                                     </div>
-                                    <span className="text-sm font-semibold text-blue-700">
+                                    <span className="text-sm font-semibold text-primary">
                                         {asignatura.promedio.toFixed(1)}
                                     </span>
                                 </div>
                             ))}
 
                             {promedioGeneral !== null && (
-                                <div className="pt-3 border-t border-gray-200 flex items-center justify-between">
-                                    <span className="text-sm font-semibold text-gray-700">Promedio general</span>
-                                    <span className="text-lg font-bold text-blue-700">
+                                <div className="pt-3 border-t border-border flex items-center justify-between">
+                                    <span className="text-sm font-semibold text-foreground">Promedio general</span>
+                                    <span className="text-lg font-bold text-primary">
                                         {promedioGeneral.toFixed(1)}
                                     </span>
                                 </div>
@@ -681,29 +681,29 @@ export default function NotasPage() {
                             {notas.map((nota) => (
                                 <div
                                     key={nota.id}
-                                    className="flex flex-col gap-2 rounded-lg border border-gray-200 p-4"
+                                    className="flex flex-col gap-2 rounded-lg border border-border p-4"
                                 >
                                     <div className="flex items-start justify-between">
                                         <div>
-                                            <p className="text-sm font-semibold text-gray-900">
+                                            <p className="text-sm font-semibold text-foreground">
                                                 {nota.asignatura?.nombre}
                                             </p>
-                                            <p className="text-xs text-gray-500">
+                                            <p className="text-xs text-muted-foreground">
                                                 {nota.grupo.grado.nombre} - Grupo {nota.grupo.nombre}
                                             </p>
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-lg font-bold text-blue-700">
+                                            <p className="text-lg font-bold text-primary">
                                                 {nota.nota.toFixed(1)}
                                             </p>
-                                            <p className="text-xs text-gray-500">
+                                            <p className="text-xs text-muted-foreground">
                                                 {new Date(nota.created_at).toLocaleDateString()}
                                             </p>
                                         </div>
                                     </div>
 
                                     {nota.estudiante && (profile?.rol === 'administrador' || profile?.rol === 'administrativo' || profile?.rol === 'docente') && (
-                                        <p className="text-xs text-gray-600">
+                                        <p className="text-xs text-muted-foreground">
                                             Estudiante: {nota.estudiante.nombre_completo}
                                         </p>
                                     )}

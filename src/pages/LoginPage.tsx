@@ -31,19 +31,19 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-muted to-secondary p-4">
       <div className="w-full max-w-md">
         {/* Logo y título */}
         <div className="text-center mb-8">
           <img
             src="/images/escudo.jpg"
             alt="Escudo Liceo Ángel de la Guarda"
-            className="w-40 h-40 rounded-full object-cover mx-auto mb-4"
+            className="w-40 h-40 rounded-xl object-cover mx-auto mb-4"
           />
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="text-3xl font-bold text-foreground mb-2">
             Liceo Ángel de la Guarda
           </h1>
-          <p className="text-gray-600">Agenda Virtual</p>
+          <p className="text-muted-foreground">Agenda Virtual</p>
         </div>
 
         {/* Card de Login */}
@@ -83,7 +83,7 @@ export default function LoginPage() {
               </div>
 
               {error && (
-                <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+                <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md">
                   {error}
                 </div>
               )}
@@ -97,15 +97,15 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <div className="mt-4 text-center text-sm text-gray-600">
-              <a href="#" className="text-blue-600 hover:underline">
+            <div className="mt-4 text-center text-sm text-muted-foreground">
+              <a href="#" className="text-primary hover:underline">
                 ¿Olvidaste tu contraseña?
               </a>
             </div>
           </CardContent>
         </Card>
 
-        <p className="text-center text-sm text-gray-500 mt-6">
+        <p className="text-center text-sm text-muted-foreground mt-6">
           © 2026 Liceo Ángel de la Guarda. Todos los derechos reservados.
         </p>
       </div>

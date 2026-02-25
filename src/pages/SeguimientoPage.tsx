@@ -226,8 +226,8 @@ export default function SeguimientoPage() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-3xl font-bold text-gray-900">Seguimiento</h1>
-                <p className="text-gray-600 mt-1">{headerDescription}</p>
+                <h1 className="text-3xl font-bold text-foreground">Seguimiento</h1>
+                <p className="text-muted-foreground mt-1">{headerDescription}</p>
             </div>
 
             {error && (
@@ -306,7 +306,7 @@ export default function SeguimientoPage() {
                                 <input
                                     id="requiere-seguimiento"
                                     type="checkbox"
-                                    className="h-4 w-4 rounded border-gray-300"
+                                    className="h-4 w-4 rounded border-input"
                                     checked={requiereSeguimiento}
                                     onChange={(e) => setRequiereSeguimiento(e.target.checked)}
                                 />
@@ -338,7 +338,7 @@ export default function SeguimientoPage() {
 
             {loading && (
                 <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
             )}
 
@@ -357,24 +357,24 @@ export default function SeguimientoPage() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         {seguimientos.map((item) => (
-                            <div key={item.id} className="rounded-lg border border-gray-200 p-4 space-y-2">
+                            <div key={item.id} className="rounded-lg border border-border p-4 space-y-2">
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                     <div>
-                                        <p className="text-sm font-semibold text-gray-900">
+                                        <p className="text-sm font-semibold text-foreground">
                                             {item.estudiante?.nombre_completo || 'Estudiante'}
                                         </p>
-                                        <p className="text-xs text-gray-500">{item.tipo}</p>
+                                        <p className="text-xs text-muted-foreground">{item.tipo}</p>
                                     </div>
-                                    <span className="text-xs text-gray-500">
+                                    <span className="text-xs text-muted-foreground">
                                         {new Date(item.fecha_registro).toLocaleDateString()}
                                     </span>
                                 </div>
 
-                                <p className="text-sm font-medium text-gray-900">{item.titulo}</p>
-                                <p className="text-sm text-gray-700">{item.descripcion}</p>
+                                <p className="text-sm font-medium text-foreground">{item.titulo}</p>
+                                <p className="text-sm text-foreground">{item.descripcion}</p>
 
                                 {item.acciones_tomadas && (
-                                    <p className="text-xs text-gray-600">Acciones: {item.acciones_tomadas}</p>
+                                    <p className="text-xs text-muted-foreground">Acciones: {item.acciones_tomadas}</p>
                                 )}
 
                                 {item.requiere_seguimiento && (
