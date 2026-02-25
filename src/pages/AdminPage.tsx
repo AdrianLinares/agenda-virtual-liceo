@@ -45,6 +45,7 @@ type PadreEstudianteRow = PadreEstudiante & {
 }
 
 type Tab = 'usuarios' | 'grados' | 'asignaturas' | 'grupos'
+type UserRoleFilter = 'todos' | UserRole
 
 type Message = { type: 'success' | 'error'; text: string } | null
 
@@ -99,6 +100,7 @@ export default function AdminPage() {
     const gruposMessage = useMessage(5000)
 
     const [usuarios, setUsuarios] = useState<Profile[]>([])
+    const [userRoleFilter, setUserRoleFilter] = useState<UserRoleFilter>('todos')
     const [loadingUsuarios, setLoadingUsuarios] = useState(false)
     const [realtimeConnected, setRealtimeConnected] = useState(false)
     const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
@@ -365,6 +367,11 @@ export default function AdminPage() {
     }, [isAdmin])
 
     const currentUserId = profile?.id ?? null
+
+    const usuariosFiltrados = useMemo(
+        () => (userRoleFilter === 'todos' ? usuarios : usuarios.filter((usuario) => usuario.rol === userRoleFilter)),
+        [usuarios, userRoleFilter]
+    )
 
     const padresDisponibles = useMemo(
         () => usuarios.filter((usuario) => usuario.rol === 'padre' && usuario.activo),
@@ -951,6 +958,22 @@ export default function AdminPage() {
                                     <CardDescription>Altas, edición, credenciales y estado de acceso</CardDescription>
                                 </div>
                                 <div className="flex items-center gap-2">
+                                    <Label htmlFor="role-filter" className="text-xs text-muted-foreground">
+                                        Filtrar por rol
+                                    </Label>
+                                    <select
+                                        id="role-filter"
+                                        className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                                        value={userRoleFilter}
+                                        onChange={(e) => setUserRoleFilter(e.target.value as UserRoleFilter)}
+                                    >
+                                        <option value="todos">Todos</option>
+                                        {ROLE_OPTIONS.map((rol) => (
+                                            <option key={rol} value={rol}>
+                                                {rol}
+                                            </option>
+                                        ))}
+                                    </select>
                                     <span className="text-xs text-muted-foreground">Realtime</span>
                                     <span
                                         className={`h-3 w-3 rounded-full ${realtimeConnected ? 'bg-primary animate-pulse' : 'bg-muted-foreground'
@@ -989,7 +1012,7 @@ export default function AdminPage() {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y">
-                                            {usuarios.map((usuario) => {
+                                            {usuariosFiltrados.map((usuario) => {
                                                 const isSelf = usuario.id === currentUserId
                                                 const rowDeleting = deletingUserId === usuario.id
                                                 const rowToggling = togglingUserId === usuario.id
@@ -1061,6 +1084,13 @@ export default function AdminPage() {
                                                     </tr>
                                                 )
                                             })}
+                                            {usuariosFiltrados.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={5} className="px-4 py-6 text-center text-sm text-muted-foreground">
+                                                        No hay usuarios para el rol seleccionado.
+                                                    </td>
+                                                </tr>
+                                            )}
                                         </tbody>
                                     </table>
                                 </div>
