@@ -539,10 +539,25 @@ CREATE POLICY "Update received messages"
 -- POLÍTICAS PARA ANUNCIOS
 -- =====================================================
 
--- Todos ven anuncios activos
-CREATE POLICY "View active announcements"
+-- Administrador y administrativo ven todos los anuncios
+CREATE POLICY "Admin staff view all announcements"
     ON anuncios FOR SELECT
-    USING (fecha_expiracion IS NULL OR fecha_expiracion > NOW());
+    USING (
+        COALESCE(public.get_user_role() IN ('administrador', 'administrativo'), false)
+    );
+
+-- Otros usuarios solo ven anuncios activos dirigidos a su rol o a todos
+CREATE POLICY "Users view targeted active announcements"
+    ON anuncios FOR SELECT
+    USING (
+        (fecha_expiracion IS NULL OR fecha_expiracion > NOW())
+        AND (
+            destinatarios IS NULL
+            OR array_length(destinatarios, 1) IS NULL
+            OR destinatarios @> ARRAY['todos']::TEXT[]
+            OR destinatarios @> ARRAY[public.get_user_role()::TEXT]
+        )
+    );
 
 -- Docentes y administrativos crean anuncios
 CREATE POLICY "Staff create announcements"
@@ -554,14 +569,24 @@ CREATE POLICY "Staff create announcements"
         )
     );
 
--- Solo el autor modifica sus anuncios
-CREATE POLICY "Author modifies own announcements"
+-- Autor, administrador o administrativo pueden modificar
+CREATE POLICY "Staff update announcements"
     ON anuncios FOR UPDATE
-    USING (autor_id = auth.uid());
+    USING (
+        autor_id = auth.uid()
+        OR COALESCE(public.get_user_role() IN ('administrador', 'administrativo'), false)
+    )
+    WITH CHECK (
+        autor_id = auth.uid()
+        OR COALESCE(public.get_user_role() IN ('administrador', 'administrativo'), false)
+    );
 
-CREATE POLICY "Author deletes own announcements"
+CREATE POLICY "Staff delete announcements"
     ON anuncios FOR DELETE
-    USING (autor_id = auth.uid());
+    USING (
+        autor_id = auth.uid()
+        OR COALESCE(public.get_user_role() IN ('administrador', 'administrativo'), false)
+    );
 
 -- =====================================================
 -- POLÍTICAS PARA PERMISOS
@@ -577,6 +602,13 @@ CREATE POLICY "View own permissions"
             SELECT 1 FROM padres_estudiantes
             WHERE padre_id = auth.uid() AND estudiante_id = permisos.estudiante_id
         )
+    );
+
+-- Administrador y administrativo ven todas las solicitudes
+CREATE POLICY "Admin staff view all permissions"
+    ON permisos FOR SELECT
+    USING (
+        COALESCE(public.get_user_role() IN ('administrador', 'administrativo'), false)
     );
 
 -- Crear permisos
@@ -596,10 +628,10 @@ CREATE POLICY "Create permissions"
 CREATE POLICY "Staff review permissions"
     ON permisos FOR UPDATE
     USING (
-        EXISTS (
-            SELECT 1 FROM profiles
-            WHERE id = auth.uid() AND rol IN ('docente', 'administrativo', 'administrador')
-        )
+        COALESCE(public.get_user_role() IN ('administrador', 'administrativo'), false)
+    )
+    WITH CHECK (
+        COALESCE(public.get_user_role() IN ('administrador', 'administrativo'), false)
     );
 
 -- =====================================================
@@ -612,7 +644,42 @@ CREATE POLICY "Public read grupos" ON grupos FOR SELECT USING (true);
 CREATE POLICY "Public read asignaturas" ON asignaturas FOR SELECT USING (true);
 CREATE POLICY "Public read periodos" ON periodos FOR SELECT USING (true);
 CREATE POLICY "Public read horarios" ON horarios FOR SELECT USING (true);
-CREATE POLICY "Public read eventos" ON eventos FOR SELECT USING (true);
+CREATE POLICY "Admin staff view all events" ON eventos FOR SELECT
+    USING (
+        COALESCE(public.get_user_role() IN ('administrador', 'administrativo'), false)
+    );
+
+CREATE POLICY "Users view targeted events" ON eventos FOR SELECT
+    USING (
+        destinatarios IS NULL
+        OR array_length(destinatarios, 1) IS NULL
+        OR destinatarios @> ARRAY['todos']::TEXT[]
+        OR destinatarios @> ARRAY[public.get_user_role()::TEXT]
+    );
+
+CREATE POLICY "Staff create events" ON eventos FOR INSERT
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM profiles
+            WHERE id = auth.uid() AND rol IN ('docente', 'administrativo', 'administrador')
+        )
+    );
+
+CREATE POLICY "Staff update events" ON eventos FOR UPDATE
+    USING (
+        creado_por = auth.uid()
+        OR COALESCE(public.get_user_role() IN ('administrador', 'administrativo'), false)
+    )
+    WITH CHECK (
+        creado_por = auth.uid()
+        OR COALESCE(public.get_user_role() IN ('administrador', 'administrativo'), false)
+    );
+
+CREATE POLICY "Staff delete events" ON eventos FOR DELETE
+    USING (
+        creado_por = auth.uid()
+        OR COALESCE(public.get_user_role() IN ('administrador', 'administrativo'), false)
+    );
 
 -- Solo admin modifica estructura
 CREATE POLICY "Admin modify grados" ON grados FOR ALL USING (

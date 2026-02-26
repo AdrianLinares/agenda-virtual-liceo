@@ -53,8 +53,10 @@ export default function AnunciosPage() {
     const [destinatario, setDestinatario] = useState('todos')
     const [fechaExpiracion, setFechaExpiracion] = useState('')
     const [importante, setImportante] = useState(false)
+    const [editingId, setEditingId] = useState<string | null>(null)
 
     const isStaff = profile?.rol === 'administrador' || profile?.rol === 'administrativo' || profile?.rol === 'docente'
+    const canViewAll = profile?.rol === 'administrador' || profile?.rol === 'administrativo'
 
     useEffect(() => {
         if (profile) {
@@ -77,21 +79,22 @@ export default function AnunciosPage() {
         `)
                 .order('fecha_publicacion', { ascending: false })
 
-            if (profile.rol) {
+            if (profile.rol && !canViewAll) {
                 query = query.or(`destinatarios.cs.{${profile.rol}},destinatarios.cs.{todos}`)
             }
 
             const { data, error } = await query
             if (error) throw error
 
-            const now = new Date()
             const items = (data || []) as Anuncio[]
-            const filtered = items.filter((item) => {
-                if (!item.fecha_expiracion) return true
-                return new Date(item.fecha_expiracion) >= now
-            })
+            const visibleItems = canViewAll
+                ? items
+                : items.filter((item) => {
+                    if (!item.fecha_expiracion) return true
+                    return new Date(item.fecha_expiracion) >= new Date()
+                })
 
-            setAnuncios(filtered)
+            setAnuncios(visibleItems)
         } catch (err) {
             console.error('Error loading anuncios:', err)
             setError('Error al cargar los anuncios')
@@ -100,7 +103,16 @@ export default function AnunciosPage() {
         }
     }
 
-    const handleCreateAnuncio = async () => {
+    const resetForm = () => {
+        setTitulo('')
+        setContenido('')
+        setDestinatario('todos')
+        setFechaExpiracion('')
+        setImportante(false)
+        setEditingId(null)
+    }
+
+    const handleSaveAnuncio = async () => {
         if (!profile) return
         if (!titulo.trim() || !contenido.trim()) {
             setError('Completa el título y el contenido')
@@ -115,32 +127,87 @@ export default function AnunciosPage() {
             const payload = {
                 titulo: titulo.trim(),
                 contenido: contenido.trim(),
-                autor_id: profile.id,
                 destinatarios: [destinatario],
                 importante,
-                fecha_publicacion: new Date().toISOString(),
                 fecha_expiracion: fechaExpiracion ? new Date(fechaExpiracion).toISOString() : null,
             }
 
-            const { error } = await (supabase as any)
-                .from('anuncios')
-                .insert(payload)
+            let error = null
+
+            if (editingId) {
+                const result = await (supabase as any)
+                    .from('anuncios')
+                    .update(payload)
+                    .eq('id', editingId)
+                error = result.error
+            } else {
+                const result = await (supabase as any)
+                    .from('anuncios')
+                    .insert({
+                        ...payload,
+                        autor_id: profile.id,
+                        fecha_publicacion: new Date().toISOString(),
+                    })
+                error = result.error
+            }
 
             if (error) throw error
 
-            setTitulo('')
-            setContenido('')
-            setDestinatario('todos')
-            setFechaExpiracion('')
-            setImportante(false)
-            setSuccess('Anuncio publicado')
+            resetForm()
+            setSuccess(editingId ? 'Anuncio actualizado' : 'Anuncio publicado')
             await loadAnuncios()
         } catch (err) {
-            console.error('Error creating anuncio:', err)
-            setError('Error al publicar el anuncio')
+            console.error('Error saving anuncio:', err)
+            setError(editingId ? 'Error al actualizar el anuncio' : 'Error al publicar el anuncio')
         } finally {
             setSaving(false)
         }
+    }
+
+    const handleEditAnuncio = (anuncio: Anuncio) => {
+        setEditingId(anuncio.id)
+        setTitulo(anuncio.titulo)
+        setContenido(anuncio.contenido)
+        setDestinatario(anuncio.destinatarios[0] || 'todos')
+        setFechaExpiracion(anuncio.fecha_expiracion ? anuncio.fecha_expiracion.slice(0, 10) : '')
+        setImportante(anuncio.importante)
+        setError(null)
+        setSuccess(null)
+    }
+
+    const handleDeleteAnuncio = async (anuncioId: string) => {
+        if (!window.confirm('¿Seguro que deseas eliminar este anuncio?')) return
+
+        setSaving(true)
+        setError(null)
+        setSuccess(null)
+
+        try {
+            const { error } = await (supabase as any)
+                .from('anuncios')
+                .delete()
+                .eq('id', anuncioId)
+
+            if (error) throw error
+
+            if (editingId === anuncioId) {
+                resetForm()
+            }
+
+            setSuccess('Anuncio eliminado')
+            await loadAnuncios()
+        } catch (err) {
+            console.error('Error deleting anuncio:', err)
+            setError('Error al eliminar el anuncio')
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    const canEditOrDelete = (anuncio: Anuncio) => {
+        if (!profile) return false
+        if (profile.rol === 'administrador' || profile.rol === 'administrativo') return true
+        return anuncio.autor_id === profile.id
     }
 
     const headerDescription = useMemo(() => {
@@ -174,7 +241,7 @@ export default function AnunciosPage() {
             {isStaff && (
                 <Card>
                     <CardHeader>
-                        <CardTitle>Publicar anuncio</CardTitle>
+                        <CardTitle>{editingId ? 'Editar anuncio' : 'Publicar anuncio'}</CardTitle>
                         <CardDescription>
                             Comparte información con la comunidad educativa
                         </CardDescription>
@@ -228,16 +295,23 @@ export default function AnunciosPage() {
                             </div>
                         </div>
 
-                        <Button onClick={handleCreateAnuncio} disabled={saving}>
-                            {saving ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Publicando...
-                                </>
-                            ) : (
-                                'Publicar'
+                        <div className="flex items-center gap-2">
+                            <Button onClick={handleSaveAnuncio} disabled={saving}>
+                                {saving ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        {editingId ? 'Guardando...' : 'Publicando...'}
+                                    </>
+                                ) : (
+                                    editingId ? 'Guardar cambios' : 'Publicar'
+                                )}
+                            </Button>
+                            {editingId && (
+                                <Button variant="outline" onClick={resetForm} disabled={saving}>
+                                    Cancelar
+                                </Button>
                             )}
-                        </Button>
+                        </div>
                     </CardContent>
                 </Card>
             )}
@@ -280,6 +354,26 @@ export default function AnunciosPage() {
                                         {anuncio.destinatarios.join(', ')}
                                     </span>
                                 </div>
+                                {canEditOrDelete(anuncio) && (
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleEditAnuncio(anuncio)}
+                                            disabled={saving}
+                                        >
+                                            Editar
+                                        </Button>
+                                        <Button
+                                            variant="destructive"
+                                            size="sm"
+                                            onClick={() => handleDeleteAnuncio(anuncio.id)}
+                                            disabled={saving}
+                                        >
+                                            Eliminar
+                                        </Button>
+                                    </div>
+                                )}
                             </CardHeader>
                             <CardContent>
                                 <p className="text-sm text-foreground whitespace-pre-line">{anuncio.contenido}</p>

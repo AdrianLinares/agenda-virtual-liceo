@@ -73,6 +73,7 @@ export default function PermisosPage() {
     const [fechaInicio, setFechaInicio] = useState('')
     const [fechaFin, setFechaFin] = useState('')
     const [soporteUrl, setSoporteUrl] = useState('')
+    const [estadoFilter, setEstadoFilter] = useState<'todos' | Permiso['estado']>('todos')
 
     const isReviewer = profile?.rol === 'administrador' || profile?.rol === 'administrativo'
 
@@ -288,6 +289,11 @@ export default function PermisosPage() {
         return 'bg-amber-50 text-amber-700'
     }
 
+    const filteredPermisos = useMemo(() => {
+        if (estadoFilter === 'todos') return permisos
+        return permisos.filter((permiso) => permiso.estado === estadoFilter)
+    }, [permisos, estadoFilter])
+
     return (
         <div className="space-y-6">
             <div>
@@ -393,21 +399,43 @@ export default function PermisosPage() {
                 </div>
             )}
 
-            {!loading && permisos.length === 0 && (
+            {!loading && filteredPermisos.length === 0 && (
                 <Alert>
                     <FileCheck className="h-4 w-4" />
-                    <AlertDescription>No hay solicitudes registradas.</AlertDescription>
+                    <AlertDescription>
+                        {estadoFilter === 'todos'
+                            ? 'No hay solicitudes registradas.'
+                            : `No hay solicitudes en estado ${estadoFilter}.`}
+                    </AlertDescription>
                 </Alert>
             )}
 
-            {!loading && permisos.length > 0 && (
+            {!loading && filteredPermisos.length > 0 && (
                 <Card>
                     <CardHeader>
                         <CardTitle>Solicitudes recientes</CardTitle>
                         <CardDescription>Estado de permisos y excusas</CardDescription>
+                        {isReviewer && (
+                            <div className="max-w-xs pt-2">
+                                <Label>Filtrar por estado</Label>
+                                <Select value={estadoFilter} onValueChange={(value) => setEstadoFilter(value as 'todos' | Permiso['estado'])}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Selecciona estado" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="todos">Todos</SelectItem>
+                                        {ESTADOS.map((estadoOption) => (
+                                            <SelectItem key={estadoOption.value} value={estadoOption.value}>
+                                                {estadoOption.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        {permisos.map((permiso) => (
+                        {filteredPermisos.map((permiso) => (
                             <div
                                 key={permiso.id}
                                 className="rounded-lg border border-border p-4 space-y-2"

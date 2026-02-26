@@ -65,6 +65,7 @@ export default function CalendarioPage() {
     const [destinatario, setDestinatario] = useState('todos')
 
     const isStaff = profile?.rol === 'administrador' || profile?.rol === 'administrativo' || profile?.rol === 'docente'
+    const canViewAll = profile?.rol === 'administrador' || profile?.rol === 'administrativo'
 
     useEffect(() => {
         if (profile) {
@@ -93,7 +94,7 @@ export default function CalendarioPage() {
                 query = query.lte('fecha_inicio', endIso)
             }
 
-            if (profile.rol) {
+            if (profile.rol && !canViewAll) {
                 query = query.or(`destinatarios.cs.{${profile.rol}},destinatarios.cs.{todos}`)
             }
 

@@ -229,7 +229,13 @@ CREATE POLICY "Staff create announcements"
 -- Staff revisa permisos
 CREATE POLICY "Staff review permissions"
     ON permisos FOR UPDATE
-    USING (public.is_staff_or_teacher());
+    USING (public.is_admin_or_staff())
+    WITH CHECK (public.is_admin_or_staff());
+
+-- Administrador y administrativo ven todas las solicitudes
+CREATE POLICY "Admin staff view all permissions"
+    ON permisos FOR SELECT
+    USING (public.is_admin_or_staff());
 
 -- =====================================================
 -- 8. POLÍTICAS PARA ESTRUCTURA ACADÉMICA (SIN RECURSIÓN)
