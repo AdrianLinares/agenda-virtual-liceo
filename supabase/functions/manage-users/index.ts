@@ -192,7 +192,7 @@ Deno.serve(async (req) => {
                 return jsonResponse({ error: 'Falta userId' }, 400)
             }
 
-            if (userId === caller.id) {
+            if (userId === callerProfile.id) {
                 return jsonResponse({ error: 'No puedes eliminar tu propio usuario' }, 400)
             }
 
