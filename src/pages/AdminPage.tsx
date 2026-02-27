@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { Loader2, Mail, KeyRound, RefreshCw, Trash2 } from 'lucide-react'
+import { Loader2, Mail, KeyRound, Pencil, RefreshCw, Trash2, X } from 'lucide-react'
 import { useAuthStore } from '@/lib/auth-store'
 import { supabase } from '@/lib/supabase'
 import {
@@ -43,6 +43,11 @@ type PadreEstudianteRow = PadreEstudiante & {
     padre: { id: string; nombre_completo: string; email: string } | null
     estudiante: { id: string; nombre_completo: string; email: string } | null
 }
+
+type AsignacionDocenteRow = Pick<
+    Database['public']['Tables']['asignaciones_docentes']['Row'],
+    'asignatura_id' | 'docente_id' | 'grupo_id' | 'año_academico'
+>
 
 type Tab = 'usuarios' | 'grados' | 'asignaturas' | 'grupos'
 type UserRoleFilter = 'todos' | UserRole
@@ -150,8 +155,15 @@ export default function AdminPage() {
     const [asignaturas, setAsignaturas] = useState<Asignatura[]>([])
     const [loadingAsignaturasList, setLoadingAsignaturasList] = useState(false)
     const [creatingAsignatura, setCreatingAsignatura] = useState(false)
+    const [updatingAsignatura, setUpdatingAsignatura] = useState(false)
     const [deletingAsignaturaId, setDeletingAsignaturaId] = useState<string | null>(null)
     const [newAsignatura, setNewAsignatura] = useState({ nombre: '', codigo: '', descripcion: '' })
+    const [editingAsignaturaId, setEditingAsignaturaId] = useState<string | null>(null)
+    const [editAsignaturaForm, setEditAsignaturaForm] = useState({ nombre: '', codigo: '', descripcion: '' })
+    const [editAsignaturaDocenteId, setEditAsignaturaDocenteId] = useState('')
+    const [editAsignaturaGrupoIds, setEditAsignaturaGrupoIds] = useState<string[]>([])
+    const [editAsignaturaAno, setEditAsignaturaAno] = useState(new Date().getFullYear())
+    const [asignacionesDocentes, setAsignacionesDocentes] = useState<AsignacionDocenteRow[]>([])
     const [asignaturaDocenteId, setAsignaturaDocenteId] = useState('')
     const [asignaturaGrupoIds, setAsignaturaGrupoIds] = useState<string[]>([])
     const [asignaturaAno, setAsignaturaAno] = useState(new Date().getFullYear())
@@ -233,6 +245,19 @@ export default function AdminPage() {
             asignaturasMessage.show('error', error instanceof Error ? error.message : 'Error cargando asignaturas')
         } finally {
             setLoadingAsignaturasList(false)
+        }
+    }, [asignaturasMessage.show])
+
+    const loadAsignacionesDocentes = useCallback(async () => {
+        try {
+            const { data, error } = await dbClient
+                .from('asignaciones_docentes')
+                .select('asignatura_id, docente_id, grupo_id, año_academico')
+
+            if (error) throw error
+            setAsignacionesDocentes((data as AsignacionDocenteRow[]) ?? [])
+        } catch (error) {
+            asignaturasMessage.show('error', error instanceof Error ? error.message : 'Error cargando docentes por asignatura')
         }
     }, [asignaturasMessage.show])
 
@@ -319,12 +344,13 @@ export default function AdminPage() {
             loadAsignaturas()
             loadDocentes()
             loadGrupos()
+            loadAsignacionesDocentes()
         }
 
         if (activeTab === 'grupos') {
             void Promise.all([loadGrupos(), loadDocentes(), loadGrados(), loadEstudiantes()])
         }
-    }, [activeTab, isAdmin, loadAsignaturas, loadDocentes, loadGrados, loadGrupos, loadEstudiantes])
+    }, [activeTab, isAdmin, loadAsignacionesDocentes, loadAsignaturas, loadDocentes, loadGrados, loadGrupos, loadEstudiantes])
 
     useEffect(() => {
         if (!isAdmin) return
@@ -387,6 +413,26 @@ export default function AdminPage() {
         () => new Set(padresEstudiantes.filter((item) => item.padre_id === padreSeleccionadoId).map((item) => item.estudiante_id)),
         [padreSeleccionadoId, padresEstudiantes]
     )
+
+    const docentesPorAsignatura = useMemo(() => {
+        const nombresPorAsignatura = new Map<string, Set<string>>()
+
+        for (const asignacion of asignacionesDocentes) {
+            const docente = usuarios.find((usuario) => usuario.id === asignacion.docente_id)
+            if (!docente) continue
+
+            const nombres = nombresPorAsignatura.get(asignacion.asignatura_id) ?? new Set<string>()
+            nombres.add(docente.nombre_completo)
+            nombresPorAsignatura.set(asignacion.asignatura_id, nombres)
+        }
+
+        const resultado: Record<string, string> = {}
+        for (const [asignaturaId, nombres] of nombresPorAsignatura.entries()) {
+            resultado[asignaturaId] = Array.from(nombres).sort((a, b) => a.localeCompare(b)).join(', ')
+        }
+
+        return resultado
+    }, [asignacionesDocentes, usuarios])
 
     const currentModalTitle = useMemo(() => {
         if (!userModal) return ''
@@ -751,7 +797,7 @@ export default function AdminPage() {
             setAsignaturaGrupoIds([])
             setAsignaturaAno(new Date().getFullYear())
             asignaturasMessage.show('success', 'Asignatura creada correctamente')
-            await loadAsignaturas()
+            await Promise.all([loadAsignaturas(), loadAsignacionesDocentes()])
         } catch (error) {
             asignaturasMessage.show('error', error instanceof Error ? error.message : 'No se pudo crear la asignatura')
         } finally {
@@ -769,10 +815,113 @@ export default function AdminPage() {
 
             asignaturasMessage.show('success', 'Asignatura eliminada correctamente')
             setAsignaturas((prev) => prev.filter((a) => a.id !== asignaturaId))
+            setAsignacionesDocentes((prev) => prev.filter((a) => a.asignatura_id !== asignaturaId))
         } catch (error) {
             asignaturasMessage.show('error', error instanceof Error ? error.message : 'No se pudo eliminar la asignatura')
         } finally {
             setDeletingAsignaturaId(null)
+        }
+    }
+
+    const onStartEditAsignatura = (asignatura: Asignatura) => {
+        const asignacionesActuales = asignacionesDocentes.filter((item) => item.asignatura_id === asignatura.id)
+        const docenteActual = asignacionesActuales[0]?.docente_id ?? ''
+        const gruposActuales = Array.from(new Set(asignacionesActuales.map((item) => item.grupo_id)))
+        const anoActual = asignacionesActuales[0]?.año_academico ?? new Date().getFullYear()
+
+        setEditingAsignaturaId(asignatura.id)
+        setEditAsignaturaForm({
+            nombre: asignatura.nombre,
+            codigo: asignatura.codigo ?? '',
+            descripcion: asignatura.descripcion ?? ''
+        })
+        setEditAsignaturaDocenteId(docenteActual)
+        setEditAsignaturaGrupoIds(gruposActuales)
+        setEditAsignaturaAno(anoActual)
+    }
+
+    const onCancelEditAsignatura = () => {
+        setEditingAsignaturaId(null)
+        setEditAsignaturaForm({ nombre: '', codigo: '', descripcion: '' })
+        setEditAsignaturaDocenteId('')
+        setEditAsignaturaGrupoIds([])
+        setEditAsignaturaAno(new Date().getFullYear())
+    }
+
+    const toggleEditAsignaturaGrupo = (grupoId: string) => {
+        setEditAsignaturaGrupoIds((prev) =>
+            prev.includes(grupoId) ? prev.filter((id) => id !== grupoId) : [...prev, grupoId]
+        )
+    }
+
+    const onUpdateAsignatura = async (e: React.FormEvent, asignaturaId: string) => {
+        e.preventDefault()
+
+        if (!editAsignaturaForm.nombre.trim()) {
+            asignaturasMessage.show('error', 'El nombre es obligatorio')
+            return
+        }
+
+        if ((editAsignaturaDocenteId && editAsignaturaGrupoIds.length === 0)
+            || (!editAsignaturaDocenteId && editAsignaturaGrupoIds.length > 0)) {
+            asignaturasMessage.show('error', 'Selecciona docente y al menos un grupo para asignar la materia')
+            return
+        }
+
+        try {
+            setUpdatingAsignatura(true)
+            const payload: Database['public']['Tables']['asignaturas']['Update'] = {
+                nombre: editAsignaturaForm.nombre.trim(),
+                codigo: editAsignaturaForm.codigo.trim() || null,
+                descripcion: editAsignaturaForm.descripcion.trim() || null
+            }
+
+            const { error } = await dbClient.from('asignaturas').update(payload as never).eq('id', asignaturaId)
+            if (error) throw error
+
+            const { error: deleteAsignacionesError } = await dbClient
+                .from('asignaciones_docentes')
+                .delete()
+                .eq('asignatura_id', asignaturaId)
+
+            if (deleteAsignacionesError) throw deleteAsignacionesError
+
+            if (editAsignaturaDocenteId && editAsignaturaGrupoIds.length > 0) {
+                const asignacionPayload: Array<Database['public']['Tables']['asignaciones_docentes']['Insert']> =
+                    editAsignaturaGrupoIds.map((grupoId) => ({
+                        docente_id: editAsignaturaDocenteId,
+                        grupo_id: grupoId,
+                        asignatura_id: asignaturaId,
+                        año_academico: editAsignaturaAno
+                    }))
+
+                const { error: insertAsignacionesError } = await dbClient
+                    .from('asignaciones_docentes')
+                    .insert(asignacionPayload as never)
+
+                if (insertAsignacionesError) throw insertAsignacionesError
+            }
+
+            setAsignaturas((prev) =>
+                prev.map((a) =>
+                    a.id === asignaturaId
+                        ? {
+                            ...a,
+                            nombre: payload.nombre ?? a.nombre,
+                            codigo: payload.codigo ?? null,
+                            descripcion: payload.descripcion ?? null,
+                            updated_at: new Date().toISOString()
+                        }
+                        : a
+                )
+            )
+            await loadAsignacionesDocentes()
+            asignaturasMessage.show('success', 'Asignatura actualizada correctamente')
+            onCancelEditAsignatura()
+        } catch (error) {
+            asignaturasMessage.show('error', error instanceof Error ? error.message : 'No se pudo actualizar la asignatura')
+        } finally {
+            setUpdatingAsignatura(false)
         }
     }
 
@@ -1417,24 +1566,144 @@ export default function AdminPage() {
                                         <p className="text-sm text-muted-foreground text-center py-4">No hay asignaturas registradas.</p>
                                     ) : (
                                         asignaturas.map((asignatura) => (
-                                            <div key={asignatura.id} className="flex justify-between items-center p-3 border rounded-lg">
-                                                <div>
-                                                    <p className="font-medium">{asignatura.nombre}</p>
-                                                    {asignatura.codigo && (
-                                                        <p className="text-sm text-muted-foreground">Código: {asignatura.codigo}</p>
-                                                    )}
-                                                </div>
-                                                <Button
-                                                    variant="destructive"
-                                                    size="sm"
-                                                    onClick={() => void onDeleteAsignatura(asignatura.id)}
-                                                    disabled={deletingAsignaturaId === asignatura.id}
-                                                >
-                                                    {deletingAsignaturaId === asignatura.id && (
-                                                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                                                    )}
-                                                    Eliminar
-                                                </Button>
+                                            <div key={asignatura.id} className="p-3 border rounded-lg space-y-3">
+                                                {editingAsignaturaId === asignatura.id ? (
+                                                    <form onSubmit={(e) => void onUpdateAsignatura(e, asignatura.id)} className="space-y-3">
+                                                        <div>
+                                                            <Label htmlFor={`edit-asignatura-nombre-${asignatura.id}`}>Nombre *</Label>
+                                                            <Input
+                                                                id={`edit-asignatura-nombre-${asignatura.id}`}
+                                                                value={editAsignaturaForm.nombre}
+                                                                onChange={(e) =>
+                                                                    setEditAsignaturaForm((prev) => ({ ...prev, nombre: e.target.value }))
+                                                                }
+                                                                required
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <Label htmlFor={`edit-asignatura-codigo-${asignatura.id}`}>Código</Label>
+                                                            <Input
+                                                                id={`edit-asignatura-codigo-${asignatura.id}`}
+                                                                value={editAsignaturaForm.codigo}
+                                                                onChange={(e) =>
+                                                                    setEditAsignaturaForm((prev) => ({ ...prev, codigo: e.target.value }))
+                                                                }
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <Label htmlFor={`edit-asignatura-descripcion-${asignatura.id}`}>Descripción</Label>
+                                                            <Input
+                                                                id={`edit-asignatura-descripcion-${asignatura.id}`}
+                                                                value={editAsignaturaForm.descripcion}
+                                                                onChange={(e) =>
+                                                                    setEditAsignaturaForm((prev) => ({ ...prev, descripcion: e.target.value }))
+                                                                }
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <Label htmlFor={`edit-asignatura-docente-${asignatura.id}`}>Docente que dictará</Label>
+                                                            <select
+                                                                id={`edit-asignatura-docente-${asignatura.id}`}
+                                                                className="w-full px-3 py-2 border rounded-md bg-background"
+                                                                value={editAsignaturaDocenteId}
+                                                                onChange={(e) => setEditAsignaturaDocenteId(e.target.value)}
+                                                            >
+                                                                <option value="">Sin asignar</option>
+                                                                {docentes.map((docente) => (
+                                                                    <option key={docente.id} value={docente.id}>
+                                                                        {docente.nombre_completo}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <Label>Grupos</Label>
+                                                            <div className="space-y-2 rounded-md border p-3">
+                                                                {grupos.length === 0 ? (
+                                                                    <p className="text-sm text-muted-foreground">No hay grupos registrados.</p>
+                                                                ) : (
+                                                                    grupos.map((grupo) => (
+                                                                        <label key={grupo.id} className="flex items-center gap-2 text-sm">
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                checked={editAsignaturaGrupoIds.includes(grupo.id)}
+                                                                                onChange={() => toggleEditAsignaturaGrupo(grupo.id)}
+                                                                            />
+                                                                            <span>
+                                                                                {grupo.grado?.nombre ?? 'Sin grado'} - Grupo {grupo.nombre}
+                                                                            </span>
+                                                                        </label>
+                                                                    ))
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <Label htmlFor={`edit-asignatura-anio-${asignatura.id}`}>Año académico</Label>
+                                                            <Input
+                                                                id={`edit-asignatura-anio-${asignatura.id}`}
+                                                                type="number"
+                                                                value={editAsignaturaAno}
+                                                                onChange={(e) =>
+                                                                    setEditAsignaturaAno(Number.isNaN(Number(e.target.value))
+                                                                        ? editAsignaturaAno
+                                                                        : Number(e.target.value))
+                                                                }
+                                                            />
+                                                        </div>
+                                                        <div className="flex justify-end gap-2">
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                onClick={onCancelEditAsignatura}
+                                                                disabled={updatingAsignatura}
+                                                            >
+                                                                <X className="h-4 w-4 mr-2" />
+                                                                Cancelar
+                                                            </Button>
+                                                            <Button type="submit" disabled={updatingAsignatura}>
+                                                                {updatingAsignatura && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                                                                Guardar
+                                                            </Button>
+                                                        </div>
+                                                    </form>
+                                                ) : (
+                                                    <div className="flex justify-between items-start gap-3">
+                                                        <div>
+                                                            <p className="font-medium">{asignatura.nombre}</p>
+                                                            {asignatura.codigo && (
+                                                                <p className="text-sm text-muted-foreground">Código: {asignatura.codigo}</p>
+                                                            )}
+                                                            <p className="text-sm text-muted-foreground">
+                                                                Descripción: {asignatura.descripcion || 'Sin descripción'}
+                                                            </p>
+                                                            <p className="text-sm text-muted-foreground">
+                                                                Docente: {docentesPorAsignatura[asignatura.id] || 'Sin asignar'}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => onStartEditAsignatura(asignatura)}
+                                                                disabled={deletingAsignaturaId === asignatura.id}
+                                                            >
+                                                                <Pencil className="h-4 w-4 mr-2" />
+                                                                Editar
+                                                            </Button>
+                                                            <Button
+                                                                variant="destructive"
+                                                                size="sm"
+                                                                onClick={() => void onDeleteAsignatura(asignatura.id)}
+                                                                disabled={deletingAsignaturaId === asignatura.id}
+                                                            >
+                                                                {deletingAsignaturaId === asignatura.id && (
+                                                                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                                                )}
+                                                                Eliminar
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         ))
                                     )}
@@ -1653,16 +1922,17 @@ export default function AdminPage() {
                                                                 <p className="text-xs text-muted-foreground">{estudiante.email}</p>
                                                             </div>
                                                             <Button
-                                                                variant="ghost"
+                                                                variant="destructive"
                                                                 size="sm"
                                                                 onClick={() => void onEliminarEstudianteDeGrupo(estudiante.id)}
                                                                 disabled={eliminandoEstudianteId === estudiante.id}
                                                             >
                                                                 {eliminandoEstudianteId === estudiante.id ? (
-                                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
                                                                 ) : (
-                                                                    <Trash2 className="h-4 w-4" />
+                                                                    <Trash2 className="h-4 w-4 mr-2" />
                                                                 )}
+                                                                Remover estudiante
                                                             </Button>
                                                         </div>
                                                     ))

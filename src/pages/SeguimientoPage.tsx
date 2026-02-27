@@ -57,6 +57,7 @@ export default function SeguimientoPage() {
     const [acciones, setAcciones] = useState('')
     const [requiereSeguimiento, setRequiereSeguimiento] = useState(false)
     const [fechaSeguimiento, setFechaSeguimiento] = useState('')
+    const [searchTerm, setSearchTerm] = useState('')
 
     const canRegister = profile?.rol === 'administrador' || profile?.rol === 'administrativo' || profile?.rol === 'docente'
 
@@ -223,6 +224,27 @@ export default function SeguimientoPage() {
         return 'Gestión de seguimiento estudiantil'
     }, [profile?.rol])
 
+    const filteredSeguimientos = useMemo(() => {
+        const query = searchTerm.trim().toLowerCase()
+        if (!query) return seguimientos
+
+        return seguimientos.filter((item) => {
+            const estudiante = item.estudiante?.nombre_completo?.toLowerCase() ?? ''
+            const tipoValue = item.tipo.toLowerCase()
+            const tituloValue = item.titulo.toLowerCase()
+            const descripcionValue = item.descripcion.toLowerCase()
+            const accionesValue = item.acciones_tomadas?.toLowerCase() ?? ''
+
+            return (
+                estudiante.includes(query)
+                || tipoValue.includes(query)
+                || tituloValue.includes(query)
+                || descripcionValue.includes(query)
+                || accionesValue.includes(query)
+            )
+        })
+    }, [searchTerm, seguimientos])
+
     return (
         <div className="space-y-6">
             <div>
@@ -356,7 +378,34 @@ export default function SeguimientoPage() {
                         <CardDescription>Registros más recientes</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        {seguimientos.map((item) => (
+                        <div className="space-y-2">
+                            <Label htmlFor="seguimiento-search">Buscar en historial</Label>
+                            <div className="flex gap-2">
+                                <Input
+                                    id="seguimiento-search"
+                                    placeholder="Buscar por estudiante, tipo, título, descripción o acciones"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setSearchTerm('')}
+                                    disabled={!searchTerm}
+                                >
+                                    Limpiar
+                                </Button>
+                            </div>
+                        </div>
+
+                        {filteredSeguimientos.length === 0 && (
+                            <Alert>
+                                <ClipboardList className="h-4 w-4" />
+                                <AlertDescription>No se encontraron registros para la búsqueda actual.</AlertDescription>
+                            </Alert>
+                        )}
+
+                        {filteredSeguimientos.map((item) => (
                             <div key={item.id} className="rounded-lg border border-border p-4 space-y-2">
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                     <div>

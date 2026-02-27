@@ -85,6 +85,7 @@ interface Asignatura {
 
 export default function NotasPage() {
     const { profile } = useAuthStore()
+    const canViewAllNotas = profile?.rol === 'administrador' || profile?.rol === 'administrativo'
     const [periodos, setPeriodos] = useState<Periodo[]>([])
     const [selectedPeriodo, setSelectedPeriodo] = useState<string>('')
     const [notas, setNotas] = useState<Nota[]>([])
@@ -96,6 +97,12 @@ export default function NotasPage() {
     const [grupos, setGrupos] = useState<Grupo[]>([])
     const [asignaturas, setAsignaturas] = useState<Asignatura[]>([])
     const [estudiantes, setEstudiantes] = useState<Estudiante[]>([])
+
+    // Filtros de visualización (administrador y administrativo)
+    const [viewGrupo, setViewGrupo] = useState<string>('all')
+    const [viewAsignatura, setViewAsignatura] = useState<string>('all')
+    const [viewEstudiante, setViewEstudiante] = useState<string>('all')
+
     const [selectedGrupo, setSelectedGrupo] = useState<string>('')
     const [selectedAsignatura, setSelectedAsignatura] = useState<string>('')
     const [selectedEstudiante, setSelectedEstudiante] = useState<string>('')
@@ -111,7 +118,7 @@ export default function NotasPage() {
         if (selectedPeriodo && profile) {
             loadNotas()
         }
-    }, [selectedPeriodo, profile])
+    }, [selectedPeriodo, profile, viewGrupo, viewAsignatura, viewEstudiante])
 
     // Cargar grupos y asignaturas asignadas al docente
     useEffect(() => {
@@ -119,6 +126,12 @@ export default function NotasPage() {
             loadDocenteAsignaciones()
         }
     }, [profile, showCalculator])
+
+    useEffect(() => {
+        if (canViewAllNotas) {
+            loadAdminViewOptions()
+        }
+    }, [canViewAllNotas])
 
     // Cargar estudiantes del grupo seleccionado
     useEffect(() => {
@@ -204,6 +217,18 @@ export default function NotasPage() {
                 query = query.in('grupo_id', gruposAsignados).in('asignatura_id', asignaturasAsignadas)
             }
 
+            if (canViewAllNotas) {
+                if (viewGrupo !== 'all') {
+                    query = query.eq('grupo_id', viewGrupo)
+                }
+                if (viewAsignatura !== 'all') {
+                    query = query.eq('asignatura_id', viewAsignatura)
+                }
+                if (viewEstudiante !== 'all') {
+                    query = query.eq('estudiante_id', viewEstudiante)
+                }
+            }
+
             const { data, error } = await query
 
             if (error) throw error
@@ -213,6 +238,38 @@ export default function NotasPage() {
             setError('Error al cargar las notas')
         } finally {
             setLoading(false)
+        }
+    }
+
+    const loadAdminViewOptions = async () => {
+        try {
+            const [{ data: gruposData, error: gruposError }, { data: asignaturasData, error: asignaturasError }, { data: estudiantesData, error: estudiantesError }] = await Promise.all([
+                supabase
+                    .from('grupos')
+                    .select('id, nombre, grado_id, grado:grado_id (nombre)')
+                    .order('nombre', { ascending: true }),
+                supabase
+                    .from('asignaturas')
+                    .select('id, nombre, codigo')
+                    .order('nombre', { ascending: true }),
+                supabase
+                    .from('profiles')
+                    .select('id, nombre_completo, email')
+                    .eq('rol', 'estudiante')
+                    .eq('activo', true)
+                    .order('nombre_completo', { ascending: true }),
+            ])
+
+            if (gruposError) throw gruposError
+            if (asignaturasError) throw asignaturasError
+            if (estudiantesError) throw estudiantesError
+
+            setGrupos((gruposData || []) as Grupo[])
+            setAsignaturas((asignaturasData || []) as Asignatura[])
+            setEstudiantes((estudiantesData || []) as Estudiante[])
+        } catch (err) {
+            console.error('Error loading admin view options:', err)
+            setError('Error al cargar filtros de notas')
         }
     }
 
@@ -605,6 +662,61 @@ export default function NotasPage() {
                             </SelectContent>
                         </Select>
                     </div>
+
+                    {canViewAllNotas && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                            <div>
+                                <label className="text-sm font-medium mb-2 block">Grupo</label>
+                                <Select value={viewGrupo} onValueChange={setViewGrupo}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Todos los grupos" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todos los grupos</SelectItem>
+                                        {grupos.map((grupo) => (
+                                            <SelectItem key={grupo.id} value={grupo.id}>
+                                                {grupo.grado.nombre} - {grupo.nombre}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div>
+                                <label className="text-sm font-medium mb-2 block">Asignatura</label>
+                                <Select value={viewAsignatura} onValueChange={setViewAsignatura}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Todas las asignaturas" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todas las asignaturas</SelectItem>
+                                        {asignaturas.map((asignatura) => (
+                                            <SelectItem key={asignatura.id} value={asignatura.id}>
+                                                {asignatura.nombre}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div>
+                                <label className="text-sm font-medium mb-2 block">Estudiante</label>
+                                <Select value={viewEstudiante} onValueChange={setViewEstudiante}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Todos los estudiantes" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todos los estudiantes</SelectItem>
+                                        {estudiantes.map((estudiante) => (
+                                            <SelectItem key={estudiante.id} value={estudiante.id}>
+                                                {estudiante.nombre_completo}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 

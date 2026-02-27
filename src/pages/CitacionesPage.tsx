@@ -13,7 +13,7 @@ import {
     SelectValue,
 } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { AlertCircle, CheckCircle2, Loader2, UserCheck } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Loader2, Pencil, Trash2, UserCheck, X } from 'lucide-react'
 import type { Database } from '@/types/database.types'
 
 interface Citacion {
@@ -41,12 +41,29 @@ interface StudentOption {
 
 const CITADOS = ['Estudiante', 'Padre/Madre', 'Acudiente']
 
+type EditCitacionForm = {
+    estudiante_id: string
+    citado: string
+    motivo: string
+    descripcion: string
+    fecha_citacion: string
+    lugar: string
+}
+
+function toLocalDateTimeValue(dateIso: string) {
+    const date = new Date(dateIso)
+    const offsetMs = date.getTimezoneOffset() * 60_000
+    return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16)
+}
+
 export default function CitacionesPage() {
     const { profile } = useAuthStore()
     const [citaciones, setCitaciones] = useState<Citacion[]>([])
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
     const [updatingId, setUpdatingId] = useState<string | null>(null)
+    const [savingEditId, setSavingEditId] = useState<string | null>(null)
+    const [deletingId, setDeletingId] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState<string | null>(null)
 
@@ -57,6 +74,15 @@ export default function CitacionesPage() {
     const [descripcion, setDescripcion] = useState('')
     const [fechaCitacion, setFechaCitacion] = useState('')
     const [lugar, setLugar] = useState('')
+    const [editingCitacionId, setEditingCitacionId] = useState<string | null>(null)
+    const [editForm, setEditForm] = useState<EditCitacionForm>({
+        estudiante_id: '',
+        citado: CITADOS[0],
+        motivo: '',
+        descripcion: '',
+        fecha_citacion: '',
+        lugar: '',
+    })
 
     const isStaff = profile?.rol === 'administrador' || profile?.rol === 'administrativo' || profile?.rol === 'docente'
 
@@ -244,6 +270,98 @@ export default function CitacionesPage() {
         }
     }
 
+    const handleStartEdit = (citacion: Citacion) => {
+        setEditingCitacionId(citacion.id)
+        setEditForm({
+            estudiante_id: citacion.estudiante_id,
+            citado: citacion.citado,
+            motivo: citacion.motivo,
+            descripcion: citacion.descripcion ?? '',
+            fecha_citacion: toLocalDateTimeValue(citacion.fecha_citacion),
+            lugar: citacion.lugar ?? '',
+        })
+        setError(null)
+        setSuccess(null)
+    }
+
+    const handleCancelEdit = () => {
+        setEditingCitacionId(null)
+        setEditForm({
+            estudiante_id: '',
+            citado: CITADOS[0],
+            motivo: '',
+            descripcion: '',
+            fecha_citacion: '',
+            lugar: '',
+        })
+    }
+
+    const handleSaveEdit = async (citacionId: string) => {
+        if (!editForm.estudiante_id || !editForm.motivo.trim() || !editForm.fecha_citacion) {
+            setError('Completa estudiante, motivo y fecha de citación')
+            return
+        }
+
+        setSavingEditId(citacionId)
+        setError(null)
+        setSuccess(null)
+
+        try {
+            const payload = {
+                estudiante_id: editForm.estudiante_id,
+                citado: editForm.citado,
+                motivo: editForm.motivo.trim(),
+                descripcion: editForm.descripcion.trim() ? editForm.descripcion.trim() : null,
+                fecha_citacion: new Date(editForm.fecha_citacion).toISOString(),
+                lugar: editForm.lugar.trim() ? editForm.lugar.trim() : null,
+            } satisfies Database['public']['Tables']['citaciones']['Update']
+
+            const { error } = await (supabase as any)
+                .from('citaciones')
+                .update(payload)
+                .eq('id', citacionId)
+
+            if (error) throw error
+
+            setSuccess('Citación actualizada')
+            handleCancelEdit()
+            await loadCitaciones()
+        } catch (err) {
+            console.error('Error updating citacion:', err)
+            setError('Error al actualizar la citación')
+        } finally {
+            setSavingEditId(null)
+        }
+    }
+
+    const handleDeleteCitacion = async (citacionId: string) => {
+        if (!window.confirm('¿Eliminar esta citación programada?')) return
+
+        setDeletingId(citacionId)
+        setError(null)
+        setSuccess(null)
+
+        try {
+            const { error } = await (supabase as any)
+                .from('citaciones')
+                .delete()
+                .eq('id', citacionId)
+
+            if (error) throw error
+
+            setCitaciones((prev) => prev.filter((item) => item.id !== citacionId))
+            if (editingCitacionId === citacionId) {
+                handleCancelEdit()
+            }
+            setSuccess('Citación eliminada')
+        } catch (err) {
+            console.error('Error deleting citacion:', err)
+            setError('Error al eliminar la citación')
+        } finally {
+            setDeletingId(null)
+        }
+    }
+
     const headerDescription = useMemo(() => {
         if (profile?.rol === 'estudiante') return 'Consulta tus citaciones programadas'
         if (profile?.rol === 'padre') return 'Revisa las citaciones de tus hijos'
@@ -373,66 +491,196 @@ export default function CitacionesPage() {
                     <CardContent className="space-y-4">
                         {citaciones.map((item) => (
                             <div key={item.id} className="rounded-lg border border-border p-4 space-y-2">
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <div>
-                                        <p className="text-sm font-semibold text-foreground">
-                                            {item.estudiante?.nombre_completo || 'Estudiante'}
+                                {editingCitacionId === item.id ? (
+                                    <div className="space-y-4">
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <div className="space-y-2">
+                                                <Label>Estudiante</Label>
+                                                <Select
+                                                    value={editForm.estudiante_id}
+                                                    onValueChange={(value) => setEditForm((prev) => ({ ...prev, estudiante_id: value }))}
+                                                >
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Selecciona un estudiante" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {students.map((student) => (
+                                                            <SelectItem key={student.estudiante_id} value={student.estudiante_id}>
+                                                                {student.nombre_completo}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label>Citado</Label>
+                                                <Select
+                                                    value={editForm.citado}
+                                                    onValueChange={(value) => setEditForm((prev) => ({ ...prev, citado: value }))}
+                                                >
+                                                    <SelectTrigger>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {CITADOS.map((option) => (
+                                                            <SelectItem key={option} value={option}>
+                                                                {option}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <div className="space-y-2">
+                                                <Label>Fecha de citación</Label>
+                                                <Input
+                                                    type="datetime-local"
+                                                    value={editForm.fecha_citacion}
+                                                    onChange={(e) => setEditForm((prev) => ({ ...prev, fecha_citacion: e.target.value }))}
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label>Lugar</Label>
+                                                <Input
+                                                    value={editForm.lugar}
+                                                    onChange={(e) => setEditForm((prev) => ({ ...prev, lugar: e.target.value }))}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label>Motivo</Label>
+                                            <Input
+                                                value={editForm.motivo}
+                                                onChange={(e) => setEditForm((prev) => ({ ...prev, motivo: e.target.value }))}
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label>Descripción</Label>
+                                            <Input
+                                                value={editForm.descripcion}
+                                                onChange={(e) => setEditForm((prev) => ({ ...prev, descripcion: e.target.value }))}
+                                            />
+                                        </div>
+
+                                        <div className="flex flex-wrap gap-2 pt-2">
+                                            <Button
+                                                size="sm"
+                                                onClick={() => void handleSaveEdit(item.id)}
+                                                disabled={savingEditId === item.id}
+                                            >
+                                                {savingEditId === item.id ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                                ) : (
+                                                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                                                )}
+                                                Guardar cambios
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={handleCancelEdit}
+                                                disabled={savingEditId === item.id}
+                                            >
+                                                <X className="h-4 w-4 mr-2" />
+                                                Cancelar
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <div>
+                                                <p className="text-sm font-semibold text-foreground">
+                                                    {item.estudiante?.nombre_completo || 'Estudiante'}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">Citado: {item.citado}</p>
+                                            </div>
+                                            {item.asistio !== null && (
+                                                <span
+                                                    className={`rounded-full px-2 py-1 text-xs font-medium ${item.asistio
+                                                        ? 'bg-emerald-50 text-emerald-700'
+                                                        : 'bg-rose-50 text-rose-700'
+                                                        }`}
+                                                >
+                                                    {item.asistio ? 'Asistió' : 'No asistió'}
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <p className="text-sm font-medium text-foreground">{item.motivo}</p>
+                                        {item.descripcion && (
+                                            <p className="text-sm text-foreground">{item.descripcion}</p>
+                                        )}
+
+                                        <p className="text-xs text-muted-foreground">
+                                            {new Date(item.fecha_citacion).toLocaleString()}
+                                            {item.lugar && ` • ${item.lugar}`}
                                         </p>
-                                        <p className="text-xs text-muted-foreground">Citado: {item.citado}</p>
-                                    </div>
-                                    {item.asistio !== null && (
-                                        <span
-                                            className={`rounded-full px-2 py-1 text-xs font-medium ${item.asistio
-                                                ? 'bg-emerald-50 text-emerald-700'
-                                                : 'bg-rose-50 text-rose-700'
-                                                }`}
-                                        >
-                                            {item.asistio ? 'Asistió' : 'No asistió'}
-                                        </span>
-                                    )}
-                                </div>
 
-                                <p className="text-sm font-medium text-foreground">{item.motivo}</p>
-                                {item.descripcion && (
-                                    <p className="text-sm text-foreground">{item.descripcion}</p>
-                                )}
+                                        {item.observaciones && (
+                                            <p className="text-xs text-muted-foreground">Observaciones: {item.observaciones}</p>
+                                        )}
 
-                                <p className="text-xs text-muted-foreground">
-                                    {new Date(item.fecha_citacion).toLocaleString()}
-                                    {item.lugar && ` • ${item.lugar}`}
-                                </p>
+                                        {isStaff && (
+                                            <div className="flex flex-wrap gap-2 pt-2">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => handleStartEdit(item)}
+                                                    disabled={deletingId === item.id}
+                                                >
+                                                    <Pencil className="h-4 w-4 mr-2" />
+                                                    Editar
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="destructive"
+                                                    onClick={() => void handleDeleteCitacion(item.id)}
+                                                    disabled={deletingId === item.id}
+                                                >
+                                                    {deletingId === item.id ? (
+                                                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                                    ) : (
+                                                        <Trash2 className="h-4 w-4 mr-2" />
+                                                    )}
+                                                    Eliminar
+                                                </Button>
+                                            </div>
+                                        )}
 
-                                {item.observaciones && (
-                                    <p className="text-xs text-muted-foreground">Observaciones: {item.observaciones}</p>
-                                )}
-
-                                {isStaff && item.asistio === null && (
-                                    <div className="flex flex-wrap gap-2 pt-2">
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => handleUpdateAsistencia(item, true)}
-                                            disabled={updatingId === item.id}
-                                        >
-                                            {updatingId === item.id ? (
-                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                            ) : (
-                                                'Asistió'
-                                            )}
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => handleUpdateAsistencia(item, false)}
-                                            disabled={updatingId === item.id}
-                                        >
-                                            {updatingId === item.id ? (
-                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                            ) : (
-                                                'No asistió'
-                                            )}
-                                        </Button>
-                                    </div>
+                                        {isStaff && item.asistio === null && (
+                                            <div className="flex flex-wrap gap-2 pt-2">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => handleUpdateAsistencia(item, true)}
+                                                    disabled={updatingId === item.id || deletingId === item.id}
+                                                >
+                                                    {updatingId === item.id ? (
+                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                        'Asistió'
+                                                    )}
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => handleUpdateAsistencia(item, false)}
+                                                    disabled={updatingId === item.id || deletingId === item.id}
+                                                >
+                                                    {updatingId === item.id ? (
+                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                        'No asistió'
+                                                    )}
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </>
                                 )}
                             </div>
                         ))}

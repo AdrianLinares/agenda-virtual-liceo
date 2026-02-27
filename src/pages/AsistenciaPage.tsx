@@ -47,8 +47,17 @@ interface AsistenciaRecord {
 interface StudentOption {
     estudiante_id: string
     nombre_completo: string
-    grupo_id: string
-    grupo_nombre: string
+}
+
+interface AsignaturaOption {
+    id: string
+    nombre: string
+    codigo: string | null
+}
+
+interface GrupoOption {
+    id: string
+    nombre: string
     grado_nombre: string
 }
 
@@ -59,7 +68,11 @@ export default function AsistenciaPage() {
         return today.toISOString().split('T')[0]
     })
     const [asistencias, setAsistencias] = useState<AsistenciaRecord[]>([])
+    const [asignaturas, setAsignaturas] = useState<AsignaturaOption[]>([])
+    const [grupos, setGrupos] = useState<GrupoOption[]>([])
     const [students, setStudents] = useState<StudentOption[]>([])
+    const [selectedAsignatura, setSelectedAsignatura] = useState<string>('')
+    const [selectedGrupo, setSelectedGrupo] = useState<string>('')
     const [selectedStudent, setSelectedStudent] = useState<string>('')
     const [selectedEstado, setSelectedEstado] = useState<Estado>('presente')
     const [observaciones, setObservaciones] = useState('')
@@ -79,9 +92,35 @@ export default function AsistenciaPage() {
 
     useEffect(() => {
         if (profile && isStaff) {
-            loadStudents()
+            loadAsignaturasForRegistro()
         }
     }, [profile, isStaff])
+
+    useEffect(() => {
+        if (!isStaff) return
+
+        setSelectedGrupo('')
+        setStudents([])
+        setSelectedStudent('')
+
+        if (selectedAsignatura) {
+            loadGruposForAsignatura()
+        } else {
+            setGrupos([])
+        }
+    }, [selectedAsignatura, isStaff])
+
+    useEffect(() => {
+        if (!isStaff) return
+
+        setSelectedStudent('')
+
+        if (selectedGrupo) {
+            loadStudentsForGrupo()
+        } else {
+            setStudents([])
+        }
+    }, [selectedGrupo, isStaff])
 
     const loadAsistencias = async () => {
         if (!profile) return
@@ -134,43 +173,99 @@ export default function AsistenciaPage() {
         }
     }
 
-    const loadStudents = async () => {
+    const loadAsignaturasForRegistro = async () => {
         if (!profile) return
 
         try {
             setError(null)
-            let grupoIds: string[] | null = null
-
             if (profile.rol === 'docente') {
                 const { data: asignaciones, error: asignacionesError } = await supabase
                     .from('asignaciones_docentes')
-                    .select('grupo_id')
+                    .select('asignatura:asignatura_id (id, nombre, codigo)')
                     .eq('docente_id', profile.id)
                     .eq('año_academico', 2026)
-                    .returns<Array<{ grupo_id: string }>>()
 
                 if (asignacionesError) throw asignacionesError
-                grupoIds = asignaciones?.map((a) => a.grupo_id) || []
 
-                if (grupoIds.length === 0) {
-                    setStudents([])
-                    return
-                }
+                const map = new Map<string, AsignaturaOption>()
+                    ; (asignaciones || []).forEach((row: any) => {
+                        if (row.asignatura?.id) {
+                            map.set(row.asignatura.id, {
+                                id: row.asignatura.id,
+                                nombre: row.asignatura.nombre,
+                                codigo: row.asignatura.codigo ?? null,
+                            })
+                        }
+                    })
+
+                const listado = Array.from(map.values()).sort((a, b) => a.nombre.localeCompare(b.nombre))
+                setAsignaturas(listado)
+                return
             }
 
-            let estudiantesQuery = supabase
-                .from('estudiantes_grupos')
-                .select(`
-          estudiante:estudiante_id (id, nombre_completo),
-          grupo:grupo_id (id, nombre, grado:grado_id (nombre))
-        `)
+            const { data, error } = await supabase
+                .from('asignaturas')
+                .select('id, nombre, codigo')
+                .order('nombre', { ascending: true })
+
+            if (error) throw error
+
+            setAsignaturas((data || []) as AsignaturaOption[])
+        } catch (err) {
+            console.error('Error loading asignaturas:', err)
+            setError('Error al cargar asignaturas')
+        }
+    }
+
+    const loadGruposForAsignatura = async () => {
+        if (!profile || !selectedAsignatura) return
+
+        try {
+            setError(null)
+
+            let query = supabase
+                .from('asignaciones_docentes')
+                .select('grupo:grupo_id (id, nombre, grado:grado_id (nombre))')
+                .eq('asignatura_id', selectedAsignatura)
                 .eq('año_academico', 2026)
 
-            if (grupoIds) {
-                estudiantesQuery = estudiantesQuery.in('grupo_id', grupoIds)
+            if (profile.rol === 'docente') {
+                query = query.eq('docente_id', profile.id)
             }
 
-            const { data, error } = await estudiantesQuery
+            const { data, error } = await query
+
+            if (error) throw error
+
+            const gruposMap = new Map<string, GrupoOption>()
+                ; (data || []).forEach((row: any) => {
+                    if (row.grupo?.id) {
+                        gruposMap.set(row.grupo.id, {
+                            id: row.grupo.id,
+                            nombre: row.grupo.nombre,
+                            grado_nombre: row.grupo.grado?.nombre ?? 'Sin grado',
+                        })
+                    }
+                })
+
+            setGrupos(Array.from(gruposMap.values()).sort((a, b) => a.nombre.localeCompare(b.nombre)))
+        } catch (err) {
+            console.error('Error loading grupos:', err)
+            setError('Error al cargar grupos para la asignatura')
+        }
+    }
+
+    const loadStudentsForGrupo = async () => {
+        if (!selectedGrupo) return
+
+        try {
+            setError(null)
+
+            const { data, error } = await supabase
+                .from('estudiantes_grupos')
+                .select('estudiante:estudiante_id (id, nombre_completo)')
+                .eq('año_academico', 2026)
+                .eq('grupo_id', selectedGrupo)
 
             if (error) throw error
 
@@ -178,11 +273,8 @@ export default function AsistenciaPage() {
                 .map((row: any) => ({
                     estudiante_id: row.estudiante?.id as string,
                     nombre_completo: row.estudiante?.nombre_completo as string,
-                    grupo_id: row.grupo?.id as string,
-                    grupo_nombre: row.grupo?.nombre as string,
-                    grado_nombre: row.grupo?.grado?.nombre as string,
                 }))
-                .filter((row) => row.estudiante_id && row.grupo_id)
+                .filter((row) => row.estudiante_id)
                 .sort((a, b) => a.nombre_completo.localeCompare(b.nombre_completo))
 
             setStudents(mapped)
@@ -194,8 +286,8 @@ export default function AsistenciaPage() {
 
     const handleCreateAsistencia = async () => {
         if (!profile) return
-        if (!selectedStudent) {
-            setError('Selecciona un estudiante')
+        if (!selectedAsignatura || !selectedGrupo || !selectedStudent) {
+            setError('Selecciona asignatura, grupo y estudiante')
             return
         }
 
@@ -214,11 +306,11 @@ export default function AsistenciaPage() {
                 .from('asistencias')
                 .insert({
                     estudiante_id: student.estudiante_id,
-                    grupo_id: student.grupo_id,
+                    grupo_id: selectedGrupo,
                     fecha: selectedDate,
                     estado: selectedEstado,
                     observaciones: observaciones.trim() ? observaciones.trim() : null,
-                    asignatura_id: null,
+                    asignatura_id: selectedAsignatura,
                     registrado_por: profile.id,
                 } as Database['public']['Tables']['asistencias']['Insert'])
 
@@ -362,22 +454,60 @@ export default function AsistenciaPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle>Registrar asistencia</CardTitle>
-                        <CardDescription>
-                            Selecciona el estudiante y su estado de asistencia
-                        </CardDescription>
+                        <CardDescription>Selecciona asignatura, grupo, estudiante y estado</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="grid gap-4 md:grid-cols-3">
+                        <div className="grid gap-4 md:grid-cols-4">
+                            <div className="space-y-2">
+                                <Label>Asignatura</Label>
+                                <Select value={selectedAsignatura} onValueChange={setSelectedAsignatura}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Selecciona una asignatura" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {asignaturas.map((asignatura) => (
+                                            <SelectItem key={asignatura.id} value={asignatura.id}>
+                                                {asignatura.nombre}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label>Grupo</Label>
+                                <Select
+                                    value={selectedGrupo}
+                                    onValueChange={setSelectedGrupo}
+                                    disabled={!selectedAsignatura}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Selecciona un grupo" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {grupos.map((grupo) => (
+                                            <SelectItem key={grupo.id} value={grupo.id}>
+                                                {grupo.grado_nombre} • {grupo.nombre}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
                             <div className="space-y-2">
                                 <Label>Estudiante</Label>
-                                <Select value={selectedStudent} onValueChange={setSelectedStudent}>
+                                <Select
+                                    value={selectedStudent}
+                                    onValueChange={setSelectedStudent}
+                                    disabled={!selectedGrupo}
+                                >
                                     <SelectTrigger>
                                         <SelectValue placeholder="Selecciona un estudiante" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {students.map((student) => (
                                             <SelectItem key={student.estudiante_id} value={student.estudiante_id}>
-                                                {student.nombre_completo} • {student.grado_nombre} {student.grupo_nombre}
+                                                {student.nombre_completo}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -399,15 +529,15 @@ export default function AsistenciaPage() {
                                     </SelectContent>
                                 </Select>
                             </div>
+                        </div>
 
-                            <div className="space-y-2">
-                                <Label>Observaciones</Label>
-                                <Input
-                                    value={observaciones}
-                                    onChange={(event) => setObservaciones(event.target.value)}
-                                    placeholder="Opcional"
-                                />
-                            </div>
+                        <div className="space-y-2">
+                            <Label>Observaciones</Label>
+                            <Input
+                                value={observaciones}
+                                onChange={(event) => setObservaciones(event.target.value)}
+                                placeholder="Opcional"
+                            />
                         </div>
 
                         <div>
