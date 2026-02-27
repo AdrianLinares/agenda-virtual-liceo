@@ -86,10 +86,9 @@ Deno.serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')
-    const serviceRoleKey = Deno.env.get('SERVICE_ROLE_KEY')
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('SERVICE_ROLE_KEY')
 
-    if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+    if (!supabaseUrl || !serviceRoleKey) {
         return jsonResponse({ error: 'Configuración de Supabase incompleta en el servidor' }, 500)
     }
 
@@ -196,9 +195,22 @@ Deno.serve(async (req) => {
                 return jsonResponse({ error: 'No puedes eliminar tu propio usuario' }, 400)
             }
 
-            const { error: deleteProfileError } = await adminClient.from('profiles').delete().eq('id', userId)
-            if (deleteProfileError) {
-                return jsonResponse({ error: deleteProfileError.message }, 400)
+            const cleanupUpdates: Array<Promise<{ error: { message: string } | null }>> = [
+                adminClient.from('grupos').update({ director_grupo_id: null }).eq('director_grupo_id', userId),
+                adminClient.from('notas').update({ docente_id: null }).eq('docente_id', userId),
+                adminClient.from('boletines').update({ generado_por: null }).eq('generado_por', userId),
+                adminClient.from('asistencias').update({ registrado_por: null }).eq('registrado_por', userId),
+                adminClient.from('horarios').update({ docente_id: null }).eq('docente_id', userId),
+                adminClient.from('permisos').update({ solicitado_por: null }).eq('solicitado_por', userId),
+                adminClient.from('permisos').update({ revisado_por: null }).eq('revisado_por', userId),
+                adminClient.from('seguimientos').update({ registrado_por: null }).eq('registrado_por', userId),
+                adminClient.from('citaciones').update({ creado_por: null }).eq('creado_por', userId)
+            ]
+
+            const cleanupResults = await Promise.all(cleanupUpdates)
+            const cleanupError = cleanupResults.find((result) => result.error)
+            if (cleanupError?.error) {
+                return jsonResponse({ error: cleanupError.error.message }, 400)
             }
 
             const { error: deleteAuthUserError } = await adminClient.auth.admin.deleteUser(userId)
