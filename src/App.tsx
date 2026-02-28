@@ -15,6 +15,7 @@ import SeguimientoPage from '@/pages/SeguimientoPage'
 import HorariosPage from '@/pages/HorariosPage'
 import CitacionesPage from '@/pages/CitacionesPage'
 import AdminPage from '@/pages/AdminPage'
+import CambiarContrasenaPage from '@/pages/CambiarContrasenaPage'
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -209,6 +210,17 @@ function App() {
             <ProtectedRoute>
               <DashboardLayout>
                 <AdminPage />
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dashboard/cambiar-contrasena"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout>
+                <CambiarContrasenaPage />
               </DashboardLayout>
             </ProtectedRoute>
           }

@@ -14,6 +14,7 @@ interface AuthState {
   setProfile: (profile: Profile | null) => void
   setLoading: (loading: boolean) => void
   signIn: (email: string, password: string) => Promise<void>
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>
   signOut: () => Promise<void>
   initialize: () => Promise<void>
 }
@@ -60,6 +61,56 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Error al iniciar sesión'
       console.error('Error signing in:', error)
+      throw new Error(errorMessage)
+    } finally {
+      set({ loading: false })
+    }
+  },
+
+  changePassword: async (currentPassword: string, newPassword: string) => {
+    try {
+      set({ loading: true })
+
+      if (!currentPassword || !newPassword) {
+        throw new Error('Debes completar todos los campos')
+      }
+
+      if (currentPassword === newPassword) {
+        throw new Error('La nueva contraseña debe ser diferente a la actual')
+      }
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser()
+
+      if (userError) {
+        throw new Error(userError.message || 'No se pudo validar la sesión actual')
+      }
+
+      if (!user?.email) {
+        throw new Error('No se pudo identificar el usuario autenticado')
+      }
+
+      const { data: reauthData, error: reauthError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      })
+
+      if (reauthError || !reauthData.user || reauthData.user.id !== user.id) {
+        throw new Error('La contraseña actual es incorrecta')
+      }
+
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      })
+
+      if (updateError) {
+        throw new Error(updateError.message || 'No se pudo actualizar la contraseña')
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error al cambiar contraseña'
+      console.error('Error changing password:', error)
       throw new Error(errorMessage)
     } finally {
       set({ loading: false })

@@ -25,6 +25,7 @@ import {
   Users,
   Settings,
   LogOut,
+  KeyRound,
   Menu,
   X,
 } from 'lucide-react'
@@ -213,6 +214,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate('/dashboard/cambiar-contrasena')}>
+                <KeyRound className="mr-2 h-4 w-4" />
+                <span>Cambiar Contraseña</span>
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={handleSignOut}>
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Cerrar Sesión</span>
