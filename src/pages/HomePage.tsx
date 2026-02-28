@@ -37,58 +37,57 @@ export default function HomePage() {
     async function fetchPublicData() {
         try {
             setLoading(true)
+            const nowIso = new Date().toISOString()
+            const publicTargets = ['todos', 'estudiante', 'padre', 'estudiantes', 'padres']
+            const hasPublicTarget = (destinatarios?: string[] | null) => {
+                if (!destinatarios || destinatarios.length === 0) return true
+                return destinatarios.some((item) => publicTargets.includes(item))
+            }
 
-            // Obtener próximos eventos públicos (próximos 5)
+            // Obtener próximos eventos y filtrar por destinatarios públicos
             const { data: eventosData, error: eventosError } = await supabase
                 .from('eventos')
-                .select('id, titulo, descripcion, tipo, fecha_inicio, fecha_fin, todo_el_dia, lugar')
-                .gte('fecha_inicio', new Date().toISOString())
-                .contains('destinatarios', ['todos'])
+                .select('id, titulo, descripcion, tipo, fecha_inicio, fecha_fin, todo_el_dia, lugar, destinatarios')
+                .gte('fecha_inicio', nowIso)
                 .order('fecha_inicio', { ascending: true })
-                .limit(5)
+                .limit(30)
 
             if (eventosError) throw eventosError
 
-            // Si no hay eventos con "todos", intentar obtener los públicos (estudiantes o padres)
-            let finalEventos = eventosData || []
+            const finalEventos = (eventosData || [])
+                .filter((evento: any) => hasPublicTarget(evento.destinatarios))
+                .slice(0, 5)
+                .map((evento: any) => ({
+                    id: evento.id,
+                    titulo: evento.titulo,
+                    descripcion: evento.descripcion,
+                    tipo: evento.tipo,
+                    fecha_inicio: evento.fecha_inicio,
+                    fecha_fin: evento.fecha_fin,
+                    todo_el_dia: evento.todo_el_dia,
+                    lugar: evento.lugar,
+                })) as Evento[]
 
-            if (finalEventos.length === 0) {
-                const { data: eventosPublicos } = await supabase
-                    .from('eventos')
-                    .select('id, titulo, descripcion, tipo, fecha_inicio, fecha_fin, todo_el_dia, lugar')
-                    .gte('fecha_inicio', new Date().toISOString())
-                    .or('destinatarios.cs.{estudiantes},destinatarios.cs.{padres}')
-                    .order('fecha_inicio', { ascending: true })
-                    .limit(5)
-
-                finalEventos = eventosPublicos || []
-            }
-
-            // Obtener anuncios públicos activos (últimos 5)
+            // Obtener anuncios activos y filtrar por destinatarios públicos
             const { data: anunciosData, error: anunciosError } = await supabase
                 .from('anuncios')
-                .select('id, titulo, contenido, importante, fecha_publicacion')
-                .contains('destinatarios', ['todos'])
-                .or(`fecha_expiracion.is.null,fecha_expiracion.gte.${new Date().toISOString()}`)
+                .select('id, titulo, contenido, importante, fecha_publicacion, destinatarios')
+                .or(`fecha_expiracion.is.null,fecha_expiracion.gte.${nowIso}`)
                 .order('fecha_publicacion', { ascending: false })
-                .limit(5)
+                .limit(30)
 
             if (anunciosError) throw anunciosError
 
-            // Si no hay anuncios con "todos", intentar obtener los públicos
-            let finalAnuncios = anunciosData || []
-
-            if (finalAnuncios.length === 0) {
-                const { data: anunciosPublicos } = await supabase
-                    .from('anuncios')
-                    .select('id, titulo, contenido, importante, fecha_publicacion')
-                    .or('destinatarios.cs.{estudiantes},destinatarios.cs.{padres}')
-                    .or(`fecha_expiracion.is.null,fecha_expiracion.gte.${new Date().toISOString()}`)
-                    .order('fecha_publicacion', { ascending: false })
-                    .limit(5)
-
-                finalAnuncios = anunciosPublicos || []
-            }
+            const finalAnuncios = (anunciosData || [])
+                .filter((anuncio: any) => hasPublicTarget(anuncio.destinatarios))
+                .slice(0, 5)
+                .map((anuncio: any) => ({
+                    id: anuncio.id,
+                    titulo: anuncio.titulo,
+                    contenido: anuncio.contenido,
+                    importante: anuncio.importante,
+                    fecha_publicacion: anuncio.fecha_publicacion,
+                })) as Anuncio[]
 
             setEventos(finalEventos)
             setAnuncios(finalAnuncios)
@@ -146,6 +145,7 @@ export default function HomePage() {
                             <div>
                                 <h1 className="text-2xl font-bold text-foreground">Liceo Ángel de la Guarda</h1>
                                 <p className="text-sm text-muted-foreground">Agenda Virtual</p>
+                                <p className="text-sm text-muted-foreground">26 años cultivando para el futuro</p>
                             </div>
                         </div>
                         <Button onClick={() => navigate('/login')}>
@@ -197,15 +197,27 @@ export default function HomePage() {
                                 <div className="space-y-3 text-sm text-foreground">
                                     <div>
                                         <p className="font-semibold text-foreground">Dirección:</p>
-                                        <p>Calle Principal, Ciudad</p>
+                                        <p>Calle 36 # 41-13 este Ciudadela Sucre, Soacha, Colombia</p>
                                     </div>
                                     <div>
                                         <p className="font-semibold text-foreground">Teléfono:</p>
-                                        <p>+58 (000) 000-0000</p>
+                                        <p>+57 302 3741098</p>
                                     </div>
                                     <div>
                                         <p className="font-semibold text-foreground">Email:</p>
-                                        <p>info@liceoguarda.edu.ve</p>
+                                        <p>secretaria.angel@liceoangeldelaguarda.education</p>
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold text-foreground">Instagram:</p>
+                                        <a href="https://www.instagram.com/liceoangeldelaguardaeu?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline' }}>
+                                            liceoangeldelaguardaeu
+                                        </a>
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold text-foreground">Facebook:</p>
+                                        <a href="https://www.instagram.com/liceoangeldelaguardaeu?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline' }}>
+                                            Liceo Ángel De La Guarda E.U.
+                                        </a>
                                     </div>
                                     <div>
                                         <p className="font-semibold text-foreground">Horario:</p>
