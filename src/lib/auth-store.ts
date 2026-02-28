@@ -15,6 +15,8 @@ interface AuthState {
   setLoading: (loading: boolean) => void
   signIn: (email: string, password: string) => Promise<void>
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>
+  requestPasswordReset: (email: string, redirectTo: string) => Promise<void>
+  updatePasswordWithRecovery: (newPassword: string) => Promise<void>
   signOut: () => Promise<void>
   initialize: () => Promise<void>
 }
@@ -111,6 +113,56 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Error al cambiar contraseña'
       console.error('Error changing password:', error)
+      throw new Error(errorMessage)
+    } finally {
+      set({ loading: false })
+    }
+  },
+
+  requestPasswordReset: async (email: string, redirectTo: string) => {
+    try {
+      set({ loading: true })
+
+      if (!email) {
+        throw new Error('Debes ingresar un correo electrónico')
+      }
+
+      if (!redirectTo) {
+        throw new Error('No se configuró la URL de redirección para recuperación')
+      }
+
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+
+      if (error) {
+        throw new Error(error.message || 'No se pudo enviar el correo de recuperación')
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error al solicitar recuperación de contraseña'
+      console.error('Error requesting password reset:', error)
+      throw new Error(errorMessage)
+    } finally {
+      set({ loading: false })
+    }
+  },
+
+  updatePasswordWithRecovery: async (newPassword: string) => {
+    try {
+      set({ loading: true })
+
+      if (!newPassword) {
+        throw new Error('Debes ingresar una nueva contraseña')
+      }
+
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      })
+
+      if (error) {
+        throw new Error(error.message || 'No se pudo restablecer la contraseña')
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error al restablecer contraseña'
+      console.error('Error updating password with recovery:', error)
       throw new Error(errorMessage)
     } finally {
       set({ loading: false })

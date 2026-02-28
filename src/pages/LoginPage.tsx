@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/lib/auth-store'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -98,9 +98,9 @@ export default function LoginPage() {
             </form>
 
             <div className="mt-4 text-center text-sm text-muted-foreground">
-              <a href="#" className="text-primary hover:underline">
+              <Link to="/recuperar-contrasena" className="text-primary hover:underline">
                 ¿Olvidaste tu contraseña?
-              </a>
+              </Link>
             </div>
           </CardContent>
         </Card>

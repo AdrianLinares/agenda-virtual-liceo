@@ -16,6 +16,8 @@ import HorariosPage from '@/pages/HorariosPage'
 import CitacionesPage from '@/pages/CitacionesPage'
 import AdminPage from '@/pages/AdminPage'
 import CambiarContrasenaPage from '@/pages/CambiarContrasenaPage'
+import RecuperarContrasenaPage from '@/pages/RecuperarContrasenaPage'
+import RestablecerContrasenaPage from '@/pages/RestablecerContrasenaPage'
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -79,6 +81,16 @@ function App() {
               <LoginPage />
             </PublicRoute>
           }
+        />
+
+        <Route
+          path="/recuperar-contrasena"
+          element={<RecuperarContrasenaPage />}
+        />
+
+        <Route
+          path="/restablecer-contrasena"
+          element={<RestablecerContrasenaPage />}
         />
 
         {/* Protected Routes */}
