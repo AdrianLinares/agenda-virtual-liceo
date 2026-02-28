@@ -258,6 +258,12 @@ Los siguientes módulos están preparados pero requieren implementación complet
 6. **Calendario** - Vista de eventos programados
 7. **Permisos y Excusas** - Gestión de solicitudes
 8. **Seguimiento** - Historial académico y disciplinario
+
+## 📧 Notificaciones por Correo para Mensajes
+
+Se dejó preparada una infraestructura base (apagada por defecto) para notificar por correo cuando se envían mensajes internos.
+
+Revisa la guía de activación en [MENSAJES_EMAIL_NOTIFICACIONES.md](MENSAJES_EMAIL_NOTIFICACIONES.md).
 9. **Horarios** - Visualización de horarios de clase
 10. **Citaciones** - Programación y seguimiento
 11. **Panel de Administración** - Gestión de usuarios y roles
