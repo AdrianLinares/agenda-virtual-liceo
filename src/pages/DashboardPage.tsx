@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/lib/auth-store'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Calendar, Bell, Clock, Users } from 'lucide-react'
+import { Mail, Users, UserSearch, Clock } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
 interface Evento {
@@ -22,16 +23,29 @@ interface Anuncio {
 
 export default function DashboardPage() {
   const { profile, user } = useAuthStore()
+  const navigate = useNavigate()
   const [eventos, setEventos] = useState<Evento[]>([])
   const [anuncios, setAnuncios] = useState<Anuncio[]>([])
   const [loadingEventos, setLoadingEventos] = useState(true)
   const [loadingAnuncios, setLoadingAnuncios] = useState(true)
+  const [seguimientosCount, setSeguimientosCount] = useState(0)
+  const [loadingSeguimientosCount, setLoadingSeguimientosCount] = useState(true)
+  const [horariosCount, setHorariosCount] = useState(0)
+  const [loadingHorariosCount, setLoadingHorariosCount] = useState(true)
+  const [mensajesSinLeer, setMensajesSinLeer] = useState(0)
+  const [loadingMensajesSinLeer, setLoadingMensajesSinLeer] = useState(true)
+  const [citacionesProximas, setCitacionesProximas] = useState(0)
+  const [loadingCitaciones, setLoadingCitaciones] = useState(true)
 
   useEffect(() => {
     console.log('DashboardPage - User:', user)
     console.log('DashboardPage - Profile:', profile)
     loadEventos()
     loadAnuncios()
+    loadSeguimientosCount()
+    loadHorariosCount()
+    loadMensajesSinLeer()
+    loadCitacionesProximas()
   }, [user, profile])
 
   const loadEventos = async () => {
@@ -71,6 +85,87 @@ export default function DashboardPage() {
       console.error('Error cargando anuncios:', error)
     } finally {
       setLoadingAnuncios(false)
+    }
+  }
+
+  const loadMensajesSinLeer = async () => {
+    if (!profile) {
+      setMensajesSinLeer(0)
+      setLoadingMensajesSinLeer(false)
+      return
+    }
+
+    setLoadingMensajesSinLeer(true)
+
+    try {
+      const { count, error } = await supabase
+        .from('mensajes')
+        .select('id', { count: 'exact', head: true })
+        .eq('destinatario_id', profile.id)
+        .eq('estado', 'enviado')
+
+      if (error) throw error
+      setMensajesSinLeer(count ?? 0)
+    } catch (error) {
+      console.error('Error cargando mensajes sin leer:', error)
+      setMensajesSinLeer(0)
+    } finally {
+      setLoadingMensajesSinLeer(false)
+    }
+  }
+
+  const loadSeguimientosCount = async () => {
+    setLoadingSeguimientosCount(true)
+
+    try {
+      const { count, error } = await supabase
+        .from('seguimientos')
+        .select('id', { count: 'exact', head: true })
+
+      if (error) throw error
+      setSeguimientosCount(count ?? 0)
+    } catch (error) {
+      console.error('Error cargando seguimiento:', error)
+      setSeguimientosCount(0)
+    } finally {
+      setLoadingSeguimientosCount(false)
+    }
+  }
+
+  const loadHorariosCount = async () => {
+    setLoadingHorariosCount(true)
+
+    try {
+      const { count, error } = await supabase
+        .from('horarios')
+        .select('id', { count: 'exact', head: true })
+
+      if (error) throw error
+      setHorariosCount(count ?? 0)
+    } catch (error) {
+      console.error('Error cargando horarios:', error)
+      setHorariosCount(0)
+    } finally {
+      setLoadingHorariosCount(false)
+    }
+  }
+
+  const loadCitacionesProximas = async () => {
+    setLoadingCitaciones(true)
+
+    try {
+      const { count, error } = await supabase
+        .from('citaciones')
+        .select('id', { count: 'exact', head: true })
+        .gte('fecha_citacion', new Date().toISOString())
+
+      if (error) throw error
+      setCitacionesProximas(count ?? 0)
+    } catch (error) {
+      console.error('Error cargando citaciones próximas:', error)
+      setCitacionesProximas(0)
+    } finally {
+      setLoadingCitaciones(false)
     }
   }
 
@@ -114,62 +209,114 @@ export default function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card
+          className="cursor-pointer hover:bg-muted/40 transition-colors"
+          onClick={() => navigate('/dashboard/seguimiento')}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              navigate('/dashboard/seguimiento')
+            }
+          }}
+          role="button"
+          tabIndex={0}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Calendario
+              Seguimiento
             </CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <UserSearch className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{eventos.length}</div>
+            <div className="text-2xl font-bold">
+              {loadingSeguimientosCount ? '...' : seguimientosCount}
+            </div>
             <p className="text-xs text-muted-foreground">
-              eventos esta semana
+              registros visibles
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          className="cursor-pointer hover:bg-muted/40 transition-colors"
+          onClick={() => navigate('/dashboard/horarios')}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              navigate('/dashboard/horarios')
+            }
+          }}
+          role="button"
+          tabIndex={0}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Anuncios
-            </CardTitle>
-            <Bell className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{anuncios.length}</div>
-            <p className="text-xs text-muted-foreground">
-              anuncios recientes
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Rol
-            </CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold capitalize">{profile?.rol}</div>
-            <p className="text-xs text-muted-foreground">
-              tu perfil
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Estado
+              Horarios
             </CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{profile?.activo ? 'Activo' : 'Inactivo'}</div>
+            <div className="text-2xl font-bold">
+              {loadingHorariosCount ? '...' : horariosCount}
+            </div>
             <p className="text-xs text-muted-foreground">
-              tu cuenta
+              bloques programados
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card
+          className="cursor-pointer hover:bg-muted/40 transition-colors"
+          onClick={() => navigate('/dashboard/mensajes?tab=recibidos')}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              navigate('/dashboard/mensajes?tab=recibidos')
+            }
+          }}
+          role="button"
+          tabIndex={0}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Mensajes sin leer
+            </CardTitle>
+            <Mail className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {loadingMensajesSinLeer ? '...' : mensajesSinLeer}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              en tu bandeja de entrada
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card
+          className="cursor-pointer hover:bg-muted/40 transition-colors"
+          onClick={() => navigate('/dashboard/citaciones')}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              navigate('/dashboard/citaciones')
+            }
+          }}
+          role="button"
+          tabIndex={0}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Citaciones
+            </CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {loadingCitaciones ? '...' : citacionesProximas}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              próximas programadas
             </p>
           </CardContent>
         </Card>
@@ -178,7 +325,18 @@ export default function DashboardPage() {
       {/* Main Content Grid */}
       <div className="grid gap-6 md:grid-cols-2">
         {/* Calendario Semanal */}
-        <Card>
+        <Card
+          className="cursor-pointer hover:bg-muted/40 transition-colors"
+          onClick={() => navigate('/dashboard/calendario')}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              navigate('/dashboard/calendario')
+            }
+          }}
+          role="button"
+          tabIndex={0}
+        >
           <CardHeader>
             <CardTitle>Calendario de esta semana</CardTitle>
             <CardDescription>
@@ -221,7 +379,18 @@ export default function DashboardPage() {
         </Card>
 
         {/* Anuncios Recientes */}
-        <Card>
+        <Card
+          className="cursor-pointer hover:bg-muted/40 transition-colors"
+          onClick={() => navigate('/dashboard/anuncios')}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              navigate('/dashboard/anuncios')
+            }
+          }}
+          role="button"
+          tabIndex={0}
+        >
           <CardHeader>
             <CardTitle>Anuncios recientes</CardTitle>
             <CardDescription>

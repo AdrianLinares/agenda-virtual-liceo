@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '@/lib/auth-store'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -46,6 +47,7 @@ type TabType = 'recibidos' | 'enviados'
 
 export default function MensajesPage() {
     const { profile } = useAuthStore()
+    const [searchParams, setSearchParams] = useSearchParams()
     const [tab, setTab] = useState<TabType>('recibidos')
     const [mensajes, setMensajes] = useState<Mensaje[]>([])
     const [loading, setLoading] = useState(false)
@@ -61,6 +63,20 @@ export default function MensajesPage() {
 
     const [selectedMessage, setSelectedMessage] = useState<Mensaje | null>(null)
     const [markingRead, setMarkingRead] = useState<string | null>(null)
+
+    useEffect(() => {
+        const tabParam = searchParams.get('tab')
+        if (tabParam === 'recibidos' || tabParam === 'enviados') {
+            setTab(tabParam)
+        }
+    }, [searchParams])
+
+    const handleTabChange = (nextTab: TabType) => {
+        setTab(nextTab)
+        const nextSearchParams = new URLSearchParams(searchParams)
+        nextSearchParams.set('tab', nextTab)
+        setSearchParams(nextSearchParams)
+    }
 
     useEffect(() => {
         if (profile) {
@@ -265,14 +281,14 @@ export default function MensajesPage() {
             <div className="flex flex-wrap gap-2">
                 <Button
                     variant={tab === 'recibidos' ? 'default' : 'outline'}
-                    onClick={() => setTab('recibidos')}
+                    onClick={() => handleTabChange('recibidos')}
                 >
                     <Inbox className="mr-2 h-4 w-4" />
                     Recibidos
                 </Button>
                 <Button
                     variant={tab === 'enviados' ? 'default' : 'outline'}
-                    onClick={() => setTab('enviados')}
+                    onClick={() => handleTabChange('enviados')}
                 >
                     <Send className="mr-2 h-4 w-4" />
                     Enviados
