@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { ArrowLeft } from 'lucide-react'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -97,10 +98,20 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <div className="mt-4 text-center text-sm text-muted-foreground">
-              <Link to="/recuperar-contrasena" className="text-primary hover:underline">
-                ¿Olvidaste tu contraseña?
-              </Link>
+            <div className="mt-4 space-y-3 text-center text-sm">
+              <div className="text-muted-foreground">
+                <Link to="/recuperar-contrasena" className="text-primary hover:underline">
+                  ¿Olvidaste tu contraseña?
+                </Link>
+              </div>
+              <div>
+                <Link to="/">
+                  <Button variant="outline" className="w-full" type="button">
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Volver al Inicio
+                  </Button>
+                </Link>
+              </div>
             </div>
           </CardContent>
         </Card>

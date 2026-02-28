@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from '@/lib/auth-store'
+import HomePage from '@/pages/HomePage'
 import LoginPage from '@/pages/LoginPage'
 import DashboardPage from '@/pages/DashboardPage'
 import DashboardLayout from '@/components/layout/DashboardLayout'
@@ -73,6 +74,9 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Home Page - Public */}
+        <Route path="/" element={<HomePage />} />
+
         {/* Public Routes */}
         <Route
           path="/login"
@@ -238,9 +242,6 @@ function App() {
           }
         />
 
-        {/* Default redirect */}
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-
         {/* 404 */}
         <Route
           path="*"
@@ -249,7 +250,7 @@ function App() {
               <div className="text-center">
                 <h1 className="text-6xl font-bold text-foreground mb-4">404</h1>
                 <p className="text-xl text-muted-foreground mb-8">Página no encontrada</p>
-                <a href="/dashboard" className="text-primary hover:underline">
+                <a href="/" className="text-primary hover:underline">
                   Volver al inicio
                 </a>
               </div>
