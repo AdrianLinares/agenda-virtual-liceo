@@ -28,6 +28,7 @@ import {
   KeyRound,
   Menu,
   X,
+  GraduationCap,
 } from 'lucide-react'
 
 interface DashboardLayoutProps {
@@ -39,6 +40,7 @@ interface MenuItem {
   href: string
   icon: ReactNode
   roles: string[]
+  external?: boolean
 }
 
 const menuItems: MenuItem[] = [
@@ -107,6 +109,13 @@ const menuItems: MenuItem[] = [
     href: '/dashboard/citaciones',
     icon: <Users className="w-5 h-5" />,
     roles: ['administrador', 'administrativo', 'docente', 'estudiante', 'padre'],
+  },
+  {
+    title: 'Google Classroom',
+    href: 'https://classroom.google.com/',
+    icon: <GraduationCap className="w-5 h-5" />,
+    roles: ['administrador', 'administrativo', 'docente', 'estudiante', 'padre'],
+    external: true,
   },
   {
     title: 'Editar Sitio',
@@ -239,7 +248,27 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         >
           <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100vh-57px)]">
             {filteredMenuItems.map((item) => {
-              const isActive = location.pathname === item.href
+              const isActive = !item.external && location.pathname === item.href
+
+              if (item.external) {
+                return (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setSidebarOpen(false)}
+                    className="
+                    flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium
+                    transition-colors text-foreground hover:bg-muted
+                  "
+                  >
+                    {item.icon}
+                    <span>{item.title}</span>
+                  </a>
+                )
+              }
+
               return (
                 <Link
                   key={item.href}

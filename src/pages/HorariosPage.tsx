@@ -53,11 +53,11 @@ interface DocenteOption {
 }
 
 const DIAS = [
-    { value: 1, label: 'Lunes' },
-    { value: 2, label: 'Martes' },
-    { value: 3, label: 'Miércoles' },
-    { value: 4, label: 'Jueves' },
-    { value: 5, label: 'Viernes' },
+    { value: 1, label: 'Día 1' },
+    { value: 2, label: 'Día 2' },
+    { value: 3, label: 'Día 3' },
+    { value: 4, label: 'Día 4' },
+    { value: 5, label: 'Día 5' },
 ]
 
 export default function HorariosPage() {
