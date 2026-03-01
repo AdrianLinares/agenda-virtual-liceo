@@ -24,10 +24,16 @@ export function GradeCalculator({
     initialWeights,
     onResultsChange,
 }: GradeCalculatorProps) {
+    const getInitialCount = (category: GradeCategory) => {
+        if (!initialGrades) return 3;
+        const count = initialGrades[category]?.length ?? 0;
+        return Math.max(1, count);
+    };
+
     const [gradeCounts, setGradeCounts] = useState<GradeCounts>({
-        A: 3,
-        P: 3,
-        C: 3,
+        A: getInitialCount('A'),
+        P: getInitialCount('P'),
+        C: getInitialCount('C'),
     });
 
     const [weights, setWeights] = useState<CategoryWeights>(

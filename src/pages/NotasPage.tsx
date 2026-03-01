@@ -11,10 +11,16 @@ import {
 } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { AlertCircle, BookOpen, Loader2, TrendingUp, Plus } from 'lucide-react'
+import { AlertCircle, BookOpen, Loader2, TrendingUp, Plus, Pencil, Trash2 } from 'lucide-react'
 import { GradeCalculator } from '@/components/calculator/GradeCalculator'
-import type { GradeResults, GradesData } from '@/types/grades'
+import type { CategoryWeights, GradeResults, GradesData } from '@/types/grades'
 import { categoryLabels, type GradeCategory } from '@/types/grades'
+
+const DEFAULT_WEIGHTS: CategoryWeights = {
+    A: 10,
+    P: 40,
+    C: 50,
+}
 
 interface Periodo {
     id: string
@@ -83,6 +89,11 @@ interface Asignatura {
     codigo: string | null
 }
 
+interface AsignacionDocente {
+    grupo_id: string
+    asignatura_id: string
+}
+
 export default function NotasPage() {
     const { profile } = useAuthStore()
     const canViewAllNotas = profile?.rol === 'administrador' || profile?.rol === 'administrativo'
@@ -96,6 +107,7 @@ export default function NotasPage() {
     const [showCalculator, setShowCalculator] = useState(false)
     const [grupos, setGrupos] = useState<Grupo[]>([])
     const [asignaturas, setAsignaturas] = useState<Asignatura[]>([])
+    const [asignacionesDocente, setAsignacionesDocente] = useState<AsignacionDocente[]>([])
     const [estudiantes, setEstudiantes] = useState<Estudiante[]>([])
 
     // Filtros de visualización (administrador y administrativo)
@@ -108,7 +120,12 @@ export default function NotasPage() {
     const [selectedEstudiante, setSelectedEstudiante] = useState<string>('')
     const [calculatedResults, setCalculatedResults] = useState<GradeResults | null>(null)
     const [calculatedGrades, setCalculatedGrades] = useState<GradesData | null>(null)
+    const [calculatorInitialGrades, setCalculatorInitialGrades] = useState<GradesData | undefined>(undefined)
+    const [calculatorInitialWeights, setCalculatorInitialWeights] = useState<CategoryWeights | undefined>(undefined)
+    const [calculatorRenderKey, setCalculatorRenderKey] = useState(0)
+    const [editingNotaId, setEditingNotaId] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
+    const [deletingNotaId, setDeletingNotaId] = useState<string | null>(null)
 
     useEffect(() => {
         loadPeriodos()
@@ -313,6 +330,32 @@ export default function NotasPage() {
         return 'Gestiona y consulta las notas parciales'
     }, [profile?.rol])
 
+    const asignaturasDisponibles = useMemo(() => {
+        if (profile?.rol !== 'docente' || !showCalculator) {
+            return asignaturas
+        }
+
+        if (!selectedGrupo) {
+            return []
+        }
+
+        const permitidas = new Set(
+            asignacionesDocente
+                .filter((asignacion) => asignacion.grupo_id === selectedGrupo)
+                .map((asignacion) => asignacion.asignatura_id)
+        )
+
+        return asignaturas.filter((asignatura) => permitidas.has(asignatura.id))
+    }, [asignacionesDocente, asignaturas, profile?.rol, selectedGrupo, showCalculator])
+
+    useEffect(() => {
+        if (profile?.rol !== 'docente' || !showCalculator) return
+
+        if (selectedAsignatura && !asignaturasDisponibles.some((asignatura) => asignatura.id === selectedAsignatura)) {
+            setSelectedAsignatura('')
+        }
+    }, [asignaturasDisponibles, profile?.rol, selectedAsignatura, showCalculator])
+
     const loadDocenteAsignaciones = async () => {
         if (!profile) return
 
@@ -332,6 +375,7 @@ export default function NotasPage() {
             // Extraer grupos únicos
             const gruposMap = new Map<string, Grupo>()
             const asignaturasMap = new Map<string, Asignatura>()
+            const asignacionesPermitidas: AsignacionDocente[] = []
 
             asignaciones?.forEach((asig: any) => {
                 if (asig.grupo) {
@@ -349,8 +393,15 @@ export default function NotasPage() {
                         codigo: asig.asignatura.codigo
                     })
                 }
+                if (asig.grupo_id && asig.asignatura_id) {
+                    asignacionesPermitidas.push({
+                        grupo_id: asig.grupo_id,
+                        asignatura_id: asig.asignatura_id,
+                    })
+                }
             })
 
+            setAsignacionesDocente(asignacionesPermitidas)
             setGrupos(Array.from(gruposMap.values()))
             setAsignaturas(Array.from(asignaturasMap.values()))
         } catch (err) {
@@ -394,6 +445,26 @@ export default function NotasPage() {
         setError(null)
 
         try {
+            let duplicateQuery = supabase
+                .from('notas')
+                .select('id')
+                .eq('estudiante_id', selectedEstudiante)
+                .eq('asignatura_id', selectedAsignatura)
+                .eq('periodo_id', selectedPeriodo)
+                .limit(1)
+
+            if (editingNotaId) {
+                duplicateQuery = duplicateQuery.neq('id', editingNotaId)
+            }
+
+            const { data: duplicateNotas, error: duplicateError } = await duplicateQuery
+            if (duplicateError) throw duplicateError
+
+            if (duplicateNotas && duplicateNotas.length > 0) {
+                setError('Ya existe una nota registrada para este estudiante, asignatura y periodo')
+                return
+            }
+
             // Guardar la nota con los detalles de la calculadora en observaciones
             const observaciones = JSON.stringify({
                 actitudinal: {
@@ -423,9 +494,15 @@ export default function NotasPage() {
                 observaciones
             }
 
-            const { error } = await supabase
-                .from('notas')
-                .insert(notaData as any)
+            const { error } = editingNotaId
+                ? await (supabase as any)
+                    .from('notas')
+                    .update(notaData)
+                    .eq('id', editingNotaId)
+                    .eq('docente_id', profile.id)
+                : await supabase
+                    .from('notas')
+                    .insert(notaData as any)
 
             if (error) throw error
 
@@ -434,12 +511,60 @@ export default function NotasPage() {
             setShowCalculator(false)
             resetCalculatorForm()
 
-            alert('Nota guardada exitosamente')
+            alert(editingNotaId ? 'Nota actualizada exitosamente' : 'Nota guardada exitosamente')
         } catch (err) {
             console.error('Error saving nota:', err)
-            setError('Error al guardar la nota')
+            const errorObj = err as { code?: string; message?: string; details?: string; constraint?: string }
+            const errorCode = errorObj?.code
+            const errorText = `${errorObj?.message || ''} ${errorObj?.details || ''} ${errorObj?.constraint || ''}`.toLowerCase()
+            if (errorCode === '42501') {
+                setError('No tienes permisos para registrar esa combinación de grupo y asignatura')
+            } else if (errorCode === '23505') {
+                if (errorText.includes('estudiante_id') && errorText.includes('periodo_id') && !errorText.includes('asignatura_id')) {
+                    setError('Existe una restricción antigua por estudiante y periodo. Aplica la migración correctiva de unicidad para notas.')
+                } else {
+                    setError('Ya existe una nota registrada para este estudiante, asignatura y periodo')
+                }
+            } else {
+                setError(editingNotaId ? 'Error al actualizar la nota' : 'Error al guardar la nota')
+            }
         } finally {
             setSaving(false)
+        }
+    }
+
+    const handleDeleteNota = async (notaId: string) => {
+        if (!profile || profile.rol !== 'docente') {
+            setError('No tienes permisos para eliminar notas')
+            return
+        }
+
+        if (!window.confirm('¿Eliminar esta nota registrada?')) return
+
+        setDeletingNotaId(notaId)
+        setError(null)
+
+        try {
+            const { error } = await (supabase as any)
+                .from('notas')
+                .delete()
+                .eq('id', notaId)
+                .eq('docente_id', profile.id)
+
+            if (error) throw error
+
+            if (editingNotaId === notaId) {
+                setShowCalculator(false)
+                resetCalculatorForm()
+            }
+
+            await loadNotas()
+            alert('Nota eliminada exitosamente')
+        } catch (err) {
+            console.error('Error deleting nota:', err)
+            setError('Error al eliminar la nota')
+        } finally {
+            setDeletingNotaId(null)
         }
     }
 
@@ -449,12 +574,96 @@ export default function NotasPage() {
         setSelectedEstudiante('')
         setCalculatedResults(null)
         setCalculatedGrades(null)
+        setCalculatorInitialGrades(undefined)
+        setCalculatorInitialWeights(undefined)
+        setEditingNotaId(null)
         setEstudiantes([])
+        setCalculatorRenderKey((prev) => prev + 1)
     }
 
     const handleResultsChange = (results: GradeResults, grades: GradesData) => {
         setCalculatedResults(results)
         setCalculatedGrades(grades)
+    }
+
+    const openNewNotaCalculator = () => {
+        resetCalculatorForm()
+        setShowCalculator(true)
+    }
+
+    const parseStoredCalculatorData = (observaciones: string | null): { grades: GradesData; weights: CategoryWeights } => {
+        const emptyGrades: GradesData = { A: [], P: [], C: [] }
+
+        if (!observaciones) {
+            return { grades: emptyGrades, weights: DEFAULT_WEIGHTS }
+        }
+
+        try {
+            const data = JSON.parse(observaciones)
+            const grades: GradesData = {
+                A: Array.isArray(data?.actitudinal?.notas) ? data.actitudinal.notas.filter((n: unknown) => Number.isFinite(Number(n))).map((n: unknown) => Number(n)) : [],
+                P: Array.isArray(data?.procedimental?.notas) ? data.procedimental.notas.filter((n: unknown) => Number.isFinite(Number(n))).map((n: unknown) => Number(n)) : [],
+                C: Array.isArray(data?.cognitiva?.notas) ? data.cognitiva.notas.filter((n: unknown) => Number.isFinite(Number(n))).map((n: unknown) => Number(n)) : [],
+            }
+
+            const inferWeight = (promedio: unknown, ponderacion: unknown, fallback: number) => {
+                const avg = Number(promedio)
+                const weighted = Number(ponderacion)
+                if (!Number.isFinite(avg) || !Number.isFinite(weighted) || avg <= 0) return fallback
+                return Math.max(0, Math.min(100, Number(((weighted / avg) * 100).toFixed(2))))
+            }
+
+            const roundTwoDecimals = (value: number) => Number(value.toFixed(2))
+            const snapNearInteger = (value: number) => {
+                const nearestInteger = Math.round(value)
+                if (Math.abs(value - nearestInteger) <= 0.05) {
+                    return nearestInteger
+                }
+                return roundTwoDecimals(value)
+            }
+
+            const parsedWeights: CategoryWeights = {
+                A: inferWeight(data?.actitudinal?.promedio, data?.actitudinal?.ponderacion, DEFAULT_WEIGHTS.A),
+                P: inferWeight(data?.procedimental?.promedio, data?.procedimental?.ponderacion, DEFAULT_WEIGHTS.P),
+                C: inferWeight(data?.cognitiva?.promedio, data?.cognitiva?.ponderacion, DEFAULT_WEIGHTS.C),
+            }
+
+            const totalWeight = parsedWeights.A + parsedWeights.P + parsedWeights.C
+
+            let weights = DEFAULT_WEIGHTS
+            if (Math.abs(totalWeight - 100) <= 0.5) {
+                const normalizedA = snapNearInteger(parsedWeights.A)
+                const normalizedP = snapNearInteger(parsedWeights.P)
+                const calculatedC = roundTwoDecimals(100 - normalizedA - normalizedP)
+
+                if (calculatedC >= 0 && calculatedC <= 100) {
+                    weights = {
+                        A: normalizedA,
+                        P: normalizedP,
+                        C: snapNearInteger(calculatedC),
+                    }
+                }
+            }
+
+            return { grades, weights }
+        } catch {
+            return { grades: emptyGrades, weights: DEFAULT_WEIGHTS }
+        }
+    }
+
+    const openEditNotaCalculator = (nota: Nota) => {
+        const parsedData = parseStoredCalculatorData(nota.observaciones)
+
+        setEditingNotaId(nota.id)
+        setSelectedGrupo(nota.grupo_id)
+        setSelectedAsignatura(nota.asignatura_id)
+        setSelectedEstudiante(nota.estudiante_id)
+        setCalculatedResults(null)
+        setCalculatedGrades(parsedData.grades)
+        setCalculatorInitialGrades(parsedData.grades)
+        setCalculatorInitialWeights(parsedData.weights)
+        setCalculatorRenderKey((prev) => prev + 1)
+        setShowCalculator(true)
     }
 
     const renderObservaciones = (observaciones: string | null) => {
@@ -539,7 +748,7 @@ export default function NotasPage() {
                     <p className="text-muted-foreground mt-1">{headerDescription}</p>
                 </div>
                 {profile?.rol === 'docente' && !showCalculator && (
-                    <Button onClick={() => setShowCalculator(true)}>
+                    <Button onClick={openNewNotaCalculator}>
                         <Plus className="h-4 w-4 mr-2" />
                         Registrar Nota
                     </Button>
@@ -549,9 +758,11 @@ export default function NotasPage() {
             {showCalculator && profile?.rol === 'docente' && (
                 <Card className="border-2 border-primary">
                     <CardHeader>
-                        <CardTitle>Registrar nueva nota</CardTitle>
+                        <CardTitle>{editingNotaId ? 'Editar nota' : 'Registrar nueva nota'}</CardTitle>
                         <CardDescription>
-                            Selecciona el estudiante y usa la calculadora para registrar la nota
+                            {editingNotaId
+                                ? 'Actualiza la nota usando la calculadora con los datos precargados'
+                                : 'Selecciona el estudiante y usa la calculadora para registrar la nota'}
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
@@ -579,7 +790,7 @@ export default function NotasPage() {
                                         <SelectValue placeholder="Selecciona asignatura" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {asignaturas.map((asignatura) => (
+                                        {asignaturasDisponibles.map((asignatura) => (
                                             <SelectItem key={asignatura.id} value={asignatura.id}>
                                                 {asignatura.nombre}
                                             </SelectItem>
@@ -611,7 +822,12 @@ export default function NotasPage() {
 
                         {selectedGrupo && selectedAsignatura && selectedEstudiante && (
                             <div className="border-t pt-6">
-                                <GradeCalculator onResultsChange={handleResultsChange} />
+                                <GradeCalculator
+                                    key={calculatorRenderKey}
+                                    initialGrades={calculatorInitialGrades}
+                                    initialWeights={calculatorInitialWeights}
+                                    onResultsChange={handleResultsChange}
+                                />
                             </div>
                         )}
 
@@ -634,9 +850,7 @@ export default function NotasPage() {
                                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                                         Guardando...
                                     </>
-                                ) : (
-                                    'Guardar Nota'
-                                )}
+                                ) : editingNotaId ? 'Actualizar Nota' : 'Guardar Nota'}
                             </Button>
                         </div>
                     </CardContent>
@@ -811,6 +1025,37 @@ export default function NotasPage() {
                                             <p className="text-xs text-muted-foreground">
                                                 {new Date(nota.created_at).toLocaleDateString()}
                                             </p>
+                                            {profile?.rol === 'docente' && (
+                                                <div className="mt-2 flex justify-end gap-2">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => openEditNotaCalculator(nota)}
+                                                        disabled={deletingNotaId === nota.id}
+                                                    >
+                                                        <Pencil className="h-3.5 w-3.5 mr-1" />
+                                                        Editar
+                                                    </Button>
+                                                    <Button
+                                                        variant="destructive"
+                                                        size="sm"
+                                                        onClick={() => handleDeleteNota(nota.id)}
+                                                        disabled={deletingNotaId === nota.id}
+                                                    >
+                                                        {deletingNotaId === nota.id ? (
+                                                            <>
+                                                                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                                                Eliminando...
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Trash2 className="h-3.5 w-3.5 mr-1" />
+                                                                Eliminar
+                                                            </>
+                                                        )}
+                                                    </Button>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 

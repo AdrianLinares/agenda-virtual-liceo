@@ -83,6 +83,7 @@ export default function HorariosPage() {
     const [editingHorarioId, setEditingHorarioId] = useState<string | null>(null)
     const [updatingHorarioId, setUpdatingHorarioId] = useState<string | null>(null)
     const [deletingHorarioId, setDeletingHorarioId] = useState<string | null>(null)
+    const [editGrupoId, setEditGrupoId] = useState('')
     const [editAsignaturaId, setEditAsignaturaId] = useState('')
     const [editDocenteId, setEditDocenteId] = useState('')
     const [editDiaSemana, setEditDiaSemana] = useState(1)
@@ -256,6 +257,7 @@ export default function HorariosPage() {
 
     const startEditHorario = (item: Horario) => {
         setEditingHorarioId(item.id)
+        setEditGrupoId(item.grupo_id)
         setEditAsignaturaId(item.asignatura_id)
         setEditDocenteId(item.docente_id ?? '')
         setEditDiaSemana(item.dia_semana)
@@ -271,6 +273,11 @@ export default function HorariosPage() {
     const handleUpdateHorario = async (itemId: string) => {
         if (!profile || !canManageHorarios) {
             setError('No tienes permisos para eliminar horarios')
+            return
+        }
+
+        if (!editGrupoId) {
+            setError('Selecciona el grupo para este horario')
             return
         }
 
@@ -290,6 +297,7 @@ export default function HorariosPage() {
 
         try {
             const payload = {
+                grupo_id: editGrupoId,
                 asignatura_id: editAsignaturaId,
                 docente_id: profile.rol === 'docente' ? profile.id : editDocenteId,
                 dia_semana: editDiaSemana,
@@ -319,6 +327,11 @@ export default function HorariosPage() {
     const handleDeleteHorario = async (itemId: string) => {
         if (!window.confirm('¿Eliminar este horario?')) return
 
+        if (!selectedGrupo) {
+            setError('Selecciona un grupo')
+            return
+        }
+
         setDeletingHorarioId(itemId)
         setError(null)
         setSuccess(null)
@@ -328,6 +341,7 @@ export default function HorariosPage() {
                 .from('horarios')
                 .delete()
                 .eq('id', itemId)
+                .eq('grupo_id', selectedGrupo)
 
             if (error) throw error
 
@@ -546,7 +560,22 @@ export default function HorariosPage() {
 
                                 {editingHorarioId === item.id && (
                                     <div className="mt-4 space-y-4 border-t pt-4">
-                                        <div className="grid gap-4 md:grid-cols-2">
+                                        <div className="grid gap-4 md:grid-cols-3">
+                                            <div className="space-y-2">
+                                                <Label>Grupo</Label>
+                                                <Select value={editGrupoId} onValueChange={setEditGrupoId}>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Selecciona grupo" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {grupos.map((grupo) => (
+                                                            <SelectItem key={grupo.id} value={grupo.id}>
+                                                                {grupo.grado} - {grupo.nombre}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
                                             <div className="space-y-2">
                                                 <Label>Asignatura</Label>
                                                 <Select value={editAsignaturaId} onValueChange={setEditAsignaturaId}>
