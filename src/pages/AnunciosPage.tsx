@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuthStore } from '@/lib/auth-store'
 import { supabase } from '@/lib/supabase'
+import { withTimeout } from '@/lib/async-utils'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -83,7 +84,7 @@ export default function AnunciosPage() {
                 query = query.or(`destinatarios.cs.{${profile.rol}},destinatarios.cs.{todos}`)
             }
 
-            const { data, error } = await query
+            const { data, error } = await withTimeout(query, 15000, 'Tiempo de espera agotado al cargar anuncios')
             if (error) throw error
 
             const items = (data || []) as Anuncio[]
@@ -135,19 +136,19 @@ export default function AnunciosPage() {
             let error = null
 
             if (editingId) {
-                const result = await (supabase as any)
+                const result: any = await withTimeout((supabase as any)
                     .from('anuncios')
                     .update(payload)
-                    .eq('id', editingId)
+                    .eq('id', editingId), 15000, 'Tiempo de espera agotado al actualizar el anuncio')
                 error = result.error
             } else {
-                const result = await (supabase as any)
+                const result: any = await withTimeout((supabase as any)
                     .from('anuncios')
                     .insert({
                         ...payload,
                         autor_id: profile.id,
                         fecha_publicacion: new Date().toISOString(),
-                    })
+                    }), 15000, 'Tiempo de espera agotado al publicar el anuncio')
                 error = result.error
             }
 
@@ -183,10 +184,11 @@ export default function AnunciosPage() {
         setSuccess(null)
 
         try {
-            const { error } = await (supabase as any)
+            const result: any = await withTimeout((supabase as any)
                 .from('anuncios')
                 .delete()
-                .eq('id', anuncioId)
+                .eq('id', anuncioId), 15000, 'Tiempo de espera agotado al eliminar el anuncio')
+            const error = result?.error
 
             if (error) throw error
 

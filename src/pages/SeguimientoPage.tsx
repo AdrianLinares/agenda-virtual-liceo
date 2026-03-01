@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuthStore } from '@/lib/auth-store'
 import { supabase } from '@/lib/supabase'
+import { withTimeout } from '@/lib/async-utils'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -86,11 +87,11 @@ export default function SeguimientoPage() {
             if (profile.rol === 'estudiante') {
                 query = query.eq('estudiante_id', profile.id)
             } else if (profile.rol === 'padre') {
-                const { data: hijos } = await supabase
+                const { data: hijos } = await withTimeout(supabase
                     .from('padres_estudiantes')
                     .select('estudiante_id')
                     .eq('padre_id', profile.id)
-                    .returns<Array<{ estudiante_id: string }>>()
+                    .returns<Array<{ estudiante_id: string }>>(), 15000, 'Tiempo de espera agotado al cargar estudiantes del padre')
 
                 const hijosIds = hijos?.map((h) => h.estudiante_id) || []
                 if (hijosIds.length > 0) {
@@ -102,7 +103,7 @@ export default function SeguimientoPage() {
                 }
             }
 
-            const { data, error } = await query
+            const { data, error } = await withTimeout(query, 15000, 'Tiempo de espera agotado al cargar seguimiento')
             if (error) throw error
 
             setSeguimientos((data || []) as Seguimiento[])
@@ -127,10 +128,10 @@ export default function SeguimientoPage() {
             }
 
             if (profile.rol === 'padre') {
-                const { data, error } = await supabase
+                const { data, error } = await withTimeout(supabase
                     .from('padres_estudiantes')
                     .select('estudiante:estudiante_id (id, nombre_completo)')
-                    .eq('padre_id', profile.id)
+                    .eq('padre_id', profile.id), 15000, 'Tiempo de espera agotado al cargar hijos del acudiente')
 
                 if (error) throw error
 
@@ -149,12 +150,12 @@ export default function SeguimientoPage() {
                 return
             }
 
-            const { data, error } = await supabase
+            const { data, error } = await withTimeout(supabase
                 .from('profiles')
                 .select('id, nombre_completo')
                 .eq('rol', 'estudiante')
                 .eq('activo', true)
-                .order('nombre_completo', { ascending: true })
+                .order('nombre_completo', { ascending: true }), 15000, 'Tiempo de espera agotado al cargar estudiantes')
 
             if (error) throw error
 
@@ -195,9 +196,10 @@ export default function SeguimientoPage() {
                 fecha_seguimiento: fechaSeguimiento ? new Date(fechaSeguimiento).toISOString() : null,
             } satisfies Database['public']['Tables']['seguimientos']['Insert']
 
-            const { error } = await (supabase as any)
+            const result: any = await withTimeout((supabase as any)
                 .from('seguimientos')
-                .insert(payload)
+                .insert(payload), 15000, 'Tiempo de espera agotado al registrar seguimiento')
+            const error = result?.error
 
             if (error) throw error
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuthStore } from '@/lib/auth-store'
 import { supabase } from '@/lib/supabase'
+import { withTimeout } from '@/lib/async-utils'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -108,7 +109,7 @@ export default function CalendarioPage() {
                 query = query.or(`destinatarios.cs.{${profile.rol}},destinatarios.cs.{todos}`)
             }
 
-            const { data, error } = await query
+            const { data, error } = await withTimeout(query, 15000, 'Tiempo de espera agotado al cargar eventos')
             if (error) throw error
 
             setEventos((data || []) as Evento[])
@@ -144,9 +145,10 @@ export default function CalendarioPage() {
                 creado_por: profile.id,
             } satisfies Database['public']['Tables']['eventos']['Insert']
 
-            const { error } = await (supabase as any)
+            const result: any = await withTimeout((supabase as any)
                 .from('eventos')
-                .insert(payload)
+                .insert(payload), 15000, 'Tiempo de espera agotado al crear el evento')
+            const error = result?.error
 
             if (error) throw error
 
@@ -221,10 +223,11 @@ export default function CalendarioPage() {
                 destinatarios: [editDestinatario],
             } satisfies Database['public']['Tables']['eventos']['Update']
 
-            const { error } = await supabase
+            const result: any = await withTimeout((supabase as any)
                 .from('eventos')
                 .update(payload)
-                .eq('id', eventoId)
+                .eq('id', eventoId), 15000, 'Tiempo de espera agotado al actualizar el evento')
+            const error = result?.error
 
             if (error) throw error
 
@@ -248,10 +251,11 @@ export default function CalendarioPage() {
         setSuccess(null)
 
         try {
-            const { error } = await supabase
+            const result: any = await withTimeout((supabase as any)
                 .from('eventos')
                 .delete()
-                .eq('id', eventoId)
+                .eq('id', eventoId), 15000, 'Tiempo de espera agotado al eliminar el evento')
+            const error = result?.error
 
             if (error) throw error
 

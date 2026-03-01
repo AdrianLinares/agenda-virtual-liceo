@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { withTimeout } from '@/lib/async-utils'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Calendar, Megaphone, MapPin, Clock, AlertCircle } from 'lucide-react'
@@ -38,19 +39,19 @@ export default function HomePage() {
         try {
             setLoading(true)
             const nowIso = new Date().toISOString()
-            const publicTargets = ['todos', 'estudiante', 'padre', 'estudiantes', 'padres']
+            const publicTargets = ['todos', 'estudiante', 'padre']
             const hasPublicTarget = (destinatarios?: string[] | null) => {
                 if (!destinatarios || destinatarios.length === 0) return true
-                return destinatarios.some((item) => publicTargets.includes(item))
+                return destinatarios.some((item) => publicTargets.includes((item || '').toLowerCase()))
             }
 
             // Obtener próximos eventos y filtrar por destinatarios públicos
-            const { data: eventosData, error: eventosError } = await supabase
+            const { data: eventosData, error: eventosError } = await withTimeout(supabase
                 .from('eventos')
                 .select('id, titulo, descripcion, tipo, fecha_inicio, fecha_fin, todo_el_dia, lugar, destinatarios')
                 .gte('fecha_inicio', nowIso)
                 .order('fecha_inicio', { ascending: true })
-                .limit(30)
+                .limit(30), 15000, 'Tiempo de espera agotado al cargar eventos públicos')
 
             if (eventosError) throw eventosError
 
@@ -69,12 +70,12 @@ export default function HomePage() {
                 })) as Evento[]
 
             // Obtener anuncios activos y filtrar por destinatarios públicos
-            const { data: anunciosData, error: anunciosError } = await supabase
+            const { data: anunciosData, error: anunciosError } = await withTimeout(supabase
                 .from('anuncios')
                 .select('id, titulo, contenido, importante, fecha_publicacion, destinatarios')
                 .or(`fecha_expiracion.is.null,fecha_expiracion.gte.${nowIso}`)
                 .order('fecha_publicacion', { ascending: false })
-                .limit(30)
+                .limit(30), 15000, 'Tiempo de espera agotado al cargar anuncios públicos')
 
             if (anunciosError) throw anunciosError
 

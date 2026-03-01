@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
+import { withTimeout } from '@/lib/async-utils'
 import type { Database } from '@/types/database.types'
 
 type Profile = Database['public']['Tables']['profiles']['Row']
@@ -34,10 +35,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   signIn: async (email: string, password: string) => {
     try {
       set({ loading: true })
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await withTimeout(supabase.auth.signInWithPassword({
         email,
         password,
-      })
+      }), 15000, 'Tiempo de espera agotado al iniciar sesión')
 
       if (error) {
         const errorMessage = error.message || 'Error desconocido al iniciar sesión'
@@ -47,11 +48,11 @@ export const useAuthStore = create<AuthState>((set) => ({
 
       if (data.user) {
         // Obtener el perfil del usuario
-        const { data: profileData, error: profileError } = await supabase
+        const { data: profileData, error: profileError } = await withTimeout(supabase
           .from('profiles')
           .select('*')
           .eq('id', data.user.id)
-          .single()
+          .single(), 15000, 'Tiempo de espera agotado al cargar el perfil')
 
         if (profileError) {
           console.error('Error fetching profile:', profileError)
@@ -84,7 +85,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       const {
         data: { user },
         error: userError,
-      } = await supabase.auth.getUser()
+      } = await withTimeout(supabase.auth.getUser(), 15000, 'Tiempo de espera agotado al validar la sesión')
 
       if (userError) {
         throw new Error(userError.message || 'No se pudo validar la sesión actual')
@@ -94,18 +95,18 @@ export const useAuthStore = create<AuthState>((set) => ({
         throw new Error('No se pudo identificar el usuario autenticado')
       }
 
-      const { data: reauthData, error: reauthError } = await supabase.auth.signInWithPassword({
+      const { data: reauthData, error: reauthError } = await withTimeout(supabase.auth.signInWithPassword({
         email: user.email,
         password: currentPassword,
-      })
+      }), 15000, 'Tiempo de espera agotado al validar la contraseña actual')
 
       if (reauthError || !reauthData.user || reauthData.user.id !== user.id) {
         throw new Error('La contraseña actual es incorrecta')
       }
 
-      const { error: updateError } = await supabase.auth.updateUser({
+      const { error: updateError } = await withTimeout(supabase.auth.updateUser({
         password: newPassword,
-      })
+      }), 15000, 'Tiempo de espera agotado al actualizar la contraseña')
 
       if (updateError) {
         throw new Error(updateError.message || 'No se pudo actualizar la contraseña')
@@ -131,7 +132,11 @@ export const useAuthStore = create<AuthState>((set) => ({
         throw new Error('No se configuró la URL de redirección para recuperación')
       }
 
-      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+      const { error } = await withTimeout(
+        supabase.auth.resetPasswordForEmail(email, { redirectTo }),
+        15000,
+        'Tiempo de espera agotado al solicitar recuperación de contraseña'
+      )
 
       if (error) {
         throw new Error(error.message || 'No se pudo enviar el correo de recuperación')
@@ -153,9 +158,9 @@ export const useAuthStore = create<AuthState>((set) => ({
         throw new Error('Debes ingresar una nueva contraseña')
       }
 
-      const { error } = await supabase.auth.updateUser({
+      const { error } = await withTimeout(supabase.auth.updateUser({
         password: newPassword,
-      })
+      }), 15000, 'Tiempo de espera agotado al restablecer la contraseña')
 
       if (error) {
         throw new Error(error.message || 'No se pudo restablecer la contraseña')
@@ -172,7 +177,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   signOut: async () => {
     try {
       set({ loading: true })
-      const { error } = await supabase.auth.signOut()
+      const { error } = await withTimeout(supabase.auth.signOut(), 15000, 'Tiempo de espera agotado al cerrar sesión')
       if (error) {
         const errorMessage = error.message || 'Error desconocido al cerrar sesión'
         console.error('Error signing out:', error)
@@ -193,15 +198,15 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ loading: true })
 
       // Obtener la sesión actual
-      const { data: { session } } = await supabase.auth.getSession()
+      const { data: { session } } = await withTimeout(supabase.auth.getSession(), 15000, 'Tiempo de espera agotado al validar sesión')
 
       if (session?.user) {
         // Obtener el perfil del usuario
-        const { data: profileData, error: profileError } = await supabase
+        const { data: profileData, error: profileError } = await withTimeout(supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
-          .single()
+          .single(), 15000, 'Tiempo de espera agotado al cargar el perfil')
 
         if (profileError) {
           console.warn('Error fetching profile:', profileError)
@@ -220,11 +225,11 @@ export const useAuthStore = create<AuthState>((set) => ({
       // Escuchar cambios en la autenticación
       supabase.auth.onAuthStateChange(async (_event, session) => {
         if (session?.user) {
-          const { data: profileData, error: profileError } = await supabase
+          const { data: profileData, error: profileError } = await withTimeout(supabase
             .from('profiles')
             .select('*')
             .eq('id', session.user.id)
-            .single()
+            .single(), 15000, 'Tiempo de espera agotado al refrescar el perfil')
 
           if (profileError) {
             console.warn('Error fetching profile on auth change:', profileError)

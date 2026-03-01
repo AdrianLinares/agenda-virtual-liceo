@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuthStore } from '@/lib/auth-store'
 import { supabase } from '@/lib/supabase'
+import { withTimeout } from '@/lib/async-utils'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -102,11 +103,11 @@ export default function PermisosPage() {
             if (profile.rol === 'estudiante') {
                 query = query.eq('estudiante_id', profile.id)
             } else if (profile.rol === 'padre') {
-                const { data: hijos } = await supabase
+                const { data: hijos } = await withTimeout(supabase
                     .from('padres_estudiantes')
                     .select('estudiante_id')
                     .eq('padre_id', profile.id)
-                    .returns<Array<{ estudiante_id: string }>>()
+                    .returns<Array<{ estudiante_id: string }>>(), 15000, 'Tiempo de espera agotado al cargar estudiantes del padre')
 
                 const hijosIds = hijos?.map((h) => h.estudiante_id) || []
                 if (hijosIds.length > 0) {
@@ -118,7 +119,7 @@ export default function PermisosPage() {
                 }
             }
 
-            const { data, error } = await query
+            const { data, error } = await withTimeout(query, 15000, 'Tiempo de espera agotado al cargar permisos')
             if (error) throw error
 
             setPermisos((data || []) as Permiso[])
@@ -146,10 +147,10 @@ export default function PermisosPage() {
             }
 
             if (profile.rol === 'padre') {
-                const { data, error } = await supabase
+                const { data, error } = await withTimeout(supabase
                     .from('padres_estudiantes')
                     .select('estudiante:estudiante_id (id, nombre_completo)')
-                    .eq('padre_id', profile.id)
+                    .eq('padre_id', profile.id), 15000, 'Tiempo de espera agotado al cargar hijos del acudiente')
 
                 if (error) throw error
 
@@ -168,12 +169,12 @@ export default function PermisosPage() {
                 return
             }
 
-            const { data, error } = await supabase
+            const { data, error } = await withTimeout(supabase
                 .from('profiles')
                 .select('id, nombre_completo')
                 .eq('rol', 'estudiante')
                 .eq('activo', true)
-                .order('nombre_completo', { ascending: true })
+                .order('nombre_completo', { ascending: true }), 15000, 'Tiempo de espera agotado al cargar estudiantes')
 
             if (error) throw error
 
@@ -214,9 +215,10 @@ export default function PermisosPage() {
                 solicitado_por: profile.id,
             } satisfies Database['public']['Tables']['permisos']['Insert']
 
-            const { error } = await (supabase as any)
+            const result: any = await withTimeout((supabase as any)
                 .from('permisos')
-                .insert(payload)
+                .insert(payload), 15000, 'Tiempo de espera agotado al registrar el permiso')
+            const error = result?.error
 
             if (error) throw error
 
@@ -244,14 +246,15 @@ export default function PermisosPage() {
         setSuccess(null)
 
         try {
-            const { error } = await (supabase as any)
+            const result: any = await withTimeout((supabase as any)
                 .from('permisos')
                 .update({
                     estado,
                     revisado_por: profile.id,
                     fecha_revision: new Date().toISOString(),
                 } satisfies Database['public']['Tables']['permisos']['Update'])
-                .eq('id', permiso.id)
+                .eq('id', permiso.id), 15000, 'Tiempo de espera agotado al actualizar el estado')
+            const error = result?.error
 
             if (error) throw error
 
