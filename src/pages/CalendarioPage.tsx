@@ -48,14 +48,6 @@ export default function CalendarioPage() {
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState<string | null>(null)
 
-    const today = new Date()
-    const [startDate, setStartDate] = useState<string>(() => today.toISOString().split('T')[0])
-    const [endDate, setEndDate] = useState<string>(() => {
-        const next = new Date()
-        next.setDate(today.getDate() + 7)
-        return next.toISOString().split('T')[0]
-    })
-
     const [titulo, setTitulo] = useState('')
     const [tipo, setTipo] = useState('General')
     const [fechaInicio, setFechaInicio] = useState('')
@@ -63,7 +55,8 @@ export default function CalendarioPage() {
     const [todoElDia, setTodoElDia] = useState(false)
     const [lugar, setLugar] = useState('')
     const [descripcion, setDescripcion] = useState('')
-    const [destinatario, setDestinatario] = useState('todos')
+    const [destinatarios, setDestinatarios] = useState<string[]>(['todos'])
+    const [createFormOpen, setCreateFormOpen] = useState(false)
     const [editingId, setEditingId] = useState<string | null>(null)
     const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
     const [editTitulo, setEditTitulo] = useState('')
@@ -82,7 +75,7 @@ export default function CalendarioPage() {
         if (profile) {
             loadEventos()
         }
-    }, [profile, startDate, endDate])
+    }, [profile])
 
     const loadEventos = async () => {
         if (!profile) return
@@ -96,15 +89,6 @@ export default function CalendarioPage() {
                 .select('*')
                 .order('fecha_inicio', { ascending: true })
 
-            if (startDate) {
-                const startIso = new Date(`${startDate}T00:00:00`).toISOString()
-                query = query.gte('fecha_inicio', startIso)
-            }
-            if (endDate) {
-                const endIso = new Date(`${endDate}T23:59:59`).toISOString()
-                query = query.lte('fecha_inicio', endIso)
-            }
-
             if (profile.rol && !canViewAll) {
                 query = query.or(`destinatarios.cs.{${profile.rol}},destinatarios.cs.{todos}`)
             }
@@ -112,7 +96,20 @@ export default function CalendarioPage() {
             const { data, error } = await withTimeout(query, 15000, 'Tiempo de espera agotado al cargar eventos')
             if (error) throw error
 
-            setEventos((data || []) as Evento[])
+            const now = new Date()
+            const upcoming = ((data || []) as Evento[])
+                .filter((evento) => {
+                    const referenceDate = evento.fecha_fin ? new Date(evento.fecha_fin) : new Date(evento.fecha_inicio)
+                    if (Number.isNaN(referenceDate.getTime())) return false
+                    return referenceDate >= now
+                })
+                .sort((a, b) => {
+                    const dateA = new Date(a.fecha_fin || a.fecha_inicio).getTime()
+                    const dateB = new Date(b.fecha_fin || b.fecha_inicio).getTime()
+                    return dateA - dateB
+                })
+
+            setEventos(upcoming)
         } catch (err) {
             console.error('Error loading eventos:', err)
             setError('Error al cargar el calendario')
@@ -124,7 +121,14 @@ export default function CalendarioPage() {
     const handleCreateEvento = async () => {
         if (!profile) return
         if (!titulo.trim() || !fechaInicio) {
+            setCreateFormOpen(true)
             setError('Completa el título y la fecha de inicio')
+            return
+        }
+
+        if (destinatarios.length === 0) {
+            setCreateFormOpen(true)
+            setError('Selecciona al menos un destinatario')
             return
         }
 
@@ -133,6 +137,10 @@ export default function CalendarioPage() {
         setSuccess(null)
 
         try {
+            const normalizedDestinatarios = destinatarios.includes('todos')
+                ? ['todos']
+                : Array.from(new Set(destinatarios))
+
             const payload = {
                 titulo: titulo.trim(),
                 descripcion: descripcion.trim() ? descripcion.trim() : null,
@@ -141,7 +149,7 @@ export default function CalendarioPage() {
                 fecha_fin: fechaFin ? new Date(fechaFin).toISOString() : null,
                 todo_el_dia: todoElDia,
                 lugar: lugar.trim() ? lugar.trim() : null,
-                destinatarios: [destinatario],
+                destinatarios: normalizedDestinatarios,
                 creado_por: profile.id,
             } satisfies Database['public']['Tables']['eventos']['Insert']
 
@@ -159,11 +167,13 @@ export default function CalendarioPage() {
             setTodoElDia(false)
             setLugar('')
             setDescripcion('')
-            setDestinatario('todos')
+            setDestinatarios(['todos'])
+            setCreateFormOpen(false)
             setSuccess('Evento creado')
             await loadEventos()
         } catch (err) {
             console.error('Error creating evento:', err)
+            setCreateFormOpen(true)
             setError('Error al crear el evento')
         } finally {
             setSaving(false)
@@ -272,6 +282,23 @@ export default function CalendarioPage() {
         }
     }
 
+    const handleCreateDestinatarioToggle = (value: string, checked: boolean) => {
+        if (value === 'todos') {
+            setDestinatarios(checked ? ['todos'] : [])
+            return
+        }
+
+        setDestinatarios((prev) => {
+            const withoutTodos = prev.filter((item) => item !== 'todos')
+
+            if (checked) {
+                return Array.from(new Set([...withoutTodos, value]))
+            }
+
+            return withoutTodos.filter((item) => item !== value)
+        })
+    }
+
     const headerDescription = useMemo(() => {
         if (profile?.rol === 'estudiante') return 'Consulta eventos y actividades del colegio'
         if (profile?.rol === 'padre') return 'Revisa fechas importantes y actividades'
@@ -300,116 +327,111 @@ export default function CalendarioPage() {
                 </Alert>
             )}
 
-            <Card>
-                <CardContent className="pt-6">
-                    <div className="grid gap-4 md:grid-cols-3">
-                        <div className="space-y-2">
-                            <Label>Desde</Label>
-                            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Hasta</Label>
-                            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-                        </div>
-                        <div className="flex items-end">
-                            <Button variant="outline" onClick={loadEventos}>
-                                Actualizar
-                            </Button>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
             {isStaff && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Crear evento</CardTitle>
-                        <CardDescription>
-                            Agrega actividades y fechas importantes al calendario
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="grid gap-4 md:grid-cols-2">
-                            <div className="space-y-2">
-                                <Label>Título</Label>
-                                <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Tipo</Label>
-                                <Input value={tipo} onChange={(e) => setTipo(e.target.value)} />
-                            </div>
-                        </div>
+                <div className="space-y-4">
+                    <Button
+                        variant={createFormOpen ? 'outline' : 'default'}
+                        onClick={() => setCreateFormOpen((prev) => !prev)}
+                    >
+                        {createFormOpen ? 'Ocultar formulario' : 'Crear evento'}
+                    </Button>
 
-                        <div className="grid gap-4 md:grid-cols-2">
-                            <div className="space-y-2">
-                                <Label>Fecha inicio</Label>
-                                <Input
-                                    type="datetime-local"
-                                    value={fechaInicio}
-                                    onChange={(e) => setFechaInicio(e.target.value)}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Fecha fin</Label>
-                                <Input
-                                    type="datetime-local"
-                                    value={fechaFin}
-                                    onChange={(e) => setFechaFin(e.target.value)}
-                                />
-                            </div>
-                        </div>
+                    {createFormOpen && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Crear evento</CardTitle>
+                                <CardDescription>
+                                    Agrega actividades y fechas importantes al calendario
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <Label>Título</Label>
+                                        <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Tipo</Label>
+                                        <Input value={tipo} onChange={(e) => setTipo(e.target.value)} />
+                                    </div>
+                                </div>
 
-                        <div className="grid gap-4 md:grid-cols-2">
-                            <div className="space-y-2">
-                                <Label>Lugar</Label>
-                                <Input value={lugar} onChange={(e) => setLugar(e.target.value)} />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Destinatario</Label>
-                                <Select value={destinatario} onValueChange={setDestinatario}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Selecciona un destinatario" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {DESTINATARIOS.map((item) => (
-                                            <SelectItem key={item.value} value={item.value}>
-                                                {item.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <Label>Fecha inicio</Label>
+                                        <Input
+                                            type="datetime-local"
+                                            value={fechaInicio}
+                                            onChange={(e) => setFechaInicio(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Fecha fin</Label>
+                                        <Input
+                                            type="datetime-local"
+                                            value={fechaFin}
+                                            onChange={(e) => setFechaFin(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
 
-                        <div className="grid gap-4 md:grid-cols-2">
-                            <div className="space-y-2">
-                                <Label>Descripción</Label>
-                                <Input value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
-                            </div>
-                            <div className="flex items-center gap-2 pt-7">
-                                <input
-                                    id="todo-el-dia"
-                                    type="checkbox"
-                                    className="h-4 w-4 rounded border-input"
-                                    checked={todoElDia}
-                                    onChange={(e) => setTodoElDia(e.target.checked)}
-                                />
-                                <Label htmlFor="todo-el-dia">Todo el día</Label>
-                            </div>
-                        </div>
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <Label>Lugar</Label>
+                                        <Input value={lugar} onChange={(e) => setLugar(e.target.value)} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Destinatarios</Label>
+                                        <div className="rounded-md border border-input p-3 space-y-2 max-h-48 overflow-y-auto">
+                                            {DESTINATARIOS.map((item) => {
+                                                const checked = destinatarios.includes(item.value)
+                                                return (
+                                                    <label key={item.value} className="flex items-center gap-2 text-sm text-foreground">
+                                                        <input
+                                                            type="checkbox"
+                                                            className="h-4 w-4 rounded border-input"
+                                                            checked={checked}
+                                                            onChange={(e) => handleCreateDestinatarioToggle(item.value, e.target.checked)}
+                                                        />
+                                                        <span>{item.label}</span>
+                                                    </label>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
 
-                        <Button onClick={handleCreateEvento} disabled={saving}>
-                            {saving ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Guardando...
-                                </>
-                            ) : (
-                                'Crear evento'
-                            )}
-                        </Button>
-                    </CardContent>
-                </Card>
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <Label>Descripción</Label>
+                                        <Input value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
+                                    </div>
+                                    <div className="flex items-center gap-2 pt-7">
+                                        <input
+                                            id="todo-el-dia"
+                                            type="checkbox"
+                                            className="h-4 w-4 rounded border-input"
+                                            checked={todoElDia}
+                                            onChange={(e) => setTodoElDia(e.target.checked)}
+                                        />
+                                        <Label htmlFor="todo-el-dia">Todo el día</Label>
+                                    </div>
+                                </div>
+
+                                <Button onClick={handleCreateEvento} disabled={saving}>
+                                    {saving ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Guardando...
+                                        </>
+                                    ) : (
+                                        'Crear evento'
+                                    )}
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    )}
+                </div>
             )}
 
             {loading && (
@@ -421,7 +443,7 @@ export default function CalendarioPage() {
             {!loading && eventos.length === 0 && (
                 <Alert>
                     <CalendarDays className="h-4 w-4" />
-                    <AlertDescription>No hay eventos en este rango.</AlertDescription>
+                    <AlertDescription>No hay próximos eventos.</AlertDescription>
                 </Alert>
             )}
 

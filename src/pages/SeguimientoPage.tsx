@@ -58,6 +58,7 @@ export default function SeguimientoPage() {
     const [acciones, setAcciones] = useState('')
     const [requiereSeguimiento, setRequiereSeguimiento] = useState(false)
     const [fechaSeguimiento, setFechaSeguimiento] = useState('')
+    const [formOpen, setFormOpen] = useState(false)
     const [searchTerm, setSearchTerm] = useState('')
 
     const canRegister = profile?.rol === 'administrador' || profile?.rol === 'administrativo' || profile?.rol === 'docente'
@@ -175,6 +176,7 @@ export default function SeguimientoPage() {
         if (!profile) return
 
         if (!selectedStudent || !titulo.trim() || !descripcion.trim()) {
+            setFormOpen(true)
             setError('Completa estudiante, título y descripción')
             return
         }
@@ -209,10 +211,12 @@ export default function SeguimientoPage() {
             setAcciones('')
             setRequiereSeguimiento(false)
             setFechaSeguimiento('')
+            setFormOpen(false)
             setSuccess('Registro creado')
             await loadSeguimientos()
         } catch (err) {
             console.error('Error creating seguimiento:', err)
+            setFormOpen(true)
             setError('Error al registrar el seguimiento')
         } finally {
             setSaving(false)
@@ -269,95 +273,106 @@ export default function SeguimientoPage() {
             )}
 
             {canRegister && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Registrar seguimiento</CardTitle>
-                        <CardDescription>
-                            Crea un nuevo registro de seguimiento académico o disciplinario
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="grid gap-4 md:grid-cols-2">
-                            <div className="space-y-2">
-                                <Label>Estudiante</Label>
-                                <Select value={selectedStudent} onValueChange={setSelectedStudent}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Selecciona un estudiante" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {students.map((student) => (
-                                            <SelectItem key={student.estudiante_id} value={student.estudiante_id}>
-                                                {student.nombre_completo}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Tipo</Label>
-                                <Select value={tipo} onValueChange={setTipo}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {TIPOS.map((option) => (
-                                            <SelectItem key={option} value={option}>
-                                                {option}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
+                <div className="space-y-4">
+                    <Button
+                        variant={formOpen ? 'outline' : 'default'}
+                        onClick={() => setFormOpen((prev) => !prev)}
+                    >
+                        {formOpen ? 'Ocultar formulario' : 'Registrar seguimiento'}
+                    </Button>
 
-                        <div className="space-y-2">
-                            <Label>Título</Label>
-                            <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
-                        </div>
+                    {formOpen && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Registrar seguimiento</CardTitle>
+                                <CardDescription>
+                                    Crea un nuevo registro de seguimiento académico o disciplinario
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <Label>Estudiante</Label>
+                                        <Select value={selectedStudent} onValueChange={setSelectedStudent}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Selecciona un estudiante" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {students.map((student) => (
+                                                    <SelectItem key={student.estudiante_id} value={student.estudiante_id}>
+                                                        {student.nombre_completo}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Tipo</Label>
+                                        <Select value={tipo} onValueChange={setTipo}>
+                                            <SelectTrigger>
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {TIPOS.map((option) => (
+                                                    <SelectItem key={option} value={option}>
+                                                        {option}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
 
-                        <div className="space-y-2">
-                            <Label>Descripción</Label>
-                            <Input value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
-                        </div>
+                                <div className="space-y-2">
+                                    <Label>Título</Label>
+                                    <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+                                </div>
 
-                        <div className="space-y-2">
-                            <Label>Acciones tomadas</Label>
-                            <Input value={acciones} onChange={(e) => setAcciones(e.target.value)} />
-                        </div>
+                                <div className="space-y-2">
+                                    <Label>Descripción</Label>
+                                    <Input value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
+                                </div>
 
-                        <div className="grid gap-4 md:grid-cols-2">
-                            <div className="flex items-center gap-2 pt-7">
-                                <input
-                                    id="requiere-seguimiento"
-                                    type="checkbox"
-                                    className="h-4 w-4 rounded border-input"
-                                    checked={requiereSeguimiento}
-                                    onChange={(e) => setRequiereSeguimiento(e.target.checked)}
-                                />
-                                <Label htmlFor="requiere-seguimiento">Requiere seguimiento</Label>
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Fecha de seguimiento</Label>
-                                <Input
-                                    type="date"
-                                    value={fechaSeguimiento}
-                                    onChange={(e) => setFechaSeguimiento(e.target.value)}
-                                />
-                            </div>
-                        </div>
+                                <div className="space-y-2">
+                                    <Label>Acciones tomadas</Label>
+                                    <Input value={acciones} onChange={(e) => setAcciones(e.target.value)} />
+                                </div>
 
-                        <Button onClick={handleCreateSeguimiento} disabled={saving}>
-                            {saving ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Guardando...
-                                </>
-                            ) : (
-                                'Registrar'
-                            )}
-                        </Button>
-                    </CardContent>
-                </Card>
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="flex items-center gap-2 pt-7">
+                                        <input
+                                            id="requiere-seguimiento"
+                                            type="checkbox"
+                                            className="h-4 w-4 rounded border-input"
+                                            checked={requiereSeguimiento}
+                                            onChange={(e) => setRequiereSeguimiento(e.target.checked)}
+                                        />
+                                        <Label htmlFor="requiere-seguimiento">Requiere seguimiento</Label>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Fecha de seguimiento</Label>
+                                        <Input
+                                            type="date"
+                                            value={fechaSeguimiento}
+                                            onChange={(e) => setFechaSeguimiento(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+
+                                <Button onClick={handleCreateSeguimiento} disabled={saving}>
+                                    {saving ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Guardando...
+                                        </>
+                                    ) : (
+                                        'Registrar'
+                                    )}
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    )}
+                </div>
             )}
 
             {loading && (

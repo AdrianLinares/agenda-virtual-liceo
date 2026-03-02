@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuthStore } from '@/lib/auth-store'
 import { supabase } from '@/lib/supabase'
 import type { Database } from '@/types/database.types'
@@ -81,6 +81,8 @@ export default function AsistenciaPage() {
     const [updatingId, setUpdatingId] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState<string | null>(null)
+    const [formOpen, setFormOpen] = useState(false)
+    const studentSelectTriggerRef = useRef<HTMLButtonElement | null>(null)
 
     const isStaff = profile?.rol === 'administrador' || profile?.rol === 'administrativo' || profile?.rol === 'docente'
 
@@ -287,12 +289,14 @@ export default function AsistenciaPage() {
     const handleCreateAsistencia = async () => {
         if (!profile) return
         if (!selectedAsignatura || !selectedGrupo || !selectedStudent) {
+            setFormOpen(true)
             setError('Selecciona asignatura, grupo y estudiante')
             return
         }
 
         const student = students.find((s) => s.estudiante_id === selectedStudent)
         if (!student) {
+            setFormOpen(true)
             setError('Estudiante inválido')
             return
         }
@@ -321,8 +325,12 @@ export default function AsistenciaPage() {
             setObservaciones('')
             setSuccess('Asistencia registrada correctamente')
             await loadAsistencias()
+            requestAnimationFrame(() => {
+                studentSelectTriggerRef.current?.focus()
+            })
         } catch (err) {
             console.error('Error creating asistencia:', err)
+            setFormOpen(true)
             setError('Error al registrar la asistencia')
         } finally {
             setSaving(false)
@@ -451,109 +459,120 @@ export default function AsistenciaPage() {
             )}
 
             {isStaff && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Registrar asistencia</CardTitle>
-                        <CardDescription>Selecciona asignatura, grupo, estudiante y estado</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="grid gap-4 md:grid-cols-4">
-                            <div className="space-y-2">
-                                <Label>Asignatura</Label>
-                                <Select value={selectedAsignatura} onValueChange={setSelectedAsignatura}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Selecciona una asignatura" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {asignaturas.map((asignatura) => (
-                                            <SelectItem key={asignatura.id} value={asignatura.id}>
-                                                {asignatura.nombre}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                <div className="space-y-4">
+                    <Button
+                        variant={formOpen ? 'outline' : 'default'}
+                        onClick={() => setFormOpen((prev) => !prev)}
+                    >
+                        {formOpen ? 'Ocultar formulario' : 'Registrar asistencia'}
+                    </Button>
 
-                            <div className="space-y-2">
-                                <Label>Grupo</Label>
-                                <Select
-                                    value={selectedGrupo}
-                                    onValueChange={setSelectedGrupo}
-                                    disabled={!selectedAsignatura}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Selecciona un grupo" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {grupos.map((grupo) => (
-                                            <SelectItem key={grupo.id} value={grupo.id}>
-                                                {grupo.grado_nombre} • {grupo.nombre}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                    {formOpen && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Registrar asistencia</CardTitle>
+                                <CardDescription>Selecciona asignatura, grupo, estudiante y estado</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="grid gap-4 md:grid-cols-4">
+                                    <div className="space-y-2">
+                                        <Label>Asignatura</Label>
+                                        <Select value={selectedAsignatura} onValueChange={setSelectedAsignatura}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Selecciona una asignatura" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {asignaturas.map((asignatura) => (
+                                                    <SelectItem key={asignatura.id} value={asignatura.id}>
+                                                        {asignatura.nombre}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
 
-                            <div className="space-y-2">
-                                <Label>Estudiante</Label>
-                                <Select
-                                    value={selectedStudent}
-                                    onValueChange={setSelectedStudent}
-                                    disabled={!selectedGrupo}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Selecciona un estudiante" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {students.map((student) => (
-                                            <SelectItem key={student.estudiante_id} value={student.estudiante_id}>
-                                                {student.nombre_completo}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                                    <div className="space-y-2">
+                                        <Label>Grupo</Label>
+                                        <Select
+                                            value={selectedGrupo}
+                                            onValueChange={setSelectedGrupo}
+                                            disabled={!selectedAsignatura}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Selecciona un grupo" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {grupos.map((grupo) => (
+                                                    <SelectItem key={grupo.id} value={grupo.id}>
+                                                        {grupo.grado_nombre} • {grupo.nombre}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
 
-                            <div className="space-y-2">
-                                <Label>Estado</Label>
-                                <Select value={selectedEstado} onValueChange={(value) => setSelectedEstado(value as Estado)}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {ESTADOS.map((estado) => (
-                                            <SelectItem key={estado} value={estado}>
-                                                {estado.charAt(0).toUpperCase() + estado.slice(1)}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
+                                    <div className="space-y-2">
+                                        <Label>Estudiante</Label>
+                                        <Select
+                                            value={selectedStudent}
+                                            onValueChange={setSelectedStudent}
+                                            disabled={!selectedGrupo}
+                                        >
+                                            <SelectTrigger ref={studentSelectTriggerRef}>
+                                                <SelectValue placeholder="Selecciona un estudiante" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {students.map((student) => (
+                                                    <SelectItem key={student.estudiante_id} value={student.estudiante_id}>
+                                                        {student.nombre_completo}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
 
-                        <div className="space-y-2">
-                            <Label>Observaciones</Label>
-                            <Input
-                                value={observaciones}
-                                onChange={(event) => setObservaciones(event.target.value)}
-                                placeholder="Opcional"
-                            />
-                        </div>
+                                    <div className="space-y-2">
+                                        <Label>Estado</Label>
+                                        <Select value={selectedEstado} onValueChange={(value) => setSelectedEstado(value as Estado)}>
+                                            <SelectTrigger>
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {ESTADOS.map((estado) => (
+                                                    <SelectItem key={estado} value={estado}>
+                                                        {estado.charAt(0).toUpperCase() + estado.slice(1)}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
 
-                        <div>
-                            <Button onClick={handleCreateAsistencia} disabled={saving}>
-                                {saving ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Guardando...
-                                    </>
-                                ) : (
-                                    'Registrar'
-                                )}
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
+                                <div className="space-y-2">
+                                    <Label>Observaciones</Label>
+                                    <Input
+                                        value={observaciones}
+                                        onChange={(event) => setObservaciones(event.target.value)}
+                                        placeholder="Opcional"
+                                    />
+                                </div>
+
+                                <div>
+                                    <Button onClick={handleCreateAsistencia} disabled={saving}>
+                                        {saving ? (
+                                            <>
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                Guardando...
+                                            </>
+                                        ) : (
+                                            'Registrar'
+                                        )}
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+                </div>
             )}
 
             {!loading && asistencias.length === 0 && (

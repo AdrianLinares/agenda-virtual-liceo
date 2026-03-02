@@ -74,6 +74,7 @@ export default function CitacionesPage() {
     const [descripcion, setDescripcion] = useState('')
     const [fechaCitacion, setFechaCitacion] = useState('')
     const [lugar, setLugar] = useState('')
+    const [formOpen, setFormOpen] = useState(false)
     const [editingCitacionId, setEditingCitacionId] = useState<string | null>(null)
     const [editForm, setEditForm] = useState<EditCitacionForm>({
         estudiante_id: '',
@@ -199,6 +200,7 @@ export default function CitacionesPage() {
         if (!profile) return
 
         if (!selectedStudent || !motivo.trim() || !fechaCitacion) {
+            setFormOpen(true)
             setError('Completa estudiante, motivo y fecha de citación')
             return
         }
@@ -231,10 +233,12 @@ export default function CitacionesPage() {
             setDescripcion('')
             setFechaCitacion('')
             setLugar('')
+            setFormOpen(false)
             setSuccess('Citación registrada')
             await loadCitaciones()
         } catch (err) {
             console.error('Error creating citacion:', err)
+            setFormOpen(true)
             setError('Error al registrar la citación')
         } finally {
             setSaving(false)
@@ -391,82 +395,93 @@ export default function CitacionesPage() {
             )}
 
             {isStaff && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Programar citación</CardTitle>
-                        <CardDescription>Registra una nueva citación</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="grid gap-4 md:grid-cols-2">
-                            <div className="space-y-2">
-                                <Label>Estudiante</Label>
-                                <Select value={selectedStudent} onValueChange={setSelectedStudent}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Selecciona un estudiante" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {students.map((student) => (
-                                            <SelectItem key={student.estudiante_id} value={student.estudiante_id}>
-                                                {student.nombre_completo}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Citado</Label>
-                                <Select value={citado} onValueChange={setCitado}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {CITADOS.map((option) => (
-                                            <SelectItem key={option} value={option}>
-                                                {option}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
+                <div className="space-y-4">
+                    <Button
+                        variant={formOpen ? 'outline' : 'default'}
+                        onClick={() => setFormOpen((prev) => !prev)}
+                    >
+                        {formOpen ? 'Ocultar formulario' : 'Programar citación'}
+                    </Button>
 
-                        <div className="grid gap-4 md:grid-cols-2">
-                            <div className="space-y-2">
-                                <Label>Fecha de citación</Label>
-                                <Input
-                                    type="datetime-local"
-                                    value={fechaCitacion}
-                                    onChange={(e) => setFechaCitacion(e.target.value)}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Lugar</Label>
-                                <Input value={lugar} onChange={(e) => setLugar(e.target.value)} />
-                            </div>
-                        </div>
+                    {formOpen && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Programar citación</CardTitle>
+                                <CardDescription>Registra una nueva citación</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <Label>Estudiante</Label>
+                                        <Select value={selectedStudent} onValueChange={setSelectedStudent}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Selecciona un estudiante" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {students.map((student) => (
+                                                    <SelectItem key={student.estudiante_id} value={student.estudiante_id}>
+                                                        {student.nombre_completo}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Citado</Label>
+                                        <Select value={citado} onValueChange={setCitado}>
+                                            <SelectTrigger>
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {CITADOS.map((option) => (
+                                                    <SelectItem key={option} value={option}>
+                                                        {option}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
 
-                        <div className="space-y-2">
-                            <Label>Motivo</Label>
-                            <Input value={motivo} onChange={(e) => setMotivo(e.target.value)} />
-                        </div>
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <Label>Fecha de citación</Label>
+                                        <Input
+                                            type="datetime-local"
+                                            value={fechaCitacion}
+                                            onChange={(e) => setFechaCitacion(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Lugar</Label>
+                                        <Input value={lugar} onChange={(e) => setLugar(e.target.value)} />
+                                    </div>
+                                </div>
 
-                        <div className="space-y-2">
-                            <Label>Descripción</Label>
-                            <Input value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
-                        </div>
+                                <div className="space-y-2">
+                                    <Label>Motivo</Label>
+                                    <Input value={motivo} onChange={(e) => setMotivo(e.target.value)} />
+                                </div>
 
-                        <Button onClick={handleCreateCitacion} disabled={saving}>
-                            {saving ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Guardando...
-                                </>
-                            ) : (
-                                'Programar citación'
-                            )}
-                        </Button>
-                    </CardContent>
-                </Card>
+                                <div className="space-y-2">
+                                    <Label>Descripción</Label>
+                                    <Input value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
+                                </div>
+
+                                <Button onClick={handleCreateCitacion} disabled={saving}>
+                                    {saving ? (
+                                        <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Guardando...
+                                        </>
+                                    ) : (
+                                        'Programar citación'
+                                    )}
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    )}
+                </div>
             )}
 
             {loading && (

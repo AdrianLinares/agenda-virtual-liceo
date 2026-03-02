@@ -74,6 +74,7 @@ export default function PermisosPage() {
     const [fechaInicio, setFechaInicio] = useState('')
     const [fechaFin, setFechaFin] = useState('')
     const [soporteUrl, setSoporteUrl] = useState('')
+    const [formOpen, setFormOpen] = useState(false)
     const [estadoFilter, setEstadoFilter] = useState<'todos' | Permiso['estado']>('todos')
 
     const isReviewer = profile?.rol === 'administrador' || profile?.rol === 'administrativo'
@@ -194,6 +195,7 @@ export default function PermisosPage() {
         if (!profile) return
 
         if (!selectedStudent || !motivo.trim() || !fechaInicio || !fechaFin) {
+            setFormOpen(true)
             setError('Completa estudiante, motivo y fechas')
             return
         }
@@ -228,10 +230,12 @@ export default function PermisosPage() {
             setFechaFin('')
             setSoporteUrl('')
             setTipo(TIPOS[0])
+            setFormOpen(false)
             setSuccess('Solicitud enviada')
             await loadPermisos()
         } catch (err) {
             console.error('Error creating permiso:', err)
+            setFormOpen(true)
             setError('Error al registrar el permiso')
         } finally {
             setSaving(false)
@@ -318,83 +322,94 @@ export default function PermisosPage() {
                 </Alert>
             )}
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Solicitar permiso</CardTitle>
-                    <CardDescription>Registra una nueva solicitud</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="grid gap-4 md:grid-cols-2">
-                        <div className="space-y-2">
-                            <Label>Estudiante</Label>
-                            <Select value={selectedStudent} onValueChange={setSelectedStudent}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Selecciona un estudiante" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {students.map((student) => (
-                                        <SelectItem key={student.estudiante_id} value={student.estudiante_id}>
-                                            {student.nombre_completo}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Tipo</Label>
-                            <Select value={tipo} onValueChange={setTipo}>
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {TIPOS.map((option) => (
-                                        <SelectItem key={option} value={option}>
-                                            {option}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
+            <div className="space-y-4">
+                <Button
+                    variant={formOpen ? 'outline' : 'default'}
+                    onClick={() => setFormOpen((prev) => !prev)}
+                >
+                    {formOpen ? 'Ocultar formulario' : 'Solicitar permiso'}
+                </Button>
 
-                    <div className="grid gap-4 md:grid-cols-2">
-                        <div className="space-y-2">
-                            <Label>Fecha inicio</Label>
-                            <Input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} />
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Fecha fin</Label>
-                            <Input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} />
-                        </div>
-                    </div>
+                {formOpen && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Solicitar permiso</CardTitle>
+                            <CardDescription>Registra una nueva solicitud</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div className="space-y-2">
+                                    <Label>Estudiante</Label>
+                                    <Select value={selectedStudent} onValueChange={setSelectedStudent}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Selecciona un estudiante" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {students.map((student) => (
+                                                <SelectItem key={student.estudiante_id} value={student.estudiante_id}>
+                                                    {student.nombre_completo}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Tipo</Label>
+                                    <Select value={tipo} onValueChange={setTipo}>
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {TIPOS.map((option) => (
+                                                <SelectItem key={option} value={option}>
+                                                    {option}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
 
-                    <div className="space-y-2">
-                        <Label>Motivo</Label>
-                        <Input value={motivo} onChange={(e) => setMotivo(e.target.value)} />
-                    </div>
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div className="space-y-2">
+                                    <Label>Fecha inicio</Label>
+                                    <Input type="date" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Fecha fin</Label>
+                                    <Input type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} />
+                                </div>
+                            </div>
 
-                    <div className="space-y-2">
-                        <Label>Descripción</Label>
-                        <Input value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
-                    </div>
+                            <div className="space-y-2">
+                                <Label>Motivo</Label>
+                                <Input value={motivo} onChange={(e) => setMotivo(e.target.value)} />
+                            </div>
 
-                    <div className="space-y-2">
-                        <Label>Soporte (URL)</Label>
-                        <Input value={soporteUrl} onChange={(e) => setSoporteUrl(e.target.value)} />
-                    </div>
+                            <div className="space-y-2">
+                                <Label>Descripción</Label>
+                                <Input value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
+                            </div>
 
-                    <Button onClick={handleCreatePermiso} disabled={saving}>
-                        {saving ? (
-                            <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Enviando...
-                            </>
-                        ) : (
-                            'Enviar solicitud'
-                        )}
-                    </Button>
-                </CardContent>
-            </Card>
+                            <div className="space-y-2">
+                                <Label>Soporte (URL)</Label>
+                                <Input value={soporteUrl} onChange={(e) => setSoporteUrl(e.target.value)} />
+                            </div>
+
+                            <Button onClick={handleCreatePermiso} disabled={saving}>
+                                {saving ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Enviando...
+                                    </>
+                                ) : (
+                                    'Enviar solicitud'
+                                )}
+                            </Button>
+                        </CardContent>
+                    </Card>
+                )}
+            </div>
 
             {loading && (
                 <div className="flex items-center justify-center py-12">

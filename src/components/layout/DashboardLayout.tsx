@@ -54,7 +54,7 @@ const menuItems: MenuItem[] = [
     title: 'Boletines de Notas',
     href: '/dashboard/boletines',
     icon: <FileText className="w-5 h-5" />,
-    roles: ['administrador', 'administrativo', 'docente', 'estudiante', 'padre'],
+    roles: ['administrador'],
   },
   {
     title: 'Registro de Asistencia',

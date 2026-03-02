@@ -585,7 +585,11 @@ CREATE POLICY "Staff delete announcements"
     ON anuncios FOR DELETE
     USING (
         autor_id = auth.uid()
-        OR COALESCE(public.get_user_role() IN ('administrador', 'administrativo'), false)
+        OR EXISTS (
+            SELECT 1 FROM profiles
+            WHERE id = auth.uid()
+              AND rol IN ('administrador', 'administrativo')
+        )
     );
 
 -- =====================================================

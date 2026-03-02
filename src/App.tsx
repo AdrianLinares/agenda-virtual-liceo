@@ -54,6 +54,33 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+function RoleProtectedRoute({
+  children,
+  allowedRoles,
+}: {
+  children: React.ReactNode
+  allowedRoles: string[]
+}) {
+  const { profile, loading, initialized } = useAuthStore()
+
+  if (!initialized || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Cargando...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!profile || !allowedRoles.includes(profile.rol)) {
+    return <Navigate to="/dashboard" replace />
+  }
+
+  return <>{children}</>
+}
+
 // Public Route Component (redirect if already logged in)
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, initialized } = useAuthStore()
@@ -127,9 +154,11 @@ function App() {
             path="/dashboard/boletines"
             element={
               <ProtectedRoute>
-                <DashboardLayout>
-                  <BoletinesPage />
-                </DashboardLayout>
+                <RoleProtectedRoute allowedRoles={['administrador']}>
+                  <DashboardLayout>
+                    <BoletinesPage />
+                  </DashboardLayout>
+                </RoleProtectedRoute>
               </ProtectedRoute>
             }
           />

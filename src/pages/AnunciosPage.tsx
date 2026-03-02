@@ -6,13 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertCircle, Bell, CheckCircle2, Loader2, Megaphone } from 'lucide-react'
 
@@ -51,9 +44,10 @@ export default function AnunciosPage() {
 
     const [titulo, setTitulo] = useState('')
     const [contenido, setContenido] = useState('')
-    const [destinatario, setDestinatario] = useState('todos')
+    const [destinatarios, setDestinatarios] = useState<string[]>(['todos'])
     const [fechaExpiracion, setFechaExpiracion] = useState('')
     const [importante, setImportante] = useState(false)
+    const [formOpen, setFormOpen] = useState(false)
     const [editingId, setEditingId] = useState<string | null>(null)
 
     const isStaff = profile?.rol === 'administrador' || profile?.rol === 'administrativo' || profile?.rol === 'docente'
@@ -107,16 +101,41 @@ export default function AnunciosPage() {
     const resetForm = () => {
         setTitulo('')
         setContenido('')
-        setDestinatario('todos')
+        setDestinatarios(['todos'])
         setFechaExpiracion('')
         setImportante(false)
         setEditingId(null)
+        setFormOpen(false)
+    }
+
+    const handleDestinatarioToggle = (value: string, checked: boolean) => {
+        if (value === 'todos') {
+            setDestinatarios(checked ? ['todos'] : [])
+            return
+        }
+
+        setDestinatarios((prev) => {
+            const withoutTodos = prev.filter((item) => item !== 'todos')
+
+            if (checked) {
+                return Array.from(new Set([...withoutTodos, value]))
+            }
+
+            return withoutTodos.filter((item) => item !== value)
+        })
     }
 
     const handleSaveAnuncio = async () => {
         if (!profile) return
         if (!titulo.trim() || !contenido.trim()) {
+            setFormOpen(true)
             setError('Completa el título y el contenido')
+            return
+        }
+
+        if (destinatarios.length === 0) {
+            setFormOpen(true)
+            setError('Selecciona al menos un destinatario')
             return
         }
 
@@ -125,10 +144,14 @@ export default function AnunciosPage() {
         setSuccess(null)
 
         try {
+            const normalizedDestinatarios = destinatarios.includes('todos')
+                ? ['todos']
+                : Array.from(new Set(destinatarios))
+
             const payload = {
                 titulo: titulo.trim(),
                 contenido: contenido.trim(),
-                destinatarios: [destinatario],
+                destinatarios: normalizedDestinatarios,
                 importante,
                 fecha_expiracion: fechaExpiracion ? new Date(fechaExpiracion).toISOString() : null,
             }
@@ -159,6 +182,7 @@ export default function AnunciosPage() {
             await loadAnuncios()
         } catch (err) {
             console.error('Error saving anuncio:', err)
+            setFormOpen(true)
             setError(editingId ? 'Error al actualizar el anuncio' : 'Error al publicar el anuncio')
         } finally {
             setSaving(false)
@@ -166,10 +190,11 @@ export default function AnunciosPage() {
     }
 
     const handleEditAnuncio = (anuncio: Anuncio) => {
+        setFormOpen(true)
         setEditingId(anuncio.id)
         setTitulo(anuncio.titulo)
         setContenido(anuncio.contenido)
-        setDestinatario(anuncio.destinatarios[0] || 'todos')
+        setDestinatarios(anuncio.destinatarios.length > 0 ? anuncio.destinatarios : ['todos'])
         setFechaExpiracion(anuncio.fecha_expiracion ? anuncio.fecha_expiracion.slice(0, 10) : '')
         setImportante(anuncio.importante)
         setError(null)
@@ -196,8 +221,24 @@ export default function AnunciosPage() {
                 resetForm()
             }
 
-            setSuccess('Anuncio eliminado')
+            setAnuncios((prev) => prev.filter((item) => item.id !== anuncioId))
+            const verification: any = await withTimeout((supabase as any)
+                .from('anuncios')
+                .select('id')
+                .eq('id', anuncioId)
+                .maybeSingle(), 15000, 'Tiempo de espera agotado al verificar eliminación del anuncio')
+
+            if (verification?.error) {
+                throw verification.error
+            }
+
+            const stillExists = Boolean(verification?.data?.id)
+            if (stillExists) {
+                throw new Error('No se pudo eliminar el anuncio (sin permisos o ya no existe)')
+            }
+
             await loadAnuncios()
+            setSuccess('Anuncio eliminado')
         } catch (err) {
             console.error('Error deleting anuncio:', err)
             setError('Error al eliminar el anuncio')
@@ -241,81 +282,102 @@ export default function AnunciosPage() {
             )}
 
             {isStaff && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>{editingId ? 'Editar anuncio' : 'Publicar anuncio'}</CardTitle>
-                        <CardDescription>
-                            Comparte información con la comunidad educativa
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="grid gap-4 md:grid-cols-2">
-                            <div className="space-y-2">
-                                <Label>Título</Label>
-                                <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Destinatario</Label>
-                                <Select value={destinatario} onValueChange={setDestinatario}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Selecciona un destinatario" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {DESTINATARIOS.map((item) => (
-                                            <SelectItem key={item.value} value={item.value}>
-                                                {item.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
+                <div className="space-y-4">
+                    <Button
+                        variant={formOpen ? 'outline' : 'default'}
+                        onClick={() => {
+                            if (formOpen) {
+                                resetForm()
+                            } else {
+                                setFormOpen(true)
+                            }
+                        }}
+                    >
+                        {formOpen ? 'Ocultar formulario' : 'Publicar anuncio'}
+                    </Button>
 
-                        <div className="space-y-2">
-                            <Label>Contenido</Label>
-                            <Input value={contenido} onChange={(e) => setContenido(e.target.value)} />
-                        </div>
+                    {formOpen && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>{editingId ? 'Editar anuncio' : 'Publicar anuncio'}</CardTitle>
+                                <CardDescription>
+                                    Comparte información con la comunidad educativa
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <Label>Título</Label>
+                                        <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Destinatarios</Label>
+                                        <div className="rounded-md border border-input p-3 space-y-2 max-h-48 overflow-y-auto">
+                                            {DESTINATARIOS.map((item) => {
+                                                const checked = destinatarios.includes(item.value)
+                                                return (
+                                                    <label key={item.value} className="flex items-center gap-2 text-sm text-foreground">
+                                                        <input
+                                                            type="checkbox"
+                                                            className="h-4 w-4 rounded border-input"
+                                                            checked={checked}
+                                                            onChange={(e) => handleDestinatarioToggle(item.value, e.target.checked)}
+                                                        />
+                                                        <span>{item.label}</span>
+                                                    </label>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
 
-                        <div className="grid gap-4 md:grid-cols-2">
-                            <div className="space-y-2">
-                                <Label>Fecha de expiración (opcional)</Label>
-                                <Input
-                                    type="date"
-                                    value={fechaExpiracion}
-                                    onChange={(e) => setFechaExpiracion(e.target.value)}
-                                />
-                            </div>
-                            <div className="flex items-center gap-2 pt-7">
-                                <input
-                                    id="importante"
-                                    type="checkbox"
-                                    className="h-4 w-4 rounded border-input"
-                                    checked={importante}
-                                    onChange={(e) => setImportante(e.target.checked)}
-                                />
-                                <Label htmlFor="importante">Marcar como importante</Label>
-                            </div>
-                        </div>
+                                <div className="space-y-2">
+                                    <Label>Contenido</Label>
+                                    <Input value={contenido} onChange={(e) => setContenido(e.target.value)} />
+                                </div>
 
-                        <div className="flex items-center gap-2">
-                            <Button onClick={handleSaveAnuncio} disabled={saving}>
-                                {saving ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        {editingId ? 'Guardando...' : 'Publicando...'}
-                                    </>
-                                ) : (
-                                    editingId ? 'Guardar cambios' : 'Publicar'
-                                )}
-                            </Button>
-                            {editingId && (
-                                <Button variant="outline" onClick={resetForm} disabled={saving}>
-                                    Cancelar
-                                </Button>
-                            )}
-                        </div>
-                    </CardContent>
-                </Card>
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <Label>Fecha de expiración (opcional)</Label>
+                                        <Input
+                                            type="date"
+                                            value={fechaExpiracion}
+                                            onChange={(e) => setFechaExpiracion(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-2 pt-7">
+                                        <input
+                                            id="importante"
+                                            type="checkbox"
+                                            className="h-4 w-4 rounded border-input"
+                                            checked={importante}
+                                            onChange={(e) => setImportante(e.target.checked)}
+                                        />
+                                        <Label htmlFor="importante">Marcar como importante</Label>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <Button onClick={handleSaveAnuncio} disabled={saving}>
+                                        {saving ? (
+                                            <>
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                {editingId ? 'Guardando...' : 'Publicando...'}
+                                            </>
+                                        ) : (
+                                            editingId ? 'Guardar cambios' : 'Publicar'
+                                        )}
+                                    </Button>
+                                    {editingId && (
+                                        <Button variant="outline" onClick={resetForm} disabled={saving}>
+                                            Cancelar
+                                        </Button>
+                                    )}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+                </div>
             )}
 
             {loading && (
