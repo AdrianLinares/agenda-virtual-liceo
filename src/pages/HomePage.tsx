@@ -168,9 +168,9 @@ export default function HomePage() {
                             </CardHeader>
                             <CardContent className="p-6">
                                 <p className="text-foreground leading-relaxed">
-                                    Formar integralmente a niños y jóvenes mediante una educación de calidad basada en valores cristianos,
-                                    desarrollando sus capacidades intelectuales, espirituales y sociales para que sean ciudadanos comprometidos
-                                    con el bienestar de la sociedad.
+                                    El liceo ángel de la guarda EU se dedica a brindar una educación integral y de calidad a niños, niñas y jóvenes del municipio de Soacha. Nuestro objetivo es desarrollar mentes críticas, promoviendo un espíritu de investigación y aprendizaje continuo. <br /><br />
+                                    Fomentamos el compromiso con el cuidado del entorno y el fortalecimiento de los valores y principios católicos, así como la comprensión de los fundamentos económicos para una participación efectiva en la economía global. Preparamos a nuestros estudiantes para ser ciudadanos responsables y éticos en una sociedad global.
+
                                 </p>
                             </CardContent>
                         </Card>
@@ -182,9 +182,9 @@ export default function HomePage() {
                             </CardHeader>
                             <CardContent className="p-6">
                                 <p className="text-foreground leading-relaxed">
-                                    Ser una institución educativa de excelencia reconocida por formar líderes íntegros, innovadores y
-                                    comprometidos con los valores cristianos, que contribuyan al desarrollo sostenible de nuestra comunidad
-                                    y del país.
+                                    En el año 2028, el liceo ángel de la guarda eu será una institución destacada por ofrecer una educación integral centrada en la formación en valores, el interés científico, la conciencia ambiental y la comprensión de los principios económicos.<br /><br />
+                                    Nuestro objetivo es formar seres humanos con un alto nivel académico y una sólida base ética que contribuyan a transformar su realidad sociocultural y económica, impactando positivamente en su comunidad y más allá.
+
                                 </p>
                             </CardContent>
                         </Card>
