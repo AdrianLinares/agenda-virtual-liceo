@@ -47,22 +47,26 @@ Password: Admin123! (o la que hayas configurado)
 
 ## 🎯 Módulos Disponibles
 
-El proyecto incluye la estructura base para:
+El proyecto incluye módulos funcionales de:
 
 - ✅ Dashboard Principal
 - ✅ Sistema de Autenticación con Roles
 - ✅ Layout Responsivo
-- ⏳ Boletines de Notas (por implementar)
-- ⏳ Registro de Asistencia (por implementar)
-- ⏳ Notas Parciales (por implementar)
-- ⏳ Anuncios (por implementar)
-- ⏳ Mensajes (por implementar)
-- ⏳ Calendario (por implementar)
-- ⏳ Permisos y Excusas (por implementar)
-- ⏳ Seguimiento (por implementar)
-- ⏳ Horarios (por implementar)
-- ⏳ Citaciones (por implementar)
-- ⏳ Administración (por implementar)
+- ✅ Boletines de Notas (acceso solo administrador)
+- ✅ Registro de Asistencia
+- ✅ Notas Parciales
+- ✅ Anuncios
+- ✅ Mensajes
+- ✅ Calendario
+- ✅ Permisos y Excusas
+- ✅ Seguimiento
+- ✅ Horarios
+- ✅ Citaciones
+- ✅ Administración
+
+### Nota de despliegue (importante)
+
+Si ya tenías una base de datos configurada previamente, aplica las migraciones más recientes en `migrations/` para alinear políticas RLS y comportamiento de módulos.
 
 ## 🛠️ Stack Tecnológico
 
@@ -74,11 +78,11 @@ El proyecto incluye la estructura base para:
 
 ## 💡 Próximos Pasos
 
-1. Implementar los módulos restantes
-2. Agregar validaciones de formularios
-3. Implementar sistema de notificaciones
-4. Agregar tests
-5. Optimizar rendimiento
+1. Ejecutar migraciones pendientes en entornos existentes
+2. Agregar tests de regresión para permisos por rol
+3. Fortalecer validaciones de formularios y UX de errores
+4. Implementar notificaciones más ricas en UI
+5. Optimizar rendimiento en listados grandes
 
 ## 📞 ¿Necesitas Ayuda?
 

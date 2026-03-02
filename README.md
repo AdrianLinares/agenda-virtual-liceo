@@ -248,16 +248,24 @@ El proyecto implementa Row Level Security (RLS) en Supabase para garantizar que:
 
 ## 📝 Próximos Pasos
 
-Los siguientes módulos están preparados pero requieren implementación completa:
+El proyecto ya cuenta con módulos funcionales de gestión académica y comunicación.
 
-1. **Boletines de Notas** - Generación y consulta de boletines
-2. **Registro de Asistencia** - Interfaz para docentes
-3. **Notas Parciales** - Visualización detallada por periodo
-4. **Anuncios** - Sistema de publicación y notificaciones
-5. **Mensajes** - Bandeja de entrada/salida
-6. **Calendario** - Vista de eventos programados
-7. **Permisos y Excusas** - Gestión de solicitudes
-8. **Seguimiento** - Historial académico y disciplinario
+Mejoras recientes implementadas:
+
+1. **Boletines** - Acceso restringido únicamente a rol `administrador` (ruta y navegación)
+2. **Anuncios** - Destinatarios con checkboxes múltiples y formulario desplegable
+3. **Calendario** - Vista de próximos eventos (sin pasados) y formulario desplegable de creación
+4. **Permisos y Excusas** - Formulario “Solicitar permiso” desplegable
+5. **Seguimiento** - Formulario “Registrar seguimiento” desplegable
+6. **Citaciones** - Formulario “Programar citación” desplegable
+7. **Asistencia** - Formulario desplegable y optimización para registro continuo
+8. **RLS Anuncios** - Migración para corregir permisos de borrado en entornos existentes
+
+### Migraciones recientes recomendadas
+
+Si tu entorno ya está desplegado, aplica también las migraciones de la carpeta `migrations/`, especialmente:
+
+- `20260301_fix_anuncios_delete_policy.sql`
 
 ## 📧 Notificaciones por Correo para Mensajes
 

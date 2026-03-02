@@ -1,5 +1,76 @@
 # 📋 Cambios Implementados - Revisión y Mejoras
 
+## Fecha: 1 de Marzo de 2026
+
+---
+
+## 1. ✅ Restricción de acceso en Boletines
+
+### Archivos modificados:
+- [src/App.tsx](src/App.tsx)
+- [src/components/layout/DashboardLayout.tsx](src/components/layout/DashboardLayout.tsx)
+
+### Cambios:
+- Se restringió la ruta `/dashboard/boletines` al rol `administrador`
+- Se ocultó el ítem de navegación de Boletines para roles no administradores
+
+---
+
+## 2. ✅ Mejoras UX en formularios (modo desplegable)
+
+### Archivos modificados:
+- [src/pages/AnunciosPage.tsx](src/pages/AnunciosPage.tsx)
+- [src/pages/CalendarioPage.tsx](src/pages/CalendarioPage.tsx)
+- [src/pages/PermisosPage.tsx](src/pages/PermisosPage.tsx)
+- [src/pages/SeguimientoPage.tsx](src/pages/SeguimientoPage.tsx)
+- [src/pages/CitacionesPage.tsx](src/pages/CitacionesPage.tsx)
+- [src/pages/AsistenciaPage.tsx](src/pages/AsistenciaPage.tsx)
+
+### Cambios:
+- Formularios principales convertidos a tarjetas desplegables con botón
+- Apertura automática del formulario cuando hay errores de validación/guardado
+- Cierre automático al guardar (excepto Asistencia para carga continua)
+- En Asistencia, el formulario permanece abierto tras registrar y retorna foco al selector de estudiante
+
+---
+
+## 3. ✅ Anuncios: destinatarios múltiples con checkboxes
+
+### Archivo modificado:
+- [src/pages/AnunciosPage.tsx](src/pages/AnunciosPage.tsx)
+
+### Cambios:
+- Reemplazo de selector único por lista de checkboxes
+- Lógica de selección múltiple con regla `todos` exclusivo
+
+---
+
+## 4. ✅ Calendario: solo eventos próximos
+
+### Archivo modificado:
+- [src/pages/CalendarioPage.tsx](src/pages/CalendarioPage.tsx)
+
+### Cambios:
+- Eliminación del filtro manual por rango de fechas
+- Listado enfocado en eventos vigentes/próximos (sin eventos pasados)
+- Ordenamiento por proximidad de fecha
+
+---
+
+## 5. ✅ Corrección de borrado de anuncios (RLS)
+
+### Archivos modificados:
+- [src/pages/AnunciosPage.tsx](src/pages/AnunciosPage.tsx)
+- [supabase-schema.sql](supabase-schema.sql)
+- [migrations/20260301_fix_anuncios_delete_policy.sql](migrations/20260301_fix_anuncios_delete_policy.sql)
+
+### Cambios:
+- Validación frontend de borrado mejorada para evitar falsos positivos
+- Ajuste de política SQL de `DELETE` para anuncios
+- Migración nueva para aplicar corrección en entornos ya desplegados
+
+---
+
 ## Fecha: 31 de Enero de 2026
 
 ---
