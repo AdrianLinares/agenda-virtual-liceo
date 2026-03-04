@@ -15,6 +15,7 @@ import { AlertCircle, BookOpen, Loader2, TrendingUp, Plus, Pencil, Trash2 } from
 import { GradeCalculator } from '@/components/calculator/GradeCalculator'
 import type { CategoryWeights, GradeResults, GradesData } from '@/types/grades'
 import { categoryLabels, type GradeCategory } from '@/types/grades'
+import { sortByGradeAndGroupName } from '@/utils/grade-order'
 
 const DEFAULT_WEIGHTS: CategoryWeights = {
     A: 10,
@@ -281,7 +282,13 @@ export default function NotasPage() {
             if (asignaturasError) throw asignaturasError
             if (estudiantesError) throw estudiantesError
 
-            setGrupos((gruposData || []) as Grupo[])
+            const gruposOrdenados = sortByGradeAndGroupName(
+                (gruposData || []) as Grupo[],
+                (grupo) => grupo.grado?.nombre,
+                (grupo) => grupo.nombre
+            )
+
+            setGrupos(gruposOrdenados)
             setAsignaturas((asignaturasData || []) as Asignatura[])
             setEstudiantes((estudiantesData || []) as Estudiante[])
         } catch (err) {
@@ -402,7 +409,13 @@ export default function NotasPage() {
             })
 
             setAsignacionesDocente(asignacionesPermitidas)
-            setGrupos(Array.from(gruposMap.values()))
+            setGrupos(
+                sortByGradeAndGroupName(
+                    Array.from(gruposMap.values()),
+                    (grupo) => grupo.grado?.nombre,
+                    (grupo) => grupo.nombre
+                )
+            )
             setAsignaturas(Array.from(asignaturasMap.values()))
         } catch (err) {
             console.error('Error loading asignaciones:', err)

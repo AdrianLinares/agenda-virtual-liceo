@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import type { Database, UserRole } from '@/types/database.types'
+import { sortByGradeAndGroupName } from '@/utils/grade-order'
 
 type Profile = Database['public']['Tables']['profiles']['Row']
 type Grado = Database['public']['Tables']['grados']['Row']
@@ -167,12 +168,14 @@ export default function AdminPage() {
     const [asignaturaDocenteId, setAsignaturaDocenteId] = useState('')
     const [asignaturaGrupoIds, setAsignaturaGrupoIds] = useState<string[]>([])
     const [asignaturaAno, setAsignaturaAno] = useState(new Date().getFullYear())
+    const [asignaturaSearchTerm, setAsignaturaSearchTerm] = useState('')
 
     const [grupos, setGrupos] = useState<GroupRow[]>([])
     const [docentes, setDocentes] = useState<Profile[]>([])
     const [loadingGruposList, setLoadingGruposList] = useState(false)
     const [creatingGrupo, setCreatingGrupo] = useState(false)
     const [deletingGrupoId, setDeletingGrupoId] = useState<string | null>(null)
+    const [grupoSearchTerm, setGrupoSearchTerm] = useState('')
     const [newGrupo, setNewGrupo] = useState({
         grado_id: '',
         nombre: '',
@@ -433,6 +436,54 @@ export default function AdminPage() {
 
         return resultado
     }, [asignacionesDocentes, usuarios])
+
+    const asignaturasFiltradas = useMemo(() => {
+        const searchTerm = asignaturaSearchTerm.trim().toLowerCase()
+
+        if (!searchTerm) return asignaturas
+
+        return asignaturas.filter((asignatura) => {
+            const nombreAsignatura = asignatura.nombre.toLowerCase()
+            const nombresDocentes = (docentesPorAsignatura[asignatura.id] ?? '').toLowerCase()
+            return nombreAsignatura.includes(searchTerm) || nombresDocentes.includes(searchTerm)
+        })
+    }, [asignaturaSearchTerm, asignaturas, docentesPorAsignatura])
+
+    const gruposFiltrados = useMemo(() => {
+        const searchTerm = grupoSearchTerm.trim().toLowerCase()
+
+        if (!searchTerm) return grupos
+
+        return grupos.filter((grupo) => {
+            const nombreGrupo = grupo.nombre.toLowerCase()
+            const nombreDirector = (grupo.director_grupo?.nombre_completo ?? '').toLowerCase()
+            return nombreGrupo.includes(searchTerm) || nombreDirector.includes(searchTerm)
+        })
+    }, [grupoSearchTerm, grupos])
+
+    const gruposFiltradosOrdenados = useMemo(() => {
+        return sortByGradeAndGroupName(
+            gruposFiltrados,
+            (grupo) => grupo.grado?.nombre,
+            (grupo) => grupo.nombre
+        )
+    }, [gruposFiltrados])
+
+    const gradosOrdenados = useMemo(() => {
+        return sortByGradeAndGroupName(
+            grados,
+            (grado) => grado.nombre,
+            (grado) => grado.nombre
+        )
+    }, [grados])
+
+    const gruposOrdenadosParaAsignaturas = useMemo(() => {
+        return sortByGradeAndGroupName(
+            grupos,
+            (grupo) => grupo.grado?.nombre,
+            (grupo) => grupo.nombre
+        )
+    }, [grupos])
 
     const currentModalTitle = useMemo(() => {
         if (!userModal) return ''
@@ -1429,7 +1480,7 @@ export default function AdminPage() {
                                     {grados.length === 0 ? (
                                         <p className="text-sm text-muted-foreground text-center py-4">No hay grados registrados.</p>
                                     ) : (
-                                        grados.map((grado) => (
+                                        gradosOrdenados.map((grado) => (
                                             <div key={grado.id} className="flex justify-between items-center p-3 border rounded-lg">
                                                 <div>
                                                     <p className="font-medium">{grado.nombre}</p>
@@ -1511,10 +1562,10 @@ export default function AdminPage() {
                                 <div>
                                     <Label>Grupos</Label>
                                     <div className="space-y-2 rounded-md border p-3">
-                                        {grupos.length === 0 ? (
+                                        {gruposOrdenadosParaAsignaturas.length === 0 ? (
                                             <p className="text-sm text-muted-foreground">No hay grupos registrados.</p>
                                         ) : (
-                                            grupos.map((grupo) => (
+                                            gruposOrdenadosParaAsignaturas.map((grupo) => (
                                                 <label key={grupo.id} className="flex items-center gap-2 text-sm">
                                                     <input
                                                         type="checkbox"
@@ -1562,10 +1613,34 @@ export default function AdminPage() {
                                 </div>
                             ) : (
                                 <div className="space-y-2">
+                                    <div className="flex items-end gap-2">
+                                        <div className="flex-1">
+                                            <Label htmlFor="asignatura-search">Filtrar asignaturas</Label>
+                                            <Input
+                                                id="asignatura-search"
+                                                placeholder="Buscar por asignatura o docente"
+                                                value={asignaturaSearchTerm}
+                                                onChange={(e) => setAsignaturaSearchTerm(e.target.value)}
+                                            />
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={() => setAsignaturaSearchTerm('')}
+                                            disabled={!asignaturaSearchTerm}
+                                        >
+                                            Limpiar
+                                        </Button>
+                                    </div>
+
                                     {asignaturas.length === 0 ? (
                                         <p className="text-sm text-muted-foreground text-center py-4">No hay asignaturas registradas.</p>
+                                    ) : asignaturasFiltradas.length === 0 ? (
+                                        <p className="text-sm text-muted-foreground text-center py-4">
+                                            No se encontraron asignaturas con ese filtro.
+                                        </p>
                                     ) : (
-                                        asignaturas.map((asignatura) => (
+                                        asignaturasFiltradas.map((asignatura) => (
                                             <div key={asignatura.id} className="p-3 border rounded-lg space-y-3">
                                                 {editingAsignaturaId === asignatura.id ? (
                                                     <form onSubmit={(e) => void onUpdateAsignatura(e, asignatura.id)} className="space-y-3">
@@ -1619,10 +1694,10 @@ export default function AdminPage() {
                                                         <div>
                                                             <Label>Grupos</Label>
                                                             <div className="space-y-2 rounded-md border p-3">
-                                                                {grupos.length === 0 ? (
+                                                                {gruposOrdenadosParaAsignaturas.length === 0 ? (
                                                                     <p className="text-sm text-muted-foreground">No hay grupos registrados.</p>
                                                                 ) : (
-                                                                    grupos.map((grupo) => (
+                                                                    gruposOrdenadosParaAsignaturas.map((grupo) => (
                                                                         <label key={grupo.id} className="flex items-center gap-2 text-sm">
                                                                             <input
                                                                                 type="checkbox"
@@ -1737,7 +1812,7 @@ export default function AdminPage() {
                                         required
                                     >
                                         <option value="">Seleccionar grado</option>
-                                        {grados.map((grado) => (
+                                        {gradosOrdenados.map((grado) => (
                                             <option key={grado.id} value={grado.id}>
                                                 {grado.nombre} - {grado.nivel}
                                             </option>
@@ -1810,10 +1885,34 @@ export default function AdminPage() {
                                 </div>
                             ) : (
                                 <div className="space-y-2">
+                                    <div className="flex items-end gap-2">
+                                        <div className="flex-1">
+                                            <Label htmlFor="grupo-search">Filtrar grupos</Label>
+                                            <Input
+                                                id="grupo-search"
+                                                placeholder="Buscar por grupo o director"
+                                                value={grupoSearchTerm}
+                                                onChange={(e) => setGrupoSearchTerm(e.target.value)}
+                                            />
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={() => setGrupoSearchTerm('')}
+                                            disabled={!grupoSearchTerm}
+                                        >
+                                            Limpiar
+                                        </Button>
+                                    </div>
+
                                     {grupos.length === 0 ? (
                                         <p className="text-sm text-muted-foreground text-center py-4">No hay grupos registrados.</p>
+                                    ) : gruposFiltradosOrdenados.length === 0 ? (
+                                        <p className="text-sm text-muted-foreground text-center py-4">
+                                            No se encontraron grupos con ese filtro.
+                                        </p>
                                     ) : (
-                                        grupos.map((grupo) => (
+                                        gruposFiltradosOrdenados.map((grupo) => (
                                             <div key={grupo.id} className="flex justify-between items-center p-3 border rounded-lg">
                                                 <div className="flex-1">
                                                     <p className="font-medium">

@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertCircle, CheckCircle2, Clock, Loader2, UserCheck } from 'lucide-react'
+import { sortByGradeAndGroupName } from '@/utils/grade-order'
 
 const ESTADOS = ['presente', 'ausente', 'tarde', 'excusa'] as const
 
@@ -250,7 +251,13 @@ export default function AsistenciaPage() {
                     }
                 })
 
-            setGrupos(Array.from(gruposMap.values()).sort((a, b) => a.nombre.localeCompare(b.nombre)))
+            setGrupos(
+                sortByGradeAndGroupName(
+                    Array.from(gruposMap.values()),
+                    (grupo) => grupo.grado_nombre,
+                    (grupo) => grupo.nombre
+                )
+            )
         } catch (err) {
             console.error('Error loading grupos:', err)
             setError('Error al cargar grupos para la asignatura')
