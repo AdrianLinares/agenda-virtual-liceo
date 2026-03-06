@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { Loader2, Mail, KeyRound, Pencil, RefreshCw, Trash2, X } from 'lucide-react'
+import * as XLSX from 'xlsx'
+import { FileSpreadsheet, Loader2, Mail, KeyRound, Pencil, RefreshCw, Trash2, Upload, X } from 'lucide-react'
 import { useAuthStore } from '@/lib/auth-store'
 import { supabase } from '@/lib/supabase'
 import {
     adminCreateUser,
+    adminCreateUsersBatch,
     adminDeleteUser,
     adminResetPassword,
     adminUpdateEmail,
+    type BatchCreateUserPayload,
+    type BatchCreateUsersResponse,
     type CreateUserPayload
 } from '@/lib/admin-api'
 import { Button } from '@/components/ui/button'
@@ -55,6 +59,23 @@ type UserRoleFilter = 'todos' | UserRole
 
 type Message = { type: 'success' | 'error'; text: string } | null
 
+type BatchUserRow = {
+    rowNumber: number
+    email: string
+    nombre_completo: string
+    rol: string
+    password: string
+    telefono: string
+    direccion: string
+}
+
+type BatchMappedField = 'email' | 'nombre_completo' | 'rol' | 'password' | 'telefono' | 'direccion'
+
+type BatchValidationResult = {
+    validRows: BatchCreateUserPayload[]
+    errors: string[]
+}
+
 type UserModalState =
     | { kind: 'create' }
     | { kind: 'edit'; user: Profile }
@@ -86,6 +107,27 @@ function MsgBanner({ msg }: { msg: Message }) {
 }
 
 const ROLE_OPTIONS: UserRole[] = ['administrador', 'administrativo', 'docente', 'estudiante', 'padre']
+const BATCH_MAX_USERS = 500
+
+const BATCH_TEMPLATE_COLUMNS = ['email', 'nombre_completo', 'rol', 'password', 'telefono', 'direccion'] as const
+
+const NORMALIZED_COLUMN_MAP: Record<string, BatchMappedField | null> = {
+    email: 'email',
+    correo: 'email',
+    correoelectronico: 'email',
+    nombre: 'nombre_completo',
+    nombrecompleto: 'nombre_completo',
+    nombres: 'nombre_completo',
+    rol: 'rol',
+    role: 'rol',
+    perfil: 'rol',
+    password: 'password',
+    contrasena: 'password',
+    clave: 'password',
+    telefono: 'telefono',
+    celular: 'telefono',
+    direccion: 'direccion'
+}
 
 const TABS: Array<{ key: Tab; label: string }> = [
     { key: 'usuarios', label: 'Usuarios' },
@@ -95,6 +137,116 @@ const TABS: Array<{ key: Tab; label: string }> = [
 ]
 
 const dbClient = supabase as unknown as SupabaseClient<WritableDatabase>
+
+function normalizeHeader(value: string) {
+    return value
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]/g, '')
+}
+
+function normalizeRole(value: string): UserRole | null {
+    const normalized = value.trim().toLowerCase()
+    return ROLE_OPTIONS.includes(normalized as UserRole) ? (normalized as UserRole) : null
+}
+
+function normalizeCell(value: unknown) {
+    if (value == null) return ''
+    return String(value).trim()
+}
+
+function rowHasAnyValue(row: BatchUserRow) {
+    return Boolean(
+        row.email || row.nombre_completo || row.rol || row.password || row.telefono || row.direccion
+    )
+}
+
+function parseSheetRows(rawRows: Record<string, unknown>[]): BatchUserRow[] {
+    return rawRows
+        .map((raw, index) => {
+            const mapped: BatchUserRow = {
+                rowNumber: index + 2,
+                email: '',
+                nombre_completo: '',
+                rol: '',
+                password: '',
+                telefono: '',
+                direccion: ''
+            }
+
+            for (const [key, value] of Object.entries(raw)) {
+                const normalized = normalizeHeader(key)
+                const target = NORMALIZED_COLUMN_MAP[normalized]
+                if (!target) continue
+                mapped[target] = normalizeCell(value)
+            }
+
+            return mapped
+        })
+        .filter(rowHasAnyValue)
+}
+
+function validateBatchRows(
+    rows: BatchUserRow[],
+    defaultPassword: string,
+    existingEmails: Set<string>
+): BatchValidationResult {
+    const errors: string[] = []
+    const validRows: BatchCreateUserPayload[] = []
+    const seenEmails = new Set<string>()
+
+    rows.forEach((row) => {
+        const email = row.email.trim().toLowerCase()
+        const nombreCompleto = row.nombre_completo.trim()
+        const rol = normalizeRole(row.rol)
+        const password = row.password.trim() || defaultPassword.trim()
+
+        if (!email || !nombreCompleto || !rol) {
+            errors.push(`Fila ${row.rowNumber}: email, nombre_completo y rol son obligatorios.`)
+            return
+        }
+
+        const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+        if (!isValidEmail) {
+            errors.push(`Fila ${row.rowNumber}: el email "${row.email}" no es válido.`)
+            return
+        }
+
+        if (!password) {
+            errors.push(`Fila ${row.rowNumber}: falta password y no se definió contraseña por defecto.`)
+            return
+        }
+
+        if (password.length < 6) {
+            errors.push(`Fila ${row.rowNumber}: la contraseña debe tener al menos 6 caracteres.`)
+            return
+        }
+
+        if (seenEmails.has(email)) {
+            errors.push(`Fila ${row.rowNumber}: email duplicado dentro del archivo (${email}).`)
+            return
+        }
+
+        if (existingEmails.has(email)) {
+            errors.push(`Fila ${row.rowNumber}: el email ya existe en el sistema (${email}).`)
+            return
+        }
+
+        seenEmails.add(email)
+        validRows.push({
+            email,
+            nombre_completo: nombreCompleto,
+            rol,
+            password,
+            telefono: row.telefono.trim() || undefined,
+            direccion: row.direccion.trim() || undefined
+        })
+    })
+
+    return { validRows, errors }
+}
 
 export default function AdminPage() {
     const { profile } = useAuthStore()
@@ -146,6 +298,12 @@ export default function AdminPage() {
     })
     const [emailForm, setEmailForm] = useState('')
     const [passwordForm, setPasswordForm] = useState('')
+    const [batchRows, setBatchRows] = useState<BatchUserRow[]>([])
+    const [batchFileName, setBatchFileName] = useState('')
+    const [batchDefaultPassword, setBatchDefaultPassword] = useState('')
+    const [batchPreviewErrors, setBatchPreviewErrors] = useState<string[]>([])
+    const [batchSubmitting, setBatchSubmitting] = useState(false)
+    const [batchResult, setBatchResult] = useState<BatchCreateUsersResponse | null>(null)
 
     const [grados, setGrados] = useState<Grado[]>([])
     const [loadingGradosList, setLoadingGradosList] = useState(false)
@@ -192,6 +350,7 @@ export default function AdminPage() {
     const [estudianteSeleccionado, setEstudianteSeleccionado] = useState('')
 
     const isAdmin = profile?.rol === 'administrador'
+    const existingUserEmails = useMemo(() => new Set(usuarios.map((u) => u.email.trim().toLowerCase())), [usuarios])
 
     const loadUsuarios = useCallback(async () => {
         try {
@@ -692,6 +851,97 @@ export default function AdminPage() {
             usersMessage.show('error', error instanceof Error ? error.message : 'No se pudo eliminar el usuario')
         } finally {
             setDeletingUserId(null)
+        }
+    }
+
+    const onLoadBatchFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0]
+        if (!file) return
+
+        try {
+            setBatchPreviewErrors([])
+            setBatchResult(null)
+            setBatchFileName(file.name)
+
+            const buffer = await file.arrayBuffer()
+            const workbook = XLSX.read(buffer, { type: 'array' })
+            const firstSheetName = workbook.SheetNames[0]
+
+            if (!firstSheetName) {
+                setBatchRows([])
+                setBatchPreviewErrors(['El archivo no contiene hojas para procesar.'])
+                return
+            }
+
+            const sheet = workbook.Sheets[firstSheetName]
+            const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+                defval: '',
+                raw: false
+            })
+
+            const parsedRows = parseSheetRows(rawRows)
+            setBatchRows(parsedRows)
+
+            if (parsedRows.length === 0) {
+                setBatchPreviewErrors([
+                    'No se detectaron filas con datos. Verifica encabezados: email, nombre_completo, rol, password, telefono, direccion.'
+                ])
+                return
+            }
+
+            if (parsedRows.length > BATCH_MAX_USERS) {
+                setBatchPreviewErrors([
+                    `El archivo contiene ${parsedRows.length} filas. El máximo por carga es ${BATCH_MAX_USERS}.`
+                ])
+            }
+        } catch (error) {
+            setBatchRows([])
+            setBatchPreviewErrors([
+                error instanceof Error ? error.message : 'No se pudo leer el archivo. Revisa que sea .xlsx, .xls o .csv.'
+            ])
+        } finally {
+            event.target.value = ''
+        }
+    }
+
+    const onSubmitBatchUsers = async () => {
+        if (batchRows.length === 0) {
+            usersMessage.show('error', 'Carga primero un archivo con usuarios.')
+            return
+        }
+
+        if (batchRows.length > BATCH_MAX_USERS) {
+            usersMessage.show('error', `El archivo supera el máximo de ${BATCH_MAX_USERS} usuarios por lote.`)
+            return
+        }
+
+        const validation = validateBatchRows(batchRows, batchDefaultPassword, existingUserEmails)
+        setBatchPreviewErrors(validation.errors)
+
+        if (validation.validRows.length === 0) {
+            usersMessage.show('error', 'No hay filas válidas para procesar. Corrige los errores y vuelve a intentar.')
+            return
+        }
+
+        try {
+            setBatchSubmitting(true)
+            const response = await adminCreateUsersBatch(validation.validRows, batchDefaultPassword.trim() || undefined)
+            if (!response) {
+                throw new Error('La función de carga masiva no devolvió respuesta')
+            }
+            setBatchResult(response)
+
+            const totalErrors = response.errorCount + validation.errors.length
+            usersMessage.show(
+                totalErrors > 0 ? 'error' : 'success',
+                `Carga masiva finalizada. Creados: ${response.createdCount}. Errores: ${totalErrors}.`
+            )
+
+            await Promise.all([loadUsuarios(), loadPadresEstudiantes()])
+        } catch (error) {
+            usersMessage.show('error', error instanceof Error ? error.message : 'No se pudo completar la carga masiva')
+        } finally {
+            setBatchSubmitting(false)
         }
     }
 
@@ -1295,6 +1545,118 @@ export default function AdminPage() {
                                     </table>
                                 </div>
                             )}
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <FileSpreadsheet className="h-5 w-5" />
+                                Carga masiva de usuarios (Excel/CSV)
+                            </CardTitle>
+                            <CardDescription>
+                                Usa encabezados: {BATCH_TEMPLATE_COLUMNS.join(', ')}. Los campos obligatorios son
+                                `email`, `nombre_completo` y `rol`.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <div className="space-y-2">
+                                    <Label htmlFor="batch-users-file">Archivo de usuarios</Label>
+                                    <Input
+                                        id="batch-users-file"
+                                        type="file"
+                                        accept=".xlsx,.xls,.csv"
+                                        onChange={(e) => void onLoadBatchFile(e)}
+                                    />
+                                    {batchFileName && (
+                                        <p className="text-xs text-muted-foreground">Archivo cargado: {batchFileName}</p>
+                                    )}
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="batch-default-password">Contraseña por defecto (opcional)</Label>
+                                    <Input
+                                        id="batch-default-password"
+                                        type="password"
+                                        value={batchDefaultPassword}
+                                        onChange={(e) => setBatchDefaultPassword(e.target.value)}
+                                        placeholder="Se usa cuando una fila no trae password"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                                <span>Filas detectadas: {batchRows.length}</span>
+                                <span>Máximo por lote: {BATCH_MAX_USERS}</span>
+                            </div>
+
+                            {batchPreviewErrors.length > 0 && (
+                                <Alert variant="destructive">
+                                    <AlertDescription>
+                                        <div className="space-y-1">
+                                            {batchPreviewErrors.slice(0, 10).map((err) => (
+                                                <p key={err}>{err}</p>
+                                            ))}
+                                            {batchPreviewErrors.length > 10 && (
+                                                <p>... y {batchPreviewErrors.length - 10} errores más.</p>
+                                            )}
+                                        </div>
+                                    </AlertDescription>
+                                </Alert>
+                            )}
+
+                            {batchRows.length > 0 && (
+                                <div className="overflow-x-auto rounded-md border">
+                                    <table className="w-full text-sm">
+                                        <thead className="bg-muted/50">
+                                            <tr>
+                                                <th className="px-3 py-2 text-left">Fila</th>
+                                                <th className="px-3 py-2 text-left">Nombre</th>
+                                                <th className="px-3 py-2 text-left">Email</th>
+                                                <th className="px-3 py-2 text-left">Rol</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {batchRows.slice(0, 8).map((row) => (
+                                                <tr key={`${row.rowNumber}-${row.email}`} className="border-t">
+                                                    <td className="px-3 py-2">{row.rowNumber}</td>
+                                                    <td className="px-3 py-2">{row.nombre_completo || '-'}</td>
+                                                    <td className="px-3 py-2">{row.email || '-'}</td>
+                                                    <td className="px-3 py-2">{row.rol || '-'}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                    {batchRows.length > 8 && (
+                                        <p className="px-3 py-2 text-xs text-muted-foreground border-t">
+                                            Mostrando 8 de {batchRows.length} filas.
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+
+                            {batchResult && (
+                                <Alert variant={batchResult.errorCount > 0 ? 'destructive' : 'default'}>
+                                    <AlertDescription>
+                                        {batchResult.message}
+                                    </AlertDescription>
+                                </Alert>
+                            )}
+
+                            <div className="flex justify-end">
+                                <Button
+                                    type="button"
+                                    onClick={() => void onSubmitBatchUsers()}
+                                    disabled={batchSubmitting || batchRows.length === 0}
+                                >
+                                    {batchSubmitting ? (
+                                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                    ) : (
+                                        <Upload className="h-4 w-4 mr-2" />
+                                    )}
+                                    Crear usuarios en lote
+                                </Button>
+                            </div>
                         </CardContent>
                     </Card>
 

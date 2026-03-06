@@ -9,6 +9,29 @@ export type CreateUserPayload = {
     direccion?: string
 }
 
+export type BatchCreateUserPayload = {
+    email: string
+    password?: string
+    nombre_completo: string
+    rol: 'administrador' | 'administrativo' | 'docente' | 'estudiante' | 'padre'
+    telefono?: string
+    direccion?: string
+}
+
+export type BatchCreateUsersResponse = {
+    message: string
+    createdCount: number
+    errorCount: number
+    total: number
+    results: Array<{
+        index: number
+        email: string | null
+        status: 'created' | 'error'
+        userId?: string
+        message?: string
+    }>
+}
+
 type EdgeError = {
     error?: string
     message?: string
@@ -55,6 +78,17 @@ export async function adminCreateUser(payload: CreateUserPayload) {
     return invokeManageUsers<CreateUserPayload & { action: 'create' }, { message: string; userId: string }>({
         action: 'create',
         ...payload
+    })
+}
+
+export async function adminCreateUsersBatch(users: BatchCreateUserPayload[], defaultPassword?: string) {
+    return invokeManageUsers<
+        { action: 'create-batch'; users: BatchCreateUserPayload[]; defaultPassword?: string },
+        BatchCreateUsersResponse
+    >({
+        action: 'create-batch',
+        users,
+        defaultPassword
     })
 }
 

@@ -1,0 +1,7 @@
+email,nombre_completo,rol,password,telefono,direccion
+estudiante1@liceoag.com,Mariana Perez,estudiante,Estud123!,3001112233,Cra 10 # 12-30
+estudiante2@liceoag.com,Juan Gomez,estudiante,Estud123!,3001112244,Calle 45 # 22-18
+padre1@liceoag.com,Carlos Perez,padre,,3005557788,Cra 10 # 12-30
+padre2@liceoag.com,Ana Gomez,padre,,3005557799,Calle 45 # 22-18
+docente1@liceoag.com,Laura Martinez,docente,Docen123!,3004441122,Av 9 # 60-15
+administrativo1@liceoag.com,Pedro Ruiz,administrativo,Admini123!,3003332211,Calle 90 # 14-08

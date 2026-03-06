@@ -176,6 +176,39 @@ Padre:
 
 Recuerda ejecutar el UPDATE para asignar los roles después de crear cada usuario.
 
+## 📥 Carga Masiva De Usuarios (Excel/CSV)
+
+El panel de administración incluye una opción para crear usuarios en lote desde la pestaña **Usuarios**.
+
+Formato recomendado de columnas (encabezados en la primera fila):
+
+```text
+email,nombre_completo,rol,password,telefono,direccion
+```
+
+Reglas:
+
+- Obligatorios por fila: `email`, `nombre_completo`, `rol`
+- `rol` debe ser uno de: `administrador`, `administrativo`, `docente`, `estudiante`, `padre`
+- `password` puede venir por fila o definirse una contraseña por defecto en la UI
+- Contraseña mínima: 6 caracteres
+- Máximo por lote: 500 usuarios
+- Soporta archivos `.xlsx`, `.xls` y `.csv`
+
+Ejemplo:
+
+```csv
+email,nombre_completo,rol,password,telefono,direccion
+estudiante1@liceoag.com,Mariana Perez,estudiante,Estud123!,3001112233,Cra 10 # 12-30
+padre1@liceoag.com,Carlos Perez,padre,,3005557788,Cra 10 # 12-30
+```
+
+En el ejemplo anterior, el segundo usuario usará la contraseña por defecto configurada en la carga masiva.
+
+Tambien puedes usar la plantilla incluida en el repositorio: `usuarios_batch_template.csv`.
+Si solo vas a registrar estudiantes y padres, usa: `usuarios_batch_estudiantes_padres_template.csv`.
+Versiones vacias (solo encabezados) para produccion: `usuarios_batch_template_empty.csv` y `usuarios_batch_estudiantes_padres_template_empty.csv`.
+
 ## 📱 Roles y Permisos
 
 ### Administrador
