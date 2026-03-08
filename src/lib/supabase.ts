@@ -12,6 +12,8 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true
+    detectSessionInUrl: true,
+    // Use sessionStorage so auth is cleared when the browser/tab is closed.
+    storage: typeof window !== 'undefined' ? window.sessionStorage : undefined
   }
 })

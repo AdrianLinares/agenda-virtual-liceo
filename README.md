@@ -148,6 +148,12 @@ npm run dev
 
 El proyecto estará disponible en `http://localhost:5173`
 
+### Comportamiento de sesión
+
+- La autenticación usa `sessionStorage`.
+- La sesión permanece activa mientras el navegador/pestaña siga abierto.
+- Al cerrar el navegador (o la pestaña), la sesión se elimina y se debe iniciar sesión nuevamente.
+
 ## 👤 Usuarios de Prueba Sugeridos
 
 Te recomendamos crear estos usuarios de prueba:

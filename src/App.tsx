@@ -81,28 +81,6 @@ function RoleProtectedRoute({
   return <>{children}</>
 }
 
-// Public Route Component (redirect if already logged in)
-function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading, initialized } = useAuthStore()
-
-  if (!initialized || loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Cargando...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (user) {
-    return <Navigate to="/dashboard" replace />
-  }
-
-  return <>{children}</>
-}
-
 function App() {
   const initialize = useAuthStore((state) => state.initialize)
 
@@ -120,11 +98,7 @@ function App() {
           {/* Public Routes */}
           <Route
             path="/login"
-            element={
-              <PublicRoute>
-                <LoginPage />
-              </PublicRoute>
-            }
+            element={<LoginPage />}
           />
 
           <Route
