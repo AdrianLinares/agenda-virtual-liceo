@@ -17,6 +17,18 @@ const corsHeaders = {
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
+function getBearerToken(authHeader: string | null) {
+    if (!authHeader) return null
+    const [scheme, token] = authHeader.split(' ')
+    if (scheme?.toLowerCase() !== 'bearer' || !token) return null
+    return token
+}
+
+function isProductionLikeEnvironment() {
+    const appEnv = (Deno.env.get('APP_ENV') ?? Deno.env.get('ENV') ?? Deno.env.get('NODE_ENV') ?? '').toLowerCase()
+    return appEnv === 'production' || appEnv === 'prod'
+}
+
 function jsonResponse(body: Record<string, unknown>, status = 200) {
     return new Response(JSON.stringify(body), {
         status,
@@ -146,9 +158,14 @@ Deno.serve(async (req) => {
     }
 
     const cronSecret = Deno.env.get('CRON_SECRET')
+    const requiresCronSecret = isProductionLikeEnvironment()
+    if (requiresCronSecret && !cronSecret) {
+        return jsonResponse({ error: 'CRON_SECRET es obligatorio en producción' }, 500)
+    }
+
     if (cronSecret) {
-        const bearer = req.headers.get('Authorization')?.replace('Bearer ', '')
-        if (bearer !== cronSecret) {
+        const bearerToken = getBearerToken(req.headers.get('Authorization'))
+        if (!bearerToken || bearerToken !== cronSecret) {
             return jsonResponse({ error: 'No autorizado' }, 401)
         }
     }

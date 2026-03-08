@@ -33,6 +33,7 @@ supabase functions deploy send-message-emails
 
 ```bash
 supabase secrets set CRON_SECRET="tu-secreto-cron"
+supabase secrets set APP_ENV="production"
 supabase secrets set RESEND_API_KEY="re_xxxxxxxxx"
 supabase secrets set EMAIL_FROM="Agenda Virtual <no-reply@tu-dominio.edu.co>"
 supabase secrets set APP_BASE_URL="https://tu-app.com"
@@ -41,6 +42,7 @@ supabase secrets set EMAIL_NOTIFICATIONS_BATCH_SIZE="20"
 ```
 
 > Mientras no tengas el dominio verificado en Resend, deja `EMAIL_NOTIFICATIONS_DRY_RUN=true`.
+> En producción, `CRON_SECRET` es obligatorio y la función rechazará ejecución si no está configurado.
 
 ### 2.1) Verificaciones previas en Resend
 

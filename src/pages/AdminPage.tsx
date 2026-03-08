@@ -108,6 +108,8 @@ function MsgBanner({ msg }: { msg: Message }) {
 
 const ROLE_OPTIONS: UserRole[] = ['administrador', 'administrativo', 'docente', 'estudiante', 'padre']
 const BATCH_MAX_USERS = 500
+const BATCH_MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024
+const BATCH_ALLOWED_EXTENSIONS = ['.xlsx', '.xls', '.csv']
 
 const BATCH_TEMPLATE_COLUMNS = ['email', 'nombre_completo', 'rol', 'password', 'telefono', 'direccion'] as const
 
@@ -155,6 +157,13 @@ function normalizeRole(value: string): UserRole | null {
 function normalizeCell(value: unknown) {
     if (value == null) return ''
     return String(value).trim()
+}
+
+function formatFileSize(bytes: number) {
+    if (bytes >= 1024 * 1024) {
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    }
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`
 }
 
 function rowHasAnyValue(row: BatchUserRow) {
@@ -862,6 +871,30 @@ export default function AdminPage() {
             setBatchPreviewErrors([])
             setBatchResult(null)
             setBatchFileName(file.name)
+
+            const lowerName = file.name.toLowerCase()
+            const hasAllowedExtension = BATCH_ALLOWED_EXTENSIONS.some((ext) => lowerName.endsWith(ext))
+            if (!hasAllowedExtension) {
+                setBatchRows([])
+                setBatchPreviewErrors([
+                    `Tipo de archivo no permitido. Usa: ${BATCH_ALLOWED_EXTENSIONS.join(', ')}.`
+                ])
+                return
+            }
+
+            if (file.size <= 0) {
+                setBatchRows([])
+                setBatchPreviewErrors(['El archivo está vacío.'])
+                return
+            }
+
+            if (file.size > BATCH_MAX_FILE_SIZE_BYTES) {
+                setBatchRows([])
+                setBatchPreviewErrors([
+                    `El archivo supera el tamaño máximo permitido (${formatFileSize(BATCH_MAX_FILE_SIZE_BYTES)}).`
+                ])
+                return
+            }
 
             const buffer = await file.arrayBuffer()
             const workbook = XLSX.read(buffer, { type: 'array' })
@@ -1588,6 +1621,7 @@ export default function AdminPage() {
                             <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                                 <span>Filas detectadas: {batchRows.length}</span>
                                 <span>Máximo por lote: {BATCH_MAX_USERS}</span>
+                                <span>Tamaño máximo: {formatFileSize(BATCH_MAX_FILE_SIZE_BYTES)}</span>
                             </div>
 
                             {batchPreviewErrors.length > 0 && (

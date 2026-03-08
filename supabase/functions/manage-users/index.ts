@@ -148,18 +148,6 @@ function getBearerToken(authHeader: string | null) {
     return token
 }
 
-function decodeJWT(token: string): { sub?: string;[key: string]: unknown } | null {
-    try {
-        const parts = token.split('.')
-        if (parts.length !== 3) return null
-        const payload = parts[1]
-        const decoded = atob(payload)
-        return JSON.parse(decoded)
-    } catch {
-        return null
-    }
-}
-
 Deno.serve(async (req) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders })
@@ -183,17 +171,21 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'No autenticado' }, 401)
     }
 
-    const jwtPayload = decodeJWT(jwt)
-    if (!jwtPayload?.sub) {
-        return jsonResponse({ error: 'JWT inválido' }, 401)
-    }
-
     const adminClient = createClient(supabaseUrl, serviceRoleKey)
+
+    const {
+        data: { user: authUser },
+        error: authError
+    } = await adminClient.auth.getUser(jwt)
+
+    if (authError || !authUser?.id) {
+        return jsonResponse({ error: 'JWT inválido o expirado' }, 401)
+    }
 
     const { data: callerProfile, error: callerProfileError } = await adminClient
         .from('profiles')
         .select('id, rol')
-        .eq('id', jwtPayload.sub)
+        .eq('id', authUser.id)
         .single<{ id: string; rol: UserRole }>()
 
     if (callerProfileError || !callerProfile) {
