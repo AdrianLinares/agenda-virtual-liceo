@@ -25,6 +25,7 @@ interface Boletin {
   id: string
   estudiante_id: string
   periodo_id: string
+  grupo_id?: string | null
   promedio_general: number | null
   observaciones_generales: string | null
   observaciones_director: string | null
@@ -32,17 +33,17 @@ interface Boletin {
   estudiante: {
     nombre_completo: string
     email: string
-  }
+  } | null
   periodo: {
     nombre: string
     numero: number
-  }
+  } | null
   grupo: {
     nombre: string
     grado: {
       nombre: string
     }
-  }
+  } | null
 }
 
 interface NotaDetalle {
@@ -59,6 +60,7 @@ export default function BoletinesPage() {
   const [periodos, setPeriodos] = useState<Periodo[]>([])
   const [selectedPeriodo, setSelectedPeriodo] = useState<string>('')
   const [boletines, setBoletines] = useState<Boletin[]>([])
+  const [usingNotasFallback, setUsingNotasFallback] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [generatingPDF, setGeneratingPDF] = useState<string | null>(null)
@@ -137,7 +139,22 @@ export default function BoletinesPage() {
       const { data, error } = await query
 
       if (error) throw error
-      setBoletines(data || [])
+
+      const canUseFallback =
+        profile.rol === 'administrador' ||
+        profile.rol === 'administrativo' ||
+        profile.rol === 'docente'
+
+      let boletinesData = (data || []) as Boletin[]
+      let usedFallback = false
+
+      if (boletinesData.length === 0 && canUseFallback) {
+        boletinesData = await loadBoletinesFromNotas(selectedPeriodo)
+        usedFallback = boletinesData.length > 0
+      }
+
+      setUsingNotasFallback(usedFallback)
+      setBoletines(boletinesData)
     } catch (err) {
       console.error('Error loading boletines:', err)
       setError('Error al cargar los boletines')
@@ -146,33 +163,121 @@ export default function BoletinesPage() {
     }
   }
 
+  const loadBoletinesFromNotas = async (periodoId: string): Promise<Boletin[]> => {
+    const { data: notasData, error: notasError } = await supabase
+      .from('notas')
+      .select(`
+        estudiante_id,
+        periodo_id,
+        grupo_id,
+        nota,
+        estudiante:estudiante_id (nombre_completo, email),
+        grupo:grupo_id (
+          nombre,
+          grado:grado_id (nombre)
+        )
+      `)
+      .eq('periodo_id', periodoId)
+
+    if (notasError) throw notasError
+
+    type NotaBoletinRow = {
+      estudiante_id: string
+      periodo_id: string
+      grupo_id: string | null
+      nota: number
+      estudiante: Boletin['estudiante']
+      grupo: Boletin['grupo']
+    }
+
+    const rows = (notasData || []) as NotaBoletinRow[]
+    const periodo = periodos.find((item) => item.id === periodoId)
+
+    const acumulados = new Map<string, {
+      estudiante_id: string
+      periodo_id: string
+      grupo_id: string | null
+      estudiante: Boletin['estudiante']
+      grupo: Boletin['grupo']
+      total: number
+      cantidad: number
+    }>()
+
+    rows.forEach((row) => {
+      const key = `${row.estudiante_id}-${row.periodo_id}`
+      const current = acumulados.get(key)
+
+      if (!current) {
+        acumulados.set(key, {
+          estudiante_id: row.estudiante_id,
+          periodo_id: row.periodo_id,
+          grupo_id: row.grupo_id,
+          estudiante: row.estudiante,
+          grupo: row.grupo,
+          total: Number(row.nota) || 0,
+          cantidad: 1,
+        })
+        return
+      }
+
+      current.total += Number(row.nota) || 0
+      current.cantidad += 1
+    })
+
+    return Array.from(acumulados.entries())
+      .map(([key, value]) => ({
+        id: `fallback-${key}`,
+        estudiante_id: value.estudiante_id,
+        periodo_id: value.periodo_id,
+        grupo_id: value.grupo_id,
+        promedio_general: value.cantidad > 0 ? value.total / value.cantidad : null,
+        observaciones_generales: null,
+        observaciones_director: null,
+        fecha_generacion: new Date().toISOString(),
+        estudiante: value.estudiante,
+        periodo: periodo
+          ? { nombre: periodo.nombre, numero: periodo.numero }
+          : null,
+        grupo: value.grupo,
+      }))
+      .sort((a, b) => (a.estudiante?.nombre_completo || '').localeCompare(b.estudiante?.nombre_completo || ''))
+  }
+
   const handleGeneratePDF = async (boletinId: string) => {
     setGeneratingPDF(boletinId)
 
     try {
-      // Obtener datos completos del boletín
-      const { data: boletin, error: boletinError } = await supabase
-        .from('boletines')
-        .select(`
-          *,
-          estudiante:estudiante_id (nombre_completo, email),
-          periodo:periodo_id (nombre, numero, fecha_inicio, fecha_fin),
-          grupo:grupo_id (
-            nombre,
-            grado:grado_id (nombre, nivel)
-          )
-        `)
-        .eq('id', boletinId)
-        .single()
-        .returns<Boletin>()
+      const fallbackBoletin = boletines.find((item) => item.id === boletinId && item.id.startsWith('fallback-'))
 
-      if (boletinError) throw boletinError
+      let boletinData: Boletin
 
-      if (!boletin) {
-        throw new Error('Boletín no encontrado')
+      if (fallbackBoletin) {
+        boletinData = fallbackBoletin
+      } else {
+        // Obtener datos completos del boletín
+        const { data: boletin, error: boletinError } = await supabase
+          .from('boletines')
+          .select(`
+            *,
+            estudiante:estudiante_id (nombre_completo, email),
+            periodo:periodo_id (nombre, numero, fecha_inicio, fecha_fin),
+            grupo:grupo_id (
+              nombre,
+              grado:grado_id (nombre, nivel)
+            )
+          `)
+          .eq('id', boletinId)
+          .single()
+          .returns<Boletin>()
+
+        if (boletinError) throw boletinError
+
+        if (!boletin) {
+          throw new Error('Boletín no encontrado')
+        }
+
+        boletinData = boletin as Boletin
       }
-
-      const boletinData = boletin as Boletin
 
       // Obtener notas del periodo
       const { data: notas, error: notasError } = await supabase
@@ -190,10 +295,10 @@ export default function BoletinesPage() {
 
       const notasDetalle = (notas || []) as NotaDetalle[]
       const pdf = generateBoletinPDF(boletinData, notasDetalle)
-      const studentName = boletinData.estudiante.nombre_completo
+      const studentName = (boletinData.estudiante?.nombre_completo || 'estudiante')
         .toLowerCase()
         .replace(/\s+/g, '-')
-      pdf.save(`boletin-${studentName}-${boletinData.periodo.nombre}.pdf`)
+      pdf.save(`boletin-${studentName}-${boletinData.periodo?.nombre || 'periodo'}.pdf`)
       setGeneratingPDF(null)
 
     } catch (err) {
@@ -221,18 +326,18 @@ export default function BoletinesPage() {
     currentY += 10
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10)
-    doc.text(`Estudiante: ${boletinData.estudiante.nombre_completo}`, leftMargin, currentY)
+    doc.text(`Estudiante: ${boletinData.estudiante?.nombre_completo || 'No disponible'}`, leftMargin, currentY)
     currentY += 6
-    doc.text(`Correo: ${boletinData.estudiante.email}`, leftMargin, currentY)
+    doc.text(`Correo: ${boletinData.estudiante?.email || 'No disponible'}`, leftMargin, currentY)
     currentY += 6
     doc.text(
-      `Grupo: ${boletinData.grupo.grado.nombre} - ${boletinData.grupo.nombre}`,
+      `Grupo: ${boletinData.grupo ? `${boletinData.grupo.grado.nombre} - ${boletinData.grupo.nombre}` : 'No disponible'}`,
       leftMargin,
       currentY
     )
     currentY += 6
     doc.text(
-      `Periodo: ${boletinData.periodo.nombre} (Nº ${boletinData.periodo.numero})`,
+      `Periodo: ${boletinData.periodo ? `${boletinData.periodo.nombre} (Nº ${boletinData.periodo.numero})` : 'No disponible'}`,
       leftMargin,
       currentY
     )
@@ -332,10 +437,12 @@ export default function BoletinesPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle>
-                    Boletín - {boletin.periodo.nombre}
+                    Boletín - {boletin.periodo?.nombre || 'Periodo'}
                   </CardTitle>
                   <CardDescription>
-                    {boletin.grupo.grado.nombre} - Grupo {boletin.grupo.nombre}
+                    {boletin.grupo
+                      ? `${boletin.grupo.grado.nombre} - Grupo ${boletin.grupo.nombre}`
+                      : 'Grupo no disponible'}
                   </CardDescription>
                 </div>
                 <Button
@@ -414,10 +521,19 @@ export default function BoletinesPage() {
           <Alert className="mb-4">
             <CheckCircle className="h-4 w-4" />
             <AlertDescription>
-              Funcionalidad de generación masiva de boletines en desarrollo.
-              Por ahora, los boletines se generan automáticamente cuando los docentes registran las notas.
+              La generación masiva de boletines está en desarrollo.
+              Mientras tanto, este módulo muestra boletines guardados y puede calcular un consolidado provisional desde notas del periodo.
             </AlertDescription>
           </Alert>
+
+          {usingNotasFallback && (
+            <Alert className="mb-4">
+              <CheckCircle className="h-4 w-4" />
+              <AlertDescription>
+                Mostrando consolidado provisional calculado desde notas del periodo (sin registros en la tabla de boletines).
+              </AlertDescription>
+            </Alert>
+          )}
 
           {boletines.length > 0 && (
             <div className="space-y-2">
@@ -432,10 +548,12 @@ export default function BoletinesPage() {
                   >
                     <div>
                       <p className="font-medium">
-                        {boletin.estudiante.nombre_completo}
+                        {boletin.estudiante?.nombre_completo || 'Estudiante no disponible'}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        {boletin.grupo.grado.nombre} - Grupo {boletin.grupo.nombre} •
+                        {boletin.grupo
+                          ? `${boletin.grupo.grado.nombre} - Grupo ${boletin.grupo.nombre}`
+                          : 'Grupo no disponible'} •
                         Promedio: {boletin.promedio_general?.toFixed(1) || 'N/A'}
                       </p>
                     </div>
@@ -455,6 +573,15 @@ export default function BoletinesPage() {
                 ))}
               </div>
             </div>
+          )}
+
+          {boletines.length === 0 && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                No hay boletines generados para el periodo seleccionado o no tienes permisos para visualizarlos.
+              </AlertDescription>
+            </Alert>
           )}
         </CardContent>
       </Card>

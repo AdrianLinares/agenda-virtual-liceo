@@ -115,6 +115,8 @@ export default function NotasPage() {
     const [viewGrupo, setViewGrupo] = useState<string>('all')
     const [viewAsignatura, setViewAsignatura] = useState<string>('all')
     const [viewEstudiante, setViewEstudiante] = useState<string>('all')
+    const [adminAsignaturasPorGrupo, setAdminAsignaturasPorGrupo] = useState<Record<string, string[]>>({})
+    const [adminEstudiantesPorGrupo, setAdminEstudiantesPorGrupo] = useState<Record<string, string[]>>({})
 
     const [selectedGrupo, setSelectedGrupo] = useState<string>('')
     const [selectedAsignatura, setSelectedAsignatura] = useState<string>('')
@@ -261,7 +263,13 @@ export default function NotasPage() {
 
     const loadAdminViewOptions = async () => {
         try {
-            const [{ data: gruposData, error: gruposError }, { data: asignaturasData, error: asignaturasError }, { data: estudiantesData, error: estudiantesError }] = await Promise.all([
+            const [
+                { data: gruposData, error: gruposError },
+                { data: asignaturasData, error: asignaturasError },
+                { data: estudiantesData, error: estudiantesError },
+                { data: estudiantesGrupoData, error: estudiantesGrupoError },
+                { data: asignacionesData, error: asignacionesError },
+            ] = await Promise.all([
                 supabase
                     .from('grupos')
                     .select('id, nombre, grado_id, grado:grado_id (nombre)')
@@ -276,11 +284,21 @@ export default function NotasPage() {
                     .eq('rol', 'estudiante')
                     .eq('activo', true)
                     .order('nombre_completo', { ascending: true }),
+                supabase
+                    .from('estudiantes_grupos')
+                    .select('grupo_id, estudiante_id')
+                    .returns<Array<{ grupo_id: string; estudiante_id: string }>>(),
+                supabase
+                    .from('asignaciones_docentes')
+                    .select('grupo_id, asignatura_id')
+                    .returns<Array<{ grupo_id: string; asignatura_id: string }>>(),
             ])
 
             if (gruposError) throw gruposError
             if (asignaturasError) throw asignaturasError
             if (estudiantesError) throw estudiantesError
+            if (estudiantesGrupoError) throw estudiantesGrupoError
+            if (asignacionesError) throw asignacionesError
 
             const gruposOrdenados = sortByGradeAndGroupName(
                 (gruposData || []) as Grupo[],
@@ -291,6 +309,39 @@ export default function NotasPage() {
             setGrupos(gruposOrdenados)
             setAsignaturas((asignaturasData || []) as Asignatura[])
             setEstudiantes((estudiantesData || []) as Estudiante[])
+
+            const estudiantesActivos = new Set(((estudiantesData || []) as Estudiante[]).map((estudiante) => estudiante.id))
+
+            const estudiantesPorGrupo = (estudiantesGrupoData || []).reduce<Record<string, string[]>>((acc, item) => {
+                if (!estudiantesActivos.has(item.estudiante_id)) {
+                    return acc
+                }
+
+                if (!acc[item.grupo_id]) {
+                    acc[item.grupo_id] = []
+                }
+
+                if (!acc[item.grupo_id].includes(item.estudiante_id)) {
+                    acc[item.grupo_id].push(item.estudiante_id)
+                }
+
+                return acc
+            }, {})
+
+            const asignaturasPorGrupo = (asignacionesData || []).reduce<Record<string, string[]>>((acc, item) => {
+                if (!acc[item.grupo_id]) {
+                    acc[item.grupo_id] = []
+                }
+
+                if (!acc[item.grupo_id].includes(item.asignatura_id)) {
+                    acc[item.grupo_id].push(item.asignatura_id)
+                }
+
+                return acc
+            }, {})
+
+            setAdminEstudiantesPorGrupo(estudiantesPorGrupo)
+            setAdminAsignaturasPorGrupo(asignaturasPorGrupo)
         } catch (err) {
             console.error('Error loading admin view options:', err)
             setError('Error al cargar filtros de notas')
@@ -330,12 +381,52 @@ export default function NotasPage() {
         return total / notas.length
     }, [notas])
 
+    const viewAsignaturasDisponibles = useMemo(() => {
+        if (!canViewAllNotas || viewGrupo === 'all') {
+            return asignaturas
+        }
+
+        const permitidas = new Set(adminAsignaturasPorGrupo[viewGrupo] || [])
+        return asignaturas.filter((asignatura) => permitidas.has(asignatura.id))
+    }, [adminAsignaturasPorGrupo, asignaturas, canViewAllNotas, viewGrupo])
+
+    const viewEstudiantesDisponibles = useMemo(() => {
+        if (!canViewAllNotas || viewGrupo === 'all') {
+            return estudiantes
+        }
+
+        const permitidos = new Set(adminEstudiantesPorGrupo[viewGrupo] || [])
+        return estudiantes.filter((estudiante) => permitidos.has(estudiante.id))
+    }, [adminEstudiantesPorGrupo, canViewAllNotas, estudiantes, viewGrupo])
+
     const headerDescription = useMemo(() => {
         if (profile?.rol === 'estudiante') return 'Consulta tus notas parciales por periodo'
         if (profile?.rol === 'padre') return 'Consulta las notas parciales de tus hijos'
         if (profile?.rol === 'docente') return 'Visualiza y registra las notas de tus estudiantes'
         return 'Gestiona y consulta las notas parciales'
     }, [profile?.rol])
+
+    useEffect(() => {
+        if (!canViewAllNotas) return
+
+        if (viewGrupo === 'all') {
+            if (viewAsignatura !== 'all') {
+                setViewAsignatura('all')
+            }
+            if (viewEstudiante !== 'all') {
+                setViewEstudiante('all')
+            }
+            return
+        }
+
+        if (viewAsignatura !== 'all' && !viewAsignaturasDisponibles.some((asignatura) => asignatura.id === viewAsignatura)) {
+            setViewAsignatura('all')
+        }
+
+        if (viewEstudiante !== 'all' && !viewEstudiantesDisponibles.some((estudiante) => estudiante.id === viewEstudiante)) {
+            setViewEstudiante('all')
+        }
+    }, [canViewAllNotas, viewAsignatura, viewAsignaturasDisponibles, viewEstudiante, viewEstudiantesDisponibles, viewGrupo])
 
     const asignaturasDisponibles = useMemo(() => {
         if (profile?.rol !== 'docente' || !showCalculator) {
@@ -917,7 +1008,7 @@ export default function NotasPage() {
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="all">Todas las asignaturas</SelectItem>
-                                        {asignaturas.map((asignatura) => (
+                                        {viewAsignaturasDisponibles.map((asignatura) => (
                                             <SelectItem key={asignatura.id} value={asignatura.id}>
                                                 {asignatura.nombre}
                                             </SelectItem>
@@ -934,7 +1025,7 @@ export default function NotasPage() {
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="all">Todos los estudiantes</SelectItem>
-                                        {estudiantes.map((estudiante) => (
+                                        {viewEstudiantesDisponibles.map((estudiante) => (
                                             <SelectItem key={estudiante.id} value={estudiante.id}>
                                                 {estudiante.nombre_completo}
                                             </SelectItem>

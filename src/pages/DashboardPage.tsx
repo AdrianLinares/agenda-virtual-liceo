@@ -352,18 +352,37 @@ export default function DashboardPage() {
               eventos.map((evento) => {
                 const fecha = formatFecha(evento.fecha_inicio)
                 const hora = formatHora(evento.fecha_inicio)
-                const colors = {
-                  'Reunión': 'blue',
-                  'Evaluación': 'purple',
-                  'Festivo': 'green',
-                  'Cultural': 'pink',
-                  'Académico': 'indigo',
+                const eventStyles = {
+                  'Reunión': {
+                    container: 'bg-blue-50 border-blue-100',
+                    badge: 'bg-blue-600 text-white',
+                  },
+                  'Evaluación': {
+                    container: 'bg-purple-50 border-purple-100',
+                    badge: 'bg-purple-600 text-white',
+                  },
+                  'Festivo': {
+                    container: 'bg-green-50 border-green-100',
+                    badge: 'bg-green-600 text-white',
+                  },
+                  'Cultural': {
+                    container: 'bg-pink-50 border-pink-100',
+                    badge: 'bg-pink-600 text-white',
+                  },
+                  'Académico': {
+                    container: 'bg-indigo-50 border-indigo-100',
+                    badge: 'bg-indigo-600 text-white',
+                  },
+                  default: {
+                    container: 'bg-gray-50 border-gray-100',
+                    badge: 'bg-gray-600 text-white',
+                  },
                 }
-                const color = colors[evento.tipo as keyof typeof colors] || 'gray'
+                const style = eventStyles[evento.tipo as keyof typeof eventStyles] || eventStyles.default
 
                 return (
-                  <div key={evento.id} className={`flex items-start gap-3 p-3 rounded-lg bg-${color}-50 border border-${color}-100`}>
-                    <div className={`flex-shrink-0 w-12 h-12 rounded-lg bg-${color}-600 text-white flex flex-col items-center justify-center`}>
+                  <div key={evento.id} className={`flex items-start gap-3 p-3 rounded-lg border ${style.container}`}>
+                    <div className={`flex-shrink-0 w-12 h-12 rounded-lg flex flex-col items-center justify-center ${style.badge}`}>
                       <span className="text-xs font-medium">{fecha.dia}</span>
                       <span className="text-lg font-bold">{fecha.numero}</span>
                     </div>
