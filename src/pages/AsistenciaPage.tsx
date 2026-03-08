@@ -62,6 +62,14 @@ interface GrupoOption {
     grado_nombre: string
 }
 
+interface GrupoRecordFilterOption {
+    id: string
+    nombre: string
+    grado: {
+        nombre: string
+    } | null
+}
+
 export default function AsistenciaPage() {
     const { profile } = useAuthStore()
     const [selectedDate, setSelectedDate] = useState<string>(() => {
@@ -77,6 +85,8 @@ export default function AsistenciaPage() {
     const [selectedStudent, setSelectedStudent] = useState<string>('')
     const [selectedEstado, setSelectedEstado] = useState<Estado>('presente')
     const [observaciones, setObservaciones] = useState('')
+    const [recordGroupFilter, setRecordGroupFilter] = useState<string>('all')
+    const [recordGroupOptions, setRecordGroupOptions] = useState<GrupoOption[]>([])
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
     const [updatingId, setUpdatingId] = useState<string | null>(null)
@@ -86,12 +96,23 @@ export default function AsistenciaPage() {
     const studentSelectTriggerRef = useRef<HTMLButtonElement | null>(null)
 
     const isStaff = profile?.rol === 'administrador' || profile?.rol === 'administrativo' || profile?.rol === 'docente'
+    const canFilterRecordsByGrupo = profile?.rol === 'administrador' || profile?.rol === 'administrativo'
 
     useEffect(() => {
         if (profile) {
             loadAsistencias()
         }
-    }, [profile, selectedDate])
+    }, [profile, selectedDate, recordGroupFilter])
+
+    useEffect(() => {
+        if (canFilterRecordsByGrupo) {
+            loadRecordGroupOptions()
+            return
+        }
+
+        setRecordGroupFilter('all')
+        setRecordGroupOptions([])
+    }, [canFilterRecordsByGrupo])
 
     useEffect(() => {
         if (profile && isStaff) {
@@ -162,6 +183,28 @@ export default function AsistenciaPage() {
                 }
             } else if (profile.rol === 'docente') {
                 query = query.eq('registrado_por', profile.id)
+            } else if (profile.rol === 'administrador' || profile.rol === 'administrativo') {
+                const { data: docentes, error: docentesError } = await supabase
+                    .from('profiles')
+                    .select('id')
+                    .eq('rol', 'docente')
+                    .eq('activo', true)
+                    .returns<Array<{ id: string }>>()
+
+                if (docentesError) throw docentesError
+
+                const docentesIds = (docentes || []).map((docente) => docente.id)
+                if (docentesIds.length > 0) {
+                    query = query.in('registrado_por', docentesIds)
+                } else {
+                    setAsistencias([])
+                    setLoading(false)
+                    return
+                }
+
+                if (recordGroupFilter !== 'all') {
+                    query = query.eq('grupo_id', recordGroupFilter)
+                }
             }
 
             const { data, error } = await query
@@ -173,6 +216,33 @@ export default function AsistenciaPage() {
             setError('Error al cargar el registro de asistencia')
         } finally {
             setLoading(false)
+        }
+    }
+
+    const loadRecordGroupOptions = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('grupos')
+                .select('id, nombre, grado:grado_id (nombre)')
+                .eq('año_academico', 2026)
+                .returns<GrupoRecordFilterOption[]>()
+
+            if (error) throw error
+
+            const gruposOrdenados = sortByGradeAndGroupName(
+                (data || []).map((grupo) => ({
+                    id: grupo.id,
+                    nombre: grupo.nombre,
+                    grado_nombre: grupo.grado?.nombre ?? 'Sin grado',
+                })),
+                (grupo) => grupo.grado_nombre,
+                (grupo) => grupo.nombre
+            )
+
+            setRecordGroupOptions(gruposOrdenados)
+        } catch (err) {
+            console.error('Error loading group filter options:', err)
+            setError('Error al cargar grupos para filtrar asistencias')
         }
     }
 
@@ -404,6 +474,25 @@ export default function AsistenciaPage() {
                                 className="w-48"
                             />
                         </div>
+
+                        {canFilterRecordsByGrupo && (
+                            <div className="space-y-2 min-w-[240px]">
+                                <Label>Grupo</Label>
+                                <Select value={recordGroupFilter} onValueChange={setRecordGroupFilter}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Todos los grupos" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todos los grupos</SelectItem>
+                                        {recordGroupOptions.map((grupo) => (
+                                            <SelectItem key={grupo.id} value={grupo.id}>
+                                                {grupo.grado_nombre} • {grupo.nombre}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
                     </div>
                 </CardContent>
             </Card>
