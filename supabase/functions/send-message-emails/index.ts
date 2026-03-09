@@ -46,6 +46,13 @@ function computeBackoffMinutes(attempts: number) {
     return 60
 }
 
+function parsePositiveInteger(rawValue: string | null, fallback: number) {
+    if (!rawValue) return fallback
+    const parsed = Number.parseInt(rawValue, 10)
+    if (!Number.isFinite(parsed) || parsed <= 0) return fallback
+    return parsed
+}
+
 function escapeHtml(value: string) {
     return value
         .replaceAll('&', '&amp;')
@@ -61,6 +68,7 @@ async function sendEmailWithProvider(
     emailFrom: string | null,
     appBaseUrl: string,
     dryRun: boolean,
+    testRecipientOverride: string | null,
 ) {
     if (dryRun) {
         return {
@@ -90,6 +98,8 @@ async function sendEmailWithProvider(
     const destinatario = escapeHtml(row.destinatario_nombre ?? row.destinatario_email)
     const asunto = row.asunto.trim() || 'Nuevo mensaje institucional'
     const inboxUrl = `${appBaseUrl.replace(/\/$/, '')}/dashboard/mensajes`
+    const emailDestino = (testRecipientOverride ?? row.destinatario_email).trim().toLowerCase()
+    const isTestOverride = Boolean(testRecipientOverride)
 
     const html = `
     <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #111827;">
@@ -101,6 +111,10 @@ async function sendEmailWithProvider(
         Ver mensaje
       </a>
       <p style="margin-top: 20px; font-size: 12px; color: #6b7280;">Este correo es una notificación automática.</p>
+            ${isTestOverride
+            ? `<p style="margin-top: 8px; font-size: 12px; color: #9a3412;">Modo prueba: destinatario original ${escapeHtml(row.destinatario_email)}</p>`
+            : ''
+        }
     </div>
   `
 
@@ -112,8 +126,11 @@ async function sendEmailWithProvider(
         },
         body: JSON.stringify({
             from: emailFrom,
-            to: [row.destinatario_email],
-            subject: `[Agenda Virtual] ${asunto}`,
+            to: [emailDestino],
+            subject: isTestOverride
+                ? `[Agenda Virtual][TEST->${row.destinatario_email}] ${asunto}`
+                : `[Agenda Virtual] ${asunto}`,
+            text: `Hola ${row.destinatario_nombre ?? row.destinatario_email}, tienes un nuevo mensaje institucional.\n\nAsunto: ${asunto}\n${row.contenido_preview ? `Resumen: ${row.contenido_preview}\n` : ''}${isTestOverride ? `\nModo prueba: destinatario original ${row.destinatario_email}\n` : ''}\nIngresa a: ${inboxUrl}`,
             html,
         }),
     })
@@ -181,7 +198,9 @@ Deno.serve(async (req) => {
     const emailFrom = Deno.env.get('EMAIL_FROM')
     const appBaseUrl = Deno.env.get('APP_BASE_URL') ?? 'http://localhost:5173'
     const dryRun = (Deno.env.get('EMAIL_NOTIFICATIONS_DRY_RUN') ?? 'true').toLowerCase() === 'true'
-    const maxBatch = Number(Deno.env.get('EMAIL_NOTIFICATIONS_BATCH_SIZE') ?? '20')
+    const testRecipientOverride = Deno.env.get('EMAIL_TEST_RECIPIENT')?.trim().toLowerCase() || null
+    const maxBatch = parsePositiveInteger(Deno.env.get('EMAIL_NOTIFICATIONS_BATCH_SIZE'), 20)
+    const maxAttempts = parsePositiveInteger(Deno.env.get('EMAIL_NOTIFICATIONS_MAX_ATTEMPTS'), 5)
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey)
 
@@ -219,17 +238,25 @@ Deno.serve(async (req) => {
 
     let sent = 0
     let failed = 0
+    let skipped = 0
 
     for (const row of queueRows) {
         const nextAttempts = row.attempts + 1
 
-        await adminClient
+        const { data: claimedRow, error: claimError } = await adminClient
             .from('email_notifications_queue')
             .update({ status: 'processing', attempts: nextAttempts })
             .eq('id', row.id)
             .eq('status', 'pending')
+            .select('id')
+            .maybeSingle()
 
-        const result = await sendEmailWithProvider(row, resendApiKey, emailFrom, appBaseUrl, dryRun)
+        if (claimError || !claimedRow) {
+            skipped += 1
+            continue
+        }
+
+        const result = await sendEmailWithProvider(row, resendApiKey, emailFrom, appBaseUrl, dryRun, testRecipientOverride)
 
         if (result.ok) {
             sent += 1
@@ -246,6 +273,19 @@ Deno.serve(async (req) => {
         }
 
         failed += 1
+        const exhaustedRetries = nextAttempts >= maxAttempts
+        if (exhaustedRetries) {
+            await adminClient
+                .from('email_notifications_queue')
+                .update({
+                    status: 'failed',
+                    next_retry_at: null,
+                    last_error: result.error,
+                })
+                .eq('id', row.id)
+            continue
+        }
+
         const retryMinutes = computeBackoffMinutes(nextAttempts)
         const retryAt = new Date(Date.now() + retryMinutes * 60_000).toISOString()
 
@@ -264,6 +304,9 @@ Deno.serve(async (req) => {
         processed: queueRows.length,
         sent,
         failed,
+        skipped,
         dryRun,
+        testRecipientOverride,
+        maxAttempts,
     })
 })

@@ -21,6 +21,79 @@ Este proyecto ya incluye la infraestructura base para enviar correo cuando se cr
 - Worker: preparado, sin proveedor real configurado
 - Resultado: no se envían correos todavía
 
+## Pruebas sin dominio propio (Receiving de Resend)
+
+Se implemento una Edge Function para recibir eventos `email.received` y guardarlos en base de datos:
+
+- Function: `supabase/functions/resend-receiving-webhook/index.ts`
+- Migracion: `migrations/20260308_resend_receiving_webhook_base.sql`
+- Migracion de enrutamiento a mensajes internos: `migrations/20260308_resend_receiving_to_internal_messages.sql`
+- Direccion de receiving configurada para pruebas: `liceoangeldelaguarda@elkaavenia.resend.app`
+
+### 0) Aplicar migracion
+
+Aplica ambas migraciones en tu proyecto Supabase:
+
+- `20260308_resend_receiving_webhook_base.sql`
+- `20260308_resend_receiving_to_internal_messages.sql`
+
+### 1) Desplegar la function de webhook inbound
+
+```bash
+supabase functions deploy resend-receiving-webhook --no-verify-jwt
+```
+
+`--no-verify-jwt` es obligatorio para webhooks de Resend porque no incluyen header `Authorization`.
+
+### 2) Configurar secretos del webhook
+
+```bash
+supabase secrets set RESEND_WEBHOOK_SECRET="whsec_xxxxxxxxx"
+supabase secrets set RECEIVING_ALLOWED_TO="liceoangeldelaguarda@elkaavenia.resend.app"
+supabase secrets set RECEIVING_TARGET_USER_EMAIL="admin@liceoag.com"
+supabase secrets set RECEIVING_SYSTEM_SENDER_EMAIL="admin@liceoag.com"
+```
+
+`RECEIVING_ALLOWED_TO` acepta multiples correos separados por coma.
+`RECEIVING_TARGET_USER_EMAIL` es quien recibira el mensaje interno en la app. Si no existe o no esta activo, la function usa el primer administrador activo como fallback.
+`RECEIVING_SYSTEM_SENDER_EMAIL` es opcional; si no se configura o no existe en `profiles`, la function intenta usar el remitente del correo (si existe en `profiles`) o el primer administrador activo.
+
+### 3) Configurar webhook en Resend
+
+1. Ve a `Webhooks` en Resend.
+2. Crea `Add Webhook`.
+3. URL: `https://<project-ref>.supabase.co/functions/v1/resend-receiving-webhook`
+4. Evento: `email.received`
+5. Guarda y copia el signing secret (`whsec_...`) en `RESEND_WEBHOOK_SECRET`.
+
+### 4) Probar envio hacia receiving address
+
+Envia un correo desde cualquier cuenta (Gmail, Outlook, etc.) a:
+
+`liceoangeldelaguarda@elkaavenia.resend.app`
+
+La function verificara firma, filtrara por destinatario permitido, guardara el evento en `public.received_email_events` y lo convertira en un registro de `public.mensajes`.
+
+### 5) Verificar que llego el evento
+
+```sql
+select
+  ree.created_at,
+  ree.resend_email_id,
+  ree.sender,
+  ree.recipient_emails,
+  ree.subject,
+  ree.internal_message_id,
+  m.asunto as internal_subject,
+  m.destinatario_id,
+  p.email as destinatario_email
+from public.received_email_events ree
+left join public.mensajes m on m.id = ree.internal_message_id
+left join public.profiles p on p.id = m.destinatario_id
+order by ree.created_at desc
+limit 20;
+```
+
 ## Activación futura con Resend
 
 ### 1) Desplegar función
@@ -39,10 +112,22 @@ supabase secrets set EMAIL_FROM="Agenda Virtual <no-reply@tu-dominio.edu.co>"
 supabase secrets set APP_BASE_URL="https://tu-app.com"
 supabase secrets set EMAIL_NOTIFICATIONS_DRY_RUN="false"
 supabase secrets set EMAIL_NOTIFICATIONS_BATCH_SIZE="20"
+supabase secrets set EMAIL_NOTIFICATIONS_MAX_ATTEMPTS="5"
+supabase secrets set EMAIL_TEST_RECIPIENT="adrianlinares246@protonmail.com"
 ```
 
 > Mientras no tengas el dominio verificado en Resend, deja `EMAIL_NOTIFICATIONS_DRY_RUN=true`.
 > En producción, `CRON_SECRET` es obligatorio y la función rechazará ejecución si no está configurado.
+
+`EMAIL_NOTIFICATIONS_MAX_ATTEMPTS` define cuántos intentos hará la cola antes de marcar el registro como `failed`.
+
+`EMAIL_TEST_RECIPIENT` es opcional para pruebas sin dominio verificado en Resend: redirige todos los correos a un unico email permitido (sandbox) y conserva el destinatario original en asunto/cuerpo.
+
+Cuando pases a envio real entre usuarios, elimina ese secreto:
+
+```bash
+supabase secrets unset EMAIL_TEST_RECIPIENT
+```
 
 ### 2.1) Verificaciones previas en Resend
 
