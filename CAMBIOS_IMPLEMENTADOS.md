@@ -1,5 +1,60 @@
 # 📋 Cambios Implementados - Revisión y Mejoras
 
+## Fecha: 8 de Marzo de 2026
+
+---
+
+## 1. ✅ Ajustes finales para despliegue en Netlify
+
+### Archivos modificados:
+- [netlify.toml](netlify.toml)
+
+### Cambios:
+- Configuración de build para Netlify (`pnpm build` + `dist`)
+- Redirect SPA `/* -> /index.html` para evitar 404 en recarga de rutas internas
+
+---
+
+## 2. ✅ Ajustes de autenticación y sesión
+
+### Archivos modificados:
+- [src/lib/supabase.ts](src/lib/supabase.ts)
+- [src/App.tsx](src/App.tsx)
+
+### Cambios:
+- Persistencia de sesión migrada a `sessionStorage` (la sesión se cierra al cerrar navegador/pestaña)
+- Ruta `/login` ahora siempre muestra la pantalla de login
+- Comentarios de rutas protegidas mejorados para facilitar mantenimiento por desarrolladores junior
+
+---
+
+## 3. ✅ Endurecimiento de control de acceso y navegación
+
+### Archivos modificados:
+- [src/App.tsx](src/App.tsx)
+- [src/components/layout/DashboardLayout.tsx](src/components/layout/DashboardLayout.tsx)
+
+### Cambios:
+- Ruta `/dashboard/admin` protegida explícitamente con `RoleProtectedRoute` para `administrador`
+- Menú lateral: si no hay rol cargado, no se muestran entradas por defecto
+- Comentarios de seguridad y flujo de roles mejorados
+
+---
+
+## 4. ✅ Actualización de dependencias y seguridad
+
+### Archivos modificados:
+- [package.json](package.json)
+- [pnpm-lock.yaml](pnpm-lock.yaml)
+
+### Cambios:
+- `jspdf` actualizado a `^4.2.0`
+- `pnpm overrides` para usar `dompurify >= 3.3.2`
+- Resultado: reducción de vulnerabilidades reportadas en `pnpm audit --prod`
+- Riesgo residual: advisories HIGH en `xlsx` sin parche oficial publicado hasta la fecha
+
+---
+
 ## Fecha: 1 de Marzo de 2026
 
 ---

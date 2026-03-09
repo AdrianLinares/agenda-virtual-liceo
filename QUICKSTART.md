@@ -40,6 +40,10 @@ Email: admin@liceo.com
 Password: Admin123! (o la que hayas configurado)
 ```
 
+Nota:
+- La sesión se conserva solo mientras la pestaña/navegador permanezca abierto.
+- Al cerrar navegador o pestaña, se solicitará inicio de sesión nuevamente.
+
 ## 📚 Documentación Completa
 
 - **README.md** - Documentación completa del proyecto
@@ -67,6 +71,11 @@ El proyecto incluye módulos funcionales de:
 ### Nota de despliegue (importante)
 
 Si ya tenías una base de datos configurada previamente, aplica las migraciones más recientes en `migrations/` para alinear políticas RLS y comportamiento de módulos.
+
+Para Netlify:
+- Build command: `pnpm build`
+- Publish directory: `dist`
+- Se requiere redirect SPA (ya incluido en `netlify.toml`).
 
 ## 🛠️ Stack Tecnológico
 

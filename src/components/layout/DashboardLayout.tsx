@@ -138,9 +138,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const filteredMenuItems = menuItems.filter((item) => {
     const userRole = profile?.rol
-    // Si no hay rol, mostrar todos los items (para testing)
+    // Safe default: without a resolved role we do not render role-based menu entries.
     if (!userRole) {
-      return true
+      return false
     }
     return item.roles.includes(userRole)
   })

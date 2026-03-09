@@ -197,11 +197,11 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       set({ loading: true })
 
-      // Obtener la sesión actual
+      // Step 1: restore a previous session (if it exists) when the app boots.
       const { data: { session } } = await withTimeout(supabase.auth.getSession(), 15000, 'Tiempo de espera agotado al validar sesión')
 
       if (session?.user) {
-        // Obtener el perfil del usuario
+        // Step 2: load profile data tied to the authenticated user id.
         const { data: profileData, error: profileError } = await withTimeout(supabase
           .from('profiles')
           .select('*')
@@ -210,7 +210,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
         if (profileError) {
           console.warn('Error fetching profile:', profileError)
-          // No lanzar error, solo continuar sin perfil
+          // Do not block login if profile fetch fails; route guards still rely on auth user.
         }
 
         set({
@@ -222,7 +222,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         set({ user: null, profile: null, initialized: true })
       }
 
-      // Escuchar cambios en la autenticación
+      // Keep store synced when Supabase emits SIGNED_IN, TOKEN_REFRESHED or SIGNED_OUT.
       supabase.auth.onAuthStateChange(async (_event, session) => {
         if (session?.user) {
           const { data: profileData, error: profileError } = await withTimeout(supabase

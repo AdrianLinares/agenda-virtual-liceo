@@ -32,7 +32,7 @@ function PageLoader() {
   )
 }
 
-// Protected Route Component
+// Blocks private routes until auth is initialized and a user is present.
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, initialized } = useAuthStore()
 
@@ -74,6 +74,7 @@ function RoleProtectedRoute({
     )
   }
 
+  // If the profile is not loaded or role is not allowed, keep user in dashboard root.
   if (!profile || !allowedRoles.includes(profile.rol)) {
     return <Navigate to="/dashboard" replace />
   }
@@ -123,7 +124,7 @@ function App() {
             }
           />
 
-          {/* Placeholder routes for other modules */}
+          {/* Protected module routes */}
           <Route
             path="/dashboard/boletines"
             element={
@@ -240,9 +241,11 @@ function App() {
             path="/dashboard/admin"
             element={
               <ProtectedRoute>
-                <DashboardLayout>
-                  <AdminPage />
-                </DashboardLayout>
+                <RoleProtectedRoute allowedRoles={['administrador']}>
+                  <DashboardLayout>
+                    <AdminPage />
+                  </DashboardLayout>
+                </RoleProtectedRoute>
               </ProtectedRoute>
             }
           />

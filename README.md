@@ -285,35 +285,47 @@ El proyecto implementa Row Level Security (RLS) en Supabase para garantizar que:
 - Los docentes solo accedan a datos de sus grupos asignados
 - Los administradores tengan control total
 
-## 📝 Próximos Pasos
+## 🚀 Estado Actual del Proyecto (Marzo 2026)
 
-El proyecto ya cuenta con módulos funcionales de gestión académica y comunicación.
+Módulos operativos en producción:
 
-Mejoras recientes implementadas:
+1. Autenticación con roles y recuperación/restablecimiento de contraseña.
+2. Dashboard por rol.
+3. Boletines (acceso restringido a administradores).
+4. Asistencia, notas, anuncios, mensajes y calendario.
+5. Permisos/excusas, seguimiento, horarios y citaciones.
+6. Panel de administración para gestión de usuarios.
 
-1. **Boletines** - Acceso restringido únicamente a rol `administrador` (ruta y navegación)
-2. **Anuncios** - Destinatarios con checkboxes múltiples y formulario desplegable
-3. **Calendario** - Vista de próximos eventos (sin pasados) y formulario desplegable de creación
-4. **Permisos y Excusas** - Formulario “Solicitar permiso” desplegable
-5. **Seguimiento** - Formulario “Registrar seguimiento” desplegable
-6. **Citaciones** - Formulario “Programar citación” desplegable
-7. **Asistencia** - Formulario desplegable y optimización para registro continuo
-8. **RLS Anuncios** - Migración para corregir permisos de borrado en entornos existentes
+Cambios relevantes recientes:
 
-### Migraciones recientes recomendadas
+1. Configuración de Netlify para SPA (`netlify.toml` con redirect a `index.html`).
+2. Sesión de autenticación con expiración al cerrar navegador/pestaña (`sessionStorage`).
+3. Ruta `/login` disponible siempre (sin auto-redirect por sesión activa).
+4. Endurecimiento de control de acceso para `/dashboard/admin`.
+5. Mejora de dependencias: `jspdf` actualizado y override de `dompurify`.
 
-Si tu entorno ya está desplegado, aplica también las migraciones de la carpeta `migrations/`, especialmente:
+## ✅ Checklist de Despliegue en Netlify
 
-- `20260301_fix_anuncios_delete_policy.sql`
+1. Variables de entorno en Netlify:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+2. Build command: `pnpm build`
+3. Publish directory: `dist`
+4. Confirmar que exista `netlify.toml` (incluye redirect SPA).
+5. Aplicar migraciones SQL pendientes de `migrations/` en Supabase.
+6. Validar login, navegación por rutas internas y permisos por rol.
+
+## ⚠️ Nota de Seguridad (Dependencias)
+
+- Actualmente `xlsx@0.18.5` mantiene advisories HIGH sin parche oficial disponible en npm.
+- Mitigación vigente: carga de archivos restringida a administradores y validaciones de archivo en UI.
+- Recomendación: monitorear una versión corregida de `xlsx` para actualizar inmediatamente.
 
 ## 📧 Notificaciones por Correo para Mensajes
 
 Se dejó preparada una infraestructura base (apagada por defecto) para notificar por correo cuando se envían mensajes internos.
 
 Revisa la guía de activación en [MENSAJES_EMAIL_NOTIFICACIONES.md](MENSAJES_EMAIL_NOTIFICACIONES.md).
-9. **Horarios** - Visualización de horarios de clase
-10. **Citaciones** - Programación y seguimiento
-11. **Panel de Administración** - Gestión de usuarios y roles
 
 ## 🤝 Contribuir
 
