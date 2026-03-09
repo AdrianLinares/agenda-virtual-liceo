@@ -197,12 +197,20 @@ export default function HomePage() {
                             <CardContent className="p-6">
                                 <div className="space-y-3 text-sm text-foreground">
                                     <div>
-                                        <p className="font-semibold text-foreground">Dirección:</p>
+                                        <p className="font-semibold text-foreground">Dirección Sede Principal:</p>
                                         <p>Calle 36 # 41-13 este Ciudadela Sucre, Soacha, Colombia</p>
                                     </div>
                                     <div>
                                         <p className="font-semibold text-foreground">Teléfono:</p>
                                         <p>+57 302 3741098</p>
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold text-foreground">Dirección Dino Sede:</p>
+                                        <p>Calle 25k #08 - 05 este San Mateo, Soacha, Colombia</p>
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold text-foreground">Teléfono:</p>
+                                        <p>+57 322 7044248</p>
                                     </div>
                                     <div>
                                         <p className="font-semibold text-foreground">Email:</p>
@@ -222,7 +230,7 @@ export default function HomePage() {
                                     </div>
                                     <div>
                                         <p className="font-semibold text-foreground">Horario:</p>
-                                        <p>Lunes a Viernes: 7:00 AM - 4:00 PM</p>
+                                        <p>Lunes a Viernes: 7:00 AM - 3:00 PM</p>
                                     </div>
                                 </div>
                             </CardContent>
