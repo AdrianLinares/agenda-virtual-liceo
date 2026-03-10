@@ -1,4 +1,4 @@
-exports.handler = async function () {
+export const handler = async function () {
   const projectRef = process.env.SUPABASE_PROJECT_REF || "mkjvprcsakvfqxplqolq";
   const cronSecret = process.env.SUPABASE_CRON_SECRET;
   const customBaseUrl = process.env.SUPABASE_FUNCTIONS_BASE_URL;
@@ -31,6 +31,6 @@ exports.handler = async function () {
   };
 };
 
-exports.config = {
+export const config = {
   schedule: "*/1 * * * *",
 };
