@@ -96,6 +96,11 @@ limit 20;
 
 ## Activación futura con Resend
 
+La function `send-message-emails` ahora soporta dos proveedores:
+
+- `EMAIL_PROVIDER="resend"` (default)
+- `EMAIL_PROVIDER="gmail"` (Google Workspace con service account + domain-wide delegation)
+
 ### 1) Desplegar función
 
 ```bash
@@ -107,6 +112,7 @@ supabase functions deploy send-message-emails
 ```bash
 supabase secrets set CRON_SECRET="tu-secreto-cron"
 supabase secrets set APP_ENV="production"
+supabase secrets set EMAIL_PROVIDER="resend"
 supabase secrets set RESEND_API_KEY="re_xxxxxxxxx"
 supabase secrets set EMAIL_FROM="Agenda Virtual <no-reply@tu-dominio.edu.co>"
 supabase secrets set APP_BASE_URL="https://tu-app.com"
@@ -127,6 +133,80 @@ Cuando pases a envio real entre usuarios, elimina ese secreto:
 
 ```bash
 supabase secrets unset EMAIL_TEST_RECIPIENT
+```
+
+## Activación con Gmail (Google Workspace)
+
+### 1) Configurar Google Cloud
+
+1. Crea un proyecto en Google Cloud.
+2. Habilita la Gmail API.
+3. Crea una Service Account.
+4. Activa Domain-wide delegation en la Service Account.
+5. Descarga la clave JSON de la Service Account.
+
+### 2) Autorizar Domain-wide delegation en Admin Console
+
+1. Entra como super admin a Google Admin.
+2. Ve a `Security` -> `Access and data control` -> `API controls` -> `Domain-wide delegation`.
+3. Agrega el `Client ID` de la Service Account.
+4. Scopes:
+
+`https://www.googleapis.com/auth/gmail.send`
+
+### 3) Definir cuenta remitente institucional
+
+Usa una cuenta del dominio del colegio, por ejemplo:
+
+`notificaciones@colegio.edu.co`
+
+Esta cuenta se usara como usuario impersonado para enviar correos.
+
+### 4) Configurar secretos para Gmail
+
+```bash
+supabase secrets set CRON_SECRET="tu-secreto-cron"
+supabase secrets set APP_ENV="production"
+supabase secrets set EMAIL_PROVIDER="gmail"
+supabase secrets set APP_BASE_URL="https://tu-app.com"
+supabase secrets set EMAIL_NOTIFICATIONS_DRY_RUN="false"
+supabase secrets set EMAIL_NOTIFICATIONS_BATCH_SIZE="20"
+supabase secrets set EMAIL_NOTIFICATIONS_MAX_ATTEMPTS="5"
+supabase secrets set GOOGLE_WORKSPACE_CLIENT_EMAIL="service-account@tu-proyecto.iam.gserviceaccount.com"
+supabase secrets set GOOGLE_WORKSPACE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+supabase secrets set GOOGLE_WORKSPACE_IMPERSONATED_USER="notificaciones@colegio.edu.co"
+supabase secrets set GOOGLE_WORKSPACE_SCOPE="https://www.googleapis.com/auth/gmail.send"
+```
+
+`EMAIL_FROM` es opcional con Gmail. Si no se define, se usa `GOOGLE_WORKSPACE_IMPERSONATED_USER`.
+
+### 4.1) Alternativa cuando la organizacion bloquea claves de service account
+
+Si Google Cloud muestra `iam.disableServiceAccountKeyCreation`, usa modo `refresh_token`:
+
+```bash
+supabase secrets set EMAIL_PROVIDER="gmail"
+supabase secrets set GOOGLE_WORKSPACE_AUTH_MODE="refresh_token"
+supabase secrets set GOOGLE_WORKSPACE_IMPERSONATED_USER="notificaciones@colegio.edu.co"
+supabase secrets set GOOGLE_OAUTH_CLIENT_ID="xxxxxxxxxx.apps.googleusercontent.com"
+supabase secrets set GOOGLE_OAUTH_CLIENT_SECRET="GOCSPX-xxxxxxxx"
+supabase secrets set GOOGLE_OAUTH_REFRESH_TOKEN="1//0gxxxxxxxx"
+```
+
+En este modo no se usa `GOOGLE_WORKSPACE_PRIVATE_KEY`.
+
+### 5) Desplegar function
+
+```bash
+supabase functions deploy send-message-emails --no-verify-jwt
+```
+
+### 6) Prueba manual de procesamiento
+
+```bash
+curl -X POST "https://<project-ref>.supabase.co/functions/v1/send-message-emails" \
+  -H "Authorization: Bearer <CRON_SECRET>" \
+  -H "Content-Type: application/json"
 ```
 
 ### 2.1) Verificaciones previas en Resend
@@ -152,6 +232,25 @@ curl -X POST "https://<project-ref>.supabase.co/functions/v1/send-message-emails
   -H "Authorization: Bearer <CRON_SECRET>" \
   -H "Content-Type: application/json"
 ```
+
+### 4.1) Automatización con Netlify (incluida en este repo)
+
+Se agrego una Scheduled Function en:
+
+`netlify/functions/run-email-worker.js`
+
+Frecuencia: cada minuto (`*/1 * * * *`).
+
+Configura estas variables en Netlify Site Settings -> Environment Variables:
+
+- `SUPABASE_CRON_SECRET`: mismo valor de `CRON_SECRET` en Supabase.
+- `SUPABASE_PROJECT_REF`: `mkjvprcsakvfqxplqolq` (o tu project ref actual).
+
+Opcional:
+
+- `SUPABASE_FUNCTIONS_BASE_URL`: si quieres forzar base URL custom para las functions.
+
+Luego haz deploy en Netlify para que el schedule quede activo.
 
 ## Pausar rápidamente sin redeploy
 
