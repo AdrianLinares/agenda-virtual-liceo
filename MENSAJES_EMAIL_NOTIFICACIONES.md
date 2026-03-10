@@ -258,14 +258,14 @@ Si Netlify no dispara consistentemente el schedule, este repo incluye:
 
 `/.github/workflows/run-email-worker-cron.yml`
 
-Frecuencia: cada 5 minutos (limitacion minima de GitHub Actions).
+Modo actual: solo manual (`workflow_dispatch`) para evitar duplicados con Netlify.
 
 Configura estos secrets en GitHub (Settings -> Secrets and variables -> Actions):
 
 - `SUPABASE_WORKER_URL`: `https://mkjvprcsakvfqxplqolq.supabase.co/functions/v1/send-message-emails`
 - `SUPABASE_CRON_SECRET`: mismo valor de `CRON_SECRET` en Supabase
 
-Puedes ejecutarlo manualmente desde Actions con `Run workflow` para probar.
+Puedes ejecutarlo manualmente desde Actions con `Run workflow` para probar o para contingencias.
 
 ## Pausar rápidamente sin redeploy
 
