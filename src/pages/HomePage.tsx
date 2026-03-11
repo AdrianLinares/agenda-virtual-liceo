@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { withTimeout } from '@/lib/async-utils'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Calendar, Megaphone, MapPin, Clock, AlertCircle } from 'lucide-react'
+import { Calendar, Megaphone, MapPin, Clock, AlertCircle, ChevronDown } from 'lucide-react'
 
 interface Evento {
     id: string
@@ -162,31 +162,48 @@ export default function HomePage() {
                     {/* Left Sidebar - 1/3 */}
                     <div className="space-y-6">
                         {/* Misión */}
-                        <Card className="shadow-lg">
-                            <CardHeader className="bg-primary text-primary-foreground rounded-t-lg">
-                                <CardTitle className="text-lg">Nuestra Misión</CardTitle>
-                            </CardHeader>
-                            <CardContent className="p-6">
-                                <p className="text-foreground leading-relaxed">
-                                    El liceo ángel de la guarda EU se dedica a brindar una educación integral y de calidad a niños, niñas y jóvenes del municipio de Soacha. Nuestro objetivo es desarrollar mentes críticas, promoviendo un espíritu de investigación y aprendizaje continuo. <br /><br />
-                                    Fomentamos el compromiso con el cuidado del entorno y el fortalecimiento de los valores y principios católicos, así como la comprensión de los fundamentos económicos para una participación efectiva en la economía global. Preparamos a nuestros estudiantes para ser ciudadanos responsables y éticos en una sociedad global.
+                        <Card className="shadow-lg overflow-hidden">
+                            <details className="group">
+                                <summary className="bg-primary text-primary-foreground px-6 py-4 cursor-pointer font-semibold text-lg select-none list-none [&::-webkit-details-marker]:hidden flex items-center justify-between">
+                                    <span>Nuestra Misión</span>
+                                    <ChevronDown className="h-5 w-5 transition-transform duration-200 group-open:rotate-180" />
+                                </summary>
+                                <CardContent className="p-6">
+                                    <p className="text-foreground leading-relaxed">
+                                        El liceo ángel de la guarda EU se dedica a brindar una educación integral y de calidad a niños, niñas y jóvenes del municipio de Soacha. Nuestro objetivo es desarrollar mentes críticas, promoviendo un espíritu de investigación y aprendizaje continuo. <br /><br />
+                                        Fomentamos el compromiso con el cuidado del entorno y el fortalecimiento de los valores y principios católicos, así como la comprensión de los fundamentos económicos para una participación efectiva en la economía global. Preparamos a nuestros estudiantes para ser ciudadanos responsables y éticos en una sociedad global.
 
-                                </p>
-                            </CardContent>
+                                    </p>
+                                </CardContent>
+                            </details>
                         </Card>
 
                         {/* Visión */}
-                        <Card className="shadow-lg">
-                            <CardHeader className="bg-primary text-primary-foreground rounded-t-lg">
-                                <CardTitle className="text-lg">Nuestra Visión</CardTitle>
-                            </CardHeader>
-                            <CardContent className="p-6">
-                                <p className="text-foreground leading-relaxed">
-                                    En el año 2028, el liceo ángel de la guarda eu será una institución destacada por ofrecer una educación integral centrada en la formación en valores, el interés científico, la conciencia ambiental y la comprensión de los principios económicos.<br /><br />
-                                    Nuestro objetivo es formar seres humanos con un alto nivel académico y una sólida base ética que contribuyan a transformar su realidad sociocultural y económica, impactando positivamente en su comunidad y más allá.
+                        <Card className="shadow-lg overflow-hidden">
+                            <details className="group">
+                                <summary className="bg-primary text-primary-foreground px-6 py-4 cursor-pointer font-semibold text-lg select-none list-none [&::-webkit-details-marker]:hidden flex items-center justify-between">
+                                    <span>Nuestra Visión</span>
+                                    <ChevronDown className="h-5 w-5 transition-transform duration-200 group-open:rotate-180" />
+                                </summary>
+                                <CardContent className="p-6">
+                                    <p className="text-foreground leading-relaxed">
+                                        En el año 2028, el liceo ángel de la guarda eu será una institución destacada por ofrecer una educación integral centrada en la formación en valores, el interés científico, la conciencia ambiental y la comprensión de los principios económicos.<br /><br />
+                                        Nuestro objetivo es formar seres humanos con un alto nivel académico y una sólida base ética que contribuyan a transformar su realidad sociocultural y económica, impactando positivamente en su comunidad y más allá.
 
-                                </p>
-                            </CardContent>
+                                    </p>
+                                </CardContent>
+                            </details>
+                        </Card>
+
+                        {/* Manual de convivencia */}
+                        <Card className="shadow-lg overflow-hidden">
+                            <details className="group">
+                                <summary className="bg-primary text-primary-foreground px-6 py-4 cursor-pointer font-semibold text-lg select-none list-none [&::-webkit-details-marker]:hidden flex items-center justify-between">
+                                    <a href="https://www.instagram.com/liceoangeldelaguardaeu?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline' }}>
+                                        Manual de Convivencia
+                                    </a>
+                                </summary>
+                            </details>
                         </Card>
 
                         {/* Información de Contacto */}
@@ -224,12 +241,12 @@ export default function HomePage() {
                                     </div>
                                     <div>
                                         <p className="font-semibold text-foreground">Facebook:</p>
-                                        <a href="https://www.instagram.com/liceoangeldelaguardaeu?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline' }}>
+                                        <a href="https://www.facebook.com/LAG.LiceoAngelDeLaGuardaEU" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline' }}>
                                             Liceo Ángel De La Guarda E.U.
                                         </a>
                                     </div>
                                     <div>
-                                        <p className="font-semibold text-foreground">Horario:</p>
+                                        <p className="font-semibold text-foreground">Horario de atención:</p>
                                         <p>Lunes a Viernes: 7:00 AM - 3:00 PM</p>
                                     </div>
                                 </div>

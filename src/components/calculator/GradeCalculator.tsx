@@ -6,6 +6,7 @@ import type {
     CategoryWeights,
     GradesData,
     GradeResults,
+    RubricsData,
 } from '../../types/grades';
 import { calculateResults } from '../../utils/calculations';
 import { GradeInput } from './GradeInput';
@@ -16,12 +17,18 @@ import { Button } from '../ui/button';
 interface GradeCalculatorProps {
     initialGrades?: GradesData;
     initialWeights?: CategoryWeights;
-    onResultsChange?: (results: GradeResults, grades: GradesData) => void;
+    initialRubrics?: RubricsData;
+    onResultsChange?: (
+        results: GradeResults,
+        grades: GradesData,
+        rubrics: RubricsData
+    ) => void;
 }
 
 export function GradeCalculator({
     initialGrades,
     initialWeights,
+    initialRubrics,
     onResultsChange,
 }: GradeCalculatorProps) {
     const getInitialCount = (category: GradeCategory) => {
@@ -52,6 +59,14 @@ export function GradeCalculator({
         }
     );
 
+    const [rubrics, setRubrics] = useState<RubricsData>(
+        initialRubrics || {
+            A: [],
+            P: [],
+            C: [],
+        }
+    );
+
     const [results, setResults] = useState<GradeResults>({
         averages: { A: 0, P: 0, C: 0 },
         weighted: { A: 0, P: 0, C: 0 },
@@ -63,8 +78,8 @@ export function GradeCalculator({
     useEffect(() => {
         const newResults = calculateResults(grades, weights);
         setResults(newResults);
-        onResultsChange?.(newResults, grades);
-    }, [grades, weights, onResultsChange]);
+        onResultsChange?.(newResults, grades, rubrics);
+    }, [grades, weights, rubrics, onResultsChange]);
 
     const handleCountChange = (category: GradeCategory, count: number) => {
         setGradeCounts((prev) => ({ ...prev, [category]: count }));
@@ -74,6 +89,14 @@ export function GradeCalculator({
             const newGrades = [...prev[category]];
             if (count < newGrades.length) {
                 return { ...prev, [category]: newGrades.slice(0, count) };
+            }
+            return prev;
+        });
+
+        setRubrics((prev) => {
+            const newRubrics = [...prev[category]];
+            if (count < newRubrics.length) {
+                return { ...prev, [category]: newRubrics.slice(0, count) };
             }
             return prev;
         });
@@ -101,6 +124,24 @@ export function GradeCalculator({
             P: [],
             C: [],
         });
+
+        setRubrics({
+            A: [],
+            P: [],
+            C: [],
+        });
+    };
+
+    const handleRubricChange = (
+        category: GradeCategory,
+        index: number,
+        description: string
+    ) => {
+        setRubrics((prev) => {
+            const newRubrics = [...prev[category]];
+            newRubrics[index] = description;
+            return { ...prev, [category]: newRubrics };
+        });
     };
 
     return (
@@ -123,7 +164,9 @@ export function GradeCalculator({
             <GradeTable
                 gradeCounts={gradeCounts}
                 grades={grades}
+                rubrics={rubrics}
                 onGradeChange={handleGradeChange}
+                onRubricChange={handleRubricChange}
             />
 
             <ResultsSection results={results} weights={weights} />

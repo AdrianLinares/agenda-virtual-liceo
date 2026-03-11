@@ -47,3 +47,10 @@ export const categoryLabels: { [key in GradeCategory]: string } = {
 export type GradesData = {
     [key in GradeCategory]: number[];
 };
+
+/**
+ * Descripciones de rubrica agrupadas por categoria
+ */
+export type RubricsData = {
+    [key in GradeCategory]: string[];
+};

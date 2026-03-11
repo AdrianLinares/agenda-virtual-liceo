@@ -1,18 +1,31 @@
 import { AlertCircle } from 'lucide-react';
-import type { GradeCategory, GradeCounts, GradesData } from '../../types/grades';
+import type {
+    GradeCategory,
+    GradeCounts,
+    GradesData,
+    RubricsData,
+} from '../../types/grades';
 import { categoryLabels } from '../../types/grades';
 import { Input } from '../ui/input';
 
 interface GradeTableProps {
     gradeCounts: GradeCounts;
     grades: GradesData;
+    rubrics: RubricsData;
     onGradeChange: (category: GradeCategory, index: number, value: number) => void;
+    onRubricChange: (
+        category: GradeCategory,
+        index: number,
+        description: string
+    ) => void;
 }
 
 export function GradeTable({
     gradeCounts,
     grades,
+    rubrics,
     onGradeChange,
+    onRubricChange,
 }: GradeTableProps) {
     const categories: GradeCategory[] = ['A', 'P', 'C'];
 
@@ -90,6 +103,38 @@ export function GradeTable({
                     </tbody>
                 </table>
             </div>
+
+            <details className="rounded-lg border border-primary/20 bg-muted/30">
+                <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-primary">
+                    Rubrica
+                </summary>
+                <div className="space-y-4 border-t border-primary/20 px-4 py-4">
+                    {categories.map((category) => (
+                        <div key={`rubrica-${category}`} className="rounded-md border bg-background p-3">
+                            <p className="mb-2 text-sm font-semibold text-foreground">
+                                {categoryLabels[category]}
+                            </p>
+                            <div className="space-y-2">
+                                {Array.from({ length: gradeCounts[category] }, (_, i) => (
+                                    <div key={`rubrica-${category}-${i}`} className="grid grid-cols-1 gap-2 md:grid-cols-[64px_1fr] md:items-center">
+                                        <span className="text-sm font-medium text-muted-foreground">
+                                            N{i + 1}
+                                        </span>
+                                        <Input
+                                            type="text"
+                                            value={rubrics[category][i] || ''}
+                                            onChange={(e) =>
+                                                onRubricChange(category, i, e.target.value)
+                                            }
+                                            placeholder={`Descripcion de N${i + 1}`}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </details>
         </div>
     );
 }

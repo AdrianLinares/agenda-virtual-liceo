@@ -13,7 +13,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { AlertCircle, BookOpen, Loader2, TrendingUp, Plus, Pencil, Trash2 } from 'lucide-react'
 import { GradeCalculator } from '@/components/calculator/GradeCalculator'
-import type { CategoryWeights, GradeResults, GradesData } from '@/types/grades'
+import type { CategoryWeights, GradeResults, GradesData, RubricsData } from '@/types/grades'
 import { categoryLabels, type GradeCategory } from '@/types/grades'
 import { sortByGradeAndGroupName } from '@/utils/grade-order'
 
@@ -123,8 +123,10 @@ export default function NotasPage() {
     const [selectedEstudiante, setSelectedEstudiante] = useState<string>('')
     const [calculatedResults, setCalculatedResults] = useState<GradeResults | null>(null)
     const [calculatedGrades, setCalculatedGrades] = useState<GradesData | null>(null)
+    const [calculatedRubrics, setCalculatedRubrics] = useState<RubricsData | null>(null)
     const [calculatorInitialGrades, setCalculatorInitialGrades] = useState<GradesData | undefined>(undefined)
     const [calculatorInitialWeights, setCalculatorInitialWeights] = useState<CategoryWeights | undefined>(undefined)
+    const [calculatorInitialRubrics, setCalculatorInitialRubrics] = useState<RubricsData | undefined>(undefined)
     const [calculatorRenderKey, setCalculatorRenderKey] = useState(0)
     const [editingNotaId, setEditingNotaId] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
@@ -570,21 +572,38 @@ export default function NotasPage() {
             }
 
             // Guardar la nota con los detalles de la calculadora en observaciones
+            const inferWeight = (average: number, weighted: number, fallback: number) => {
+                if (!Number.isFinite(average) || !Number.isFinite(weighted) || average <= 0) return fallback
+                return Number(((weighted / average) * 100).toFixed(2))
+            }
+
+            const weights = {
+                A: inferWeight(calculatedResults.averages.A, calculatedResults.weighted.A, DEFAULT_WEIGHTS.A),
+                P: inferWeight(calculatedResults.averages.P, calculatedResults.weighted.P, DEFAULT_WEIGHTS.P),
+                C: inferWeight(calculatedResults.averages.C, calculatedResults.weighted.C, DEFAULT_WEIGHTS.C),
+            }
+
             const observaciones = JSON.stringify({
                 actitudinal: {
                     promedio: calculatedResults.averages.A,
                     ponderacion: calculatedResults.weighted.A,
-                    notas: calculatedGrades?.A || []
+                    porcentaje: weights.A,
+                    notas: calculatedGrades?.A || [],
+                    rubrica: calculatedRubrics?.A || []
                 },
                 procedimental: {
                     promedio: calculatedResults.averages.P,
                     ponderacion: calculatedResults.weighted.P,
-                    notas: calculatedGrades?.P || []
+                    porcentaje: weights.P,
+                    notas: calculatedGrades?.P || [],
+                    rubrica: calculatedRubrics?.P || []
                 },
                 cognitiva: {
                     promedio: calculatedResults.averages.C,
                     ponderacion: calculatedResults.weighted.C,
-                    notas: calculatedGrades?.C || []
+                    porcentaje: weights.C,
+                    notas: calculatedGrades?.C || [],
+                    rubrica: calculatedRubrics?.C || []
                 }
             })
 
@@ -678,16 +697,23 @@ export default function NotasPage() {
         setSelectedEstudiante('')
         setCalculatedResults(null)
         setCalculatedGrades(null)
+        setCalculatedRubrics(null)
         setCalculatorInitialGrades(undefined)
         setCalculatorInitialWeights(undefined)
+        setCalculatorInitialRubrics(undefined)
         setEditingNotaId(null)
         setEstudiantes([])
         setCalculatorRenderKey((prev) => prev + 1)
     }
 
-    const handleResultsChange = (results: GradeResults, grades: GradesData) => {
+    const handleResultsChange = (
+        results: GradeResults,
+        grades: GradesData,
+        rubrics: RubricsData
+    ) => {
         setCalculatedResults(results)
         setCalculatedGrades(grades)
+        setCalculatedRubrics(rubrics)
     }
 
     const openNewNotaCalculator = () => {
@@ -695,11 +721,12 @@ export default function NotasPage() {
         setShowCalculator(true)
     }
 
-    const parseStoredCalculatorData = (observaciones: string | null): { grades: GradesData; weights: CategoryWeights } => {
+    const parseStoredCalculatorData = (observaciones: string | null): { grades: GradesData; weights: CategoryWeights; rubrics: RubricsData } => {
         const emptyGrades: GradesData = { A: [], P: [], C: [] }
+        const emptyRubrics: RubricsData = { A: [], P: [], C: [] }
 
         if (!observaciones) {
-            return { grades: emptyGrades, weights: DEFAULT_WEIGHTS }
+            return { grades: emptyGrades, weights: DEFAULT_WEIGHTS, rubrics: emptyRubrics }
         }
 
         try {
@@ -708,6 +735,12 @@ export default function NotasPage() {
                 A: Array.isArray(data?.actitudinal?.notas) ? data.actitudinal.notas.filter((n: unknown) => Number.isFinite(Number(n))).map((n: unknown) => Number(n)) : [],
                 P: Array.isArray(data?.procedimental?.notas) ? data.procedimental.notas.filter((n: unknown) => Number.isFinite(Number(n))).map((n: unknown) => Number(n)) : [],
                 C: Array.isArray(data?.cognitiva?.notas) ? data.cognitiva.notas.filter((n: unknown) => Number.isFinite(Number(n))).map((n: unknown) => Number(n)) : [],
+            }
+
+            const rubrics: RubricsData = {
+                A: Array.isArray(data?.actitudinal?.rubrica) ? data.actitudinal.rubrica.map((r: unknown) => String(r ?? '')) : [],
+                P: Array.isArray(data?.procedimental?.rubrica) ? data.procedimental.rubrica.map((r: unknown) => String(r ?? '')) : [],
+                C: Array.isArray(data?.cognitiva?.rubrica) ? data.cognitiva.rubrica.map((r: unknown) => String(r ?? '')) : [],
             }
 
             const inferWeight = (promedio: unknown, ponderacion: unknown, fallback: number) => {
@@ -749,9 +782,9 @@ export default function NotasPage() {
                 }
             }
 
-            return { grades, weights }
+            return { grades, weights, rubrics }
         } catch {
-            return { grades: emptyGrades, weights: DEFAULT_WEIGHTS }
+            return { grades: emptyGrades, weights: DEFAULT_WEIGHTS, rubrics: emptyRubrics }
         }
     }
 
@@ -764,8 +797,10 @@ export default function NotasPage() {
         setSelectedEstudiante(nota.estudiante_id)
         setCalculatedResults(null)
         setCalculatedGrades(parsedData.grades)
+        setCalculatedRubrics(parsedData.rubrics)
         setCalculatorInitialGrades(parsedData.grades)
         setCalculatorInitialWeights(parsedData.weights)
+        setCalculatorInitialRubrics(parsedData.rubrics)
         setCalculatorRenderKey((prev) => prev + 1)
         setShowCalculator(true)
     }
@@ -775,9 +810,11 @@ export default function NotasPage() {
 
         try {
             const data = JSON.parse(observaciones)
+            const { weights, rubrics } = parseStoredCalculatorData(observaciones)
 
             // Verificar si tiene el formato de la calculadora
             if (data.actitudinal && data.procedimental && data.cognitiva) {
+                const formatPercent = (value: number) => `${value.toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1')}%`
                 const categories: Array<{ key: GradeCategory; data: any }> = [
                     { key: 'A', data: data.actitudinal },
                     { key: 'P', data: data.procedimental },
@@ -803,7 +840,7 @@ export default function NotasPage() {
                                     {categories.map(({ key, data }) => (
                                         <tr key={key} className="border-b border-primary/20 hover:bg-white/50 transition-colors">
                                             <td className="py-2 px-3 font-medium text-foreground">
-                                                {categoryLabels[key]}
+                                                {categoryLabels[key]}: {formatPercent(Number.isFinite(Number(data?.porcentaje)) ? Number(data.porcentaje) : weights[key])}
                                             </td>
                                             <td className="py-2 px-3 text-center">
                                                 <div className="flex flex-wrap gap-1 justify-center">
@@ -825,6 +862,40 @@ export default function NotasPage() {
                                             </td>
                                         </tr>
                                     ))}
+                                    <tr>
+                                        <td colSpan={4} className="py-3 px-3">
+                                            <details className="rounded-md border border-primary/20 bg-background">
+                                                <summary className="cursor-pointer select-none px-3 py-2 text-sm font-semibold text-primary">
+                                                    Rúbrica
+                                                </summary>
+                                                <div className="space-y-3 border-t border-primary/20 px-3 py-3">
+                                                    {categories.map(({ key, data }) => (
+                                                        <div key={`rubrica-${key}`} className="rounded-sm bg-muted/50 p-2">
+                                                            <p className="text-sm font-semibold text-foreground mb-1">
+                                                                {categoryLabels[key]}
+                                                            </p>
+                                                            <div className="space-y-1">
+                                                                {Array.from({ length: data?.notas?.length || 0 }, (_, idx) => {
+                                                                    const descripcion = String(
+                                                                        (Array.isArray(data?.rubrica) ? data.rubrica[idx] : undefined) ??
+                                                                        rubrics[key][idx] ??
+                                                                        ''
+                                                                    ).trim()
+
+                                                                    return (
+                                                                        <p key={`rubrica-item-${key}-${idx}`} className="text-xs text-foreground">
+                                                                            <span className="font-semibold mr-1">N{idx + 1}</span>
+                                                                            Descripción: {descripcion || 'Sin descripción'}
+                                                                        </p>
+                                                                    )
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </details>
+                                        </td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </div>
@@ -930,6 +1001,7 @@ export default function NotasPage() {
                                     key={calculatorRenderKey}
                                     initialGrades={calculatorInitialGrades}
                                     initialWeights={calculatorInitialWeights}
+                                    initialRubrics={calculatorInitialRubrics}
                                     onResultsChange={handleResultsChange}
                                 />
                             </div>

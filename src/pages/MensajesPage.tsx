@@ -85,6 +85,43 @@ export default function MensajesPage() {
         }
     }, [profile, tab])
 
+    const allowedRecipientRoles = useMemo(() => {
+        if (!profile?.rol) return null
+        if (profile.rol === 'estudiante') return ['docente']
+        if (profile.rol === 'padre') return ['docente', 'administrativo', 'administrador']
+        return null
+    }, [profile?.rol])
+
+    const categoriaOptions = useMemo(() => {
+        const allOptions = [
+            { value: 'todos', label: 'Todos' },
+            { value: 'administrativo', label: 'Administrativo' },
+            { value: 'docente', label: 'Docente' },
+            { value: 'estudiante', label: 'Estudiante' },
+            { value: 'padre', label: 'Padre/Madre' },
+        ]
+
+        if (!allowedRecipientRoles) return allOptions
+
+        return allOptions.filter((option) => {
+            if (option.value === 'todos') return true
+            if (option.value === 'administrativo') {
+                return (
+                    allowedRecipientRoles.includes('administrativo') ||
+                    allowedRecipientRoles.includes('administrador')
+                )
+            }
+            return allowedRecipientRoles.includes(option.value)
+        })
+    }, [allowedRecipientRoles])
+
+    useEffect(() => {
+        if (!categoriaUsuario || categoriaUsuario === 'todos') return
+        if (categoriaOptions.some((option) => option.value === categoriaUsuario)) return
+        setCategoriaUsuario('')
+        setDestinatarioId('')
+    }, [categoriaUsuario, categoriaOptions])
+
     const loadMensajes = async () => {
         if (!profile) return
 
@@ -140,6 +177,10 @@ export default function MensajesPage() {
 
             const list = items
                 .filter((item) => item.id !== profile.id)
+                .filter((item) => {
+                    if (!allowedRecipientRoles) return true
+                    return allowedRecipientRoles.includes(item.rol)
+                })
                 .map((item) => ({
                     id: item.id,
                     nombre_completo: item.nombre_completo,
@@ -158,6 +199,17 @@ export default function MensajesPage() {
 
         if (!destinatarioId || !asunto.trim() || !contenido.trim()) {
             setError('Completa destinatario, asunto y mensaje')
+            return
+        }
+
+        const selectedRecipient = recipients.find((item) => item.id === destinatarioId)
+        if (!selectedRecipient) {
+            setError('Selecciona un destinatario válido')
+            return
+        }
+
+        if (allowedRecipientRoles && !allowedRecipientRoles.includes(selectedRecipient.rol)) {
+            setError('No tienes permiso para enviar mensajes a ese usuario')
             return
         }
 
@@ -262,6 +314,7 @@ export default function MensajesPage() {
             <div>
                 <h1 className="text-3xl font-bold text-foreground">Mensajes</h1>
                 <p className="text-muted-foreground mt-1">{headerDescription}</p>
+                <p className="text-muted-foreground mt-1">Horarios de respuesta: lunes a viernes 8:00 am a 3:00 pm</p>
             </div>
 
             {error && (
@@ -314,11 +367,11 @@ export default function MensajesPage() {
                                     <SelectValue placeholder="Todos" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="todos">Todos</SelectItem>
-                                    <SelectItem value="administrativo">Administrativo</SelectItem>
-                                    <SelectItem value="docente">Docente</SelectItem>
-                                    <SelectItem value="estudiante">Estudiante</SelectItem>
-                                    <SelectItem value="padre">Padre/Madre</SelectItem>
+                                    {categoriaOptions.map((option) => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                            {option.label}
+                                        </SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
                         </div>
