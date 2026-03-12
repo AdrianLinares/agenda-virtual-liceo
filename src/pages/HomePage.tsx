@@ -199,7 +199,7 @@ export default function HomePage() {
                         <Card className="shadow-lg overflow-hidden">
                             <details className="group">
                                 <summary className="bg-primary text-primary-foreground px-6 py-4 cursor-pointer font-semibold text-lg select-none list-none [&::-webkit-details-marker]:hidden flex items-center justify-between">
-                                    <a href="https://www.instagram.com/liceoangeldelaguardaeu?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline' }}>
+                                    <a href="https://drive.google.com/file/d/1SZOW6iXhpbU6odLgzjI8veDHPZgyh_ax/view?usp=sharing" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline' }}>
                                         Manual de Convivencia
                                     </a>
                                 </summary>
