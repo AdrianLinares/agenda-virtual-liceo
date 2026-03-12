@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import * as XLSX from 'xlsx'
-import { FileSpreadsheet, Loader2, Mail, KeyRound, Pencil, RefreshCw, Trash2, Upload, X } from 'lucide-react'
+import { ClipboardPaste, FileSpreadsheet, Loader2, Mail, KeyRound, Pencil, RefreshCw, Trash2, Upload, X } from 'lucide-react'
 import { useAuthStore } from '@/lib/auth-store'
 import { supabase } from '@/lib/supabase'
 import {
@@ -69,8 +68,6 @@ type BatchUserRow = {
     direccion: string
 }
 
-type BatchMappedField = 'email' | 'nombre_completo' | 'rol' | 'password' | 'telefono' | 'direccion'
-
 type BatchValidationResult = {
     validRows: BatchCreateUserPayload[]
     errors: string[]
@@ -108,28 +105,8 @@ function MsgBanner({ msg }: { msg: Message }) {
 
 const ROLE_OPTIONS: UserRole[] = ['administrador', 'administrativo', 'docente', 'estudiante', 'padre']
 const BATCH_MAX_USERS = 500
-const BATCH_MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024
-const BATCH_ALLOWED_EXTENSIONS = ['.xlsx', '.xls', '.csv']
 
 const BATCH_TEMPLATE_COLUMNS = ['email', 'nombre_completo', 'rol', 'password', 'telefono', 'direccion'] as const
-
-const NORMALIZED_COLUMN_MAP: Record<string, BatchMappedField | null> = {
-    email: 'email',
-    correo: 'email',
-    correoelectronico: 'email',
-    nombre: 'nombre_completo',
-    nombrecompleto: 'nombre_completo',
-    nombres: 'nombre_completo',
-    rol: 'rol',
-    role: 'rol',
-    perfil: 'rol',
-    password: 'password',
-    contrasena: 'password',
-    clave: 'password',
-    telefono: 'telefono',
-    celular: 'telefono',
-    direccion: 'direccion'
-}
 
 const TABS: Array<{ key: Tab; label: string }> = [
     { key: 'usuarios', label: 'Usuarios' },
@@ -140,61 +117,9 @@ const TABS: Array<{ key: Tab; label: string }> = [
 
 const dbClient = supabase as unknown as SupabaseClient<WritableDatabase>
 
-function normalizeHeader(value: string) {
-    return value
-        .trim()
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]/g, '')
-}
-
 function normalizeRole(value: string): UserRole | null {
     const normalized = value.trim().toLowerCase()
     return ROLE_OPTIONS.includes(normalized as UserRole) ? (normalized as UserRole) : null
-}
-
-function normalizeCell(value: unknown) {
-    if (value == null) return ''
-    return String(value).trim()
-}
-
-function formatFileSize(bytes: number) {
-    if (bytes >= 1024 * 1024) {
-        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-    }
-    return `${Math.max(1, Math.round(bytes / 1024))} KB`
-}
-
-function rowHasAnyValue(row: BatchUserRow) {
-    return Boolean(
-        row.email || row.nombre_completo || row.rol || row.password || row.telefono || row.direccion
-    )
-}
-
-function parseSheetRows(rawRows: Record<string, unknown>[]): BatchUserRow[] {
-    return rawRows
-        .map((raw, index) => {
-            const mapped: BatchUserRow = {
-                rowNumber: index + 2,
-                email: '',
-                nombre_completo: '',
-                rol: '',
-                password: '',
-                telefono: '',
-                direccion: ''
-            }
-
-            for (const [key, value] of Object.entries(raw)) {
-                const normalized = normalizeHeader(key)
-                const target = NORMALIZED_COLUMN_MAP[normalized]
-                if (!target) continue
-                mapped[target] = normalizeCell(value)
-            }
-
-            return mapped
-        })
-        .filter(rowHasAnyValue)
 }
 
 function validateBatchRows(
@@ -308,7 +233,7 @@ export default function AdminPage() {
     const [emailForm, setEmailForm] = useState('')
     const [passwordForm, setPasswordForm] = useState('')
     const [batchRows, setBatchRows] = useState<BatchUserRow[]>([])
-    const [batchFileName, setBatchFileName] = useState('')
+    const [batchPasteText, setBatchPasteText] = useState('')
     const [batchDefaultPassword, setBatchDefaultPassword] = useState('')
     const [batchPreviewErrors, setBatchPreviewErrors] = useState<string[]>([])
     const [batchSubmitting, setBatchSubmitting] = useState(false)
@@ -357,6 +282,7 @@ export default function AdminPage() {
     const [asignandoEstudiante, setAsignandoEstudiante] = useState(false)
     const [eliminandoEstudianteId, setEliminandoEstudianteId] = useState<string | null>(null)
     const [estudianteSeleccionado, setEstudianteSeleccionado] = useState('')
+    const [estudianteSearchTerm, setEstudianteSearchTerm] = useState('')
 
     const isAdmin = profile?.rol === 'administrador'
     const existingUserEmails = useMemo(() => new Set(usuarios.map((u) => u.email.trim().toLowerCase())), [usuarios])
@@ -653,6 +579,52 @@ export default function AdminPage() {
         )
     }, [grupos])
 
+    const estudiantesDisponiblesParaAsignar = useMemo(() => {
+        const searchTerm = estudianteSearchTerm.trim().toLowerCase()
+        const disponibles = estudiantes.filter((est) => !estudiantesEnGrupo.some((eg) => eg.id === est.id))
+
+        if (!searchTerm) return disponibles
+
+        return disponibles.filter((estudiante) => {
+            const nombre = estudiante.nombre_completo.toLowerCase()
+            const email = estudiante.email.toLowerCase()
+            return nombre.includes(searchTerm) || email.includes(searchTerm)
+        })
+    }, [estudianteSearchTerm, estudiantes, estudiantesEnGrupo])
+
+    useEffect(() => {
+        if (!selectedGrupoId) return
+
+        const searchTerm = estudianteSearchTerm.trim().toLowerCase()
+        const exactMatch = searchTerm
+            ? estudiantesDisponiblesParaAsignar.find((estudiante) => {
+                const nombre = estudiante.nombre_completo.trim().toLowerCase()
+                const email = estudiante.email.trim().toLowerCase()
+                return nombre === searchTerm || email === searchTerm
+            })
+            : null
+
+        if (exactMatch && estudianteSeleccionado !== exactMatch.id) {
+            setEstudianteSeleccionado(exactMatch.id)
+            return
+        }
+
+        if (estudiantesDisponiblesParaAsignar.length === 1) {
+            const onlyMatchId = estudiantesDisponiblesParaAsignar[0].id
+            if (estudianteSeleccionado !== onlyMatchId) {
+                setEstudianteSeleccionado(onlyMatchId)
+            }
+            return
+        }
+
+        if (
+            estudianteSeleccionado
+            && !estudiantesDisponiblesParaAsignar.some((estudiante) => estudiante.id === estudianteSeleccionado)
+        ) {
+            setEstudianteSeleccionado('')
+        }
+    }, [selectedGrupoId, estudianteSearchTerm, estudiantesDisponiblesParaAsignar, estudianteSeleccionado])
+
     const currentModalTitle = useMemo(() => {
         if (!userModal) return ''
         if (userModal.kind === 'create') return 'Nuevo usuario'
@@ -863,92 +835,73 @@ export default function AdminPage() {
         }
     }
 
-    const onLoadBatchFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0]
-        if (!file) return
-
-        try {
-            setBatchPreviewErrors([])
-            setBatchResult(null)
-            setBatchFileName(file.name)
-
-            const lowerName = file.name.toLowerCase()
-            const hasAllowedExtension = BATCH_ALLOWED_EXTENSIONS.some((ext) => lowerName.endsWith(ext))
-            if (!hasAllowedExtension) {
-                setBatchRows([])
-                setBatchPreviewErrors([
-                    `Tipo de archivo no permitido. Usa: ${BATCH_ALLOWED_EXTENSIONS.join(', ')}.`
-                ])
-                return
+    const parsePastedRows = (text: string): BatchUserRow[] => {
+        const lines = text.trim().split('\n')
+        const rows: BatchUserRow[] = []
+        lines.forEach((line, index) => {
+            let cells = line.split('\t')
+            if (cells.length === 1) cells = line.split(',')
+            cells = cells.map((c) => c.trim().replace(/^"|"$/g, ''))
+            const [email = '', nombre_completo = '', rol = '', password = '', telefono = '', direccion = ''] = cells
+            if (email || nombre_completo || rol) {
+                rows.push({ rowNumber: index + 1, email, nombre_completo, rol, password, telefono, direccion })
             }
+        })
+        return rows
+    }
 
-            if (file.size <= 0) {
-                setBatchRows([])
-                setBatchPreviewErrors(['El archivo está vacío.'])
-                return
-            }
-
-            if (file.size > BATCH_MAX_FILE_SIZE_BYTES) {
-                setBatchRows([])
-                setBatchPreviewErrors([
-                    `El archivo supera el tamaño máximo permitido (${formatFileSize(BATCH_MAX_FILE_SIZE_BYTES)}).`
-                ])
-                return
-            }
-
-            const buffer = await file.arrayBuffer()
-            const workbook = XLSX.read(buffer, { type: 'array' })
-            const firstSheetName = workbook.SheetNames[0]
-
-            if (!firstSheetName) {
-                setBatchRows([])
-                setBatchPreviewErrors(['El archivo no contiene hojas para procesar.'])
-                return
-            }
-
-            const sheet = workbook.Sheets[firstSheetName]
-            const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
-                defval: '',
-                raw: false
-            })
-
-            const parsedRows = parseSheetRows(rawRows)
-            setBatchRows(parsedRows)
-
-            if (parsedRows.length === 0) {
-                setBatchPreviewErrors([
-                    'No se detectaron filas con datos. Verifica encabezados: email, nombre_completo, rol, password, telefono, direccion.'
-                ])
-                return
-            }
-
-            if (parsedRows.length > BATCH_MAX_USERS) {
-                setBatchPreviewErrors([
-                    `El archivo contiene ${parsedRows.length} filas. El máximo por carga es ${BATCH_MAX_USERS}.`
-                ])
-            }
-        } catch (error) {
+    const onPasteTextChange = (text: string) => {
+        setBatchPasteText(text)
+        setBatchResult(null)
+        setBatchPreviewErrors([])
+        if (!text.trim()) {
             setBatchRows([])
-            setBatchPreviewErrors([
-                error instanceof Error ? error.message : 'No se pudo leer el archivo. Revisa que sea .xlsx, .xls o .csv.'
-            ])
-        } finally {
-            event.target.value = ''
+            return
+        }
+        const parsed = parsePastedRows(text)
+        setBatchRows(parsed)
+        if (parsed.length === 0) {
+            setBatchPreviewErrors(['No se detectaron filas con datos. Verifica que uses tabuladores o comas como separadores.'])
+        } else if (parsed.length > BATCH_MAX_USERS) {
+            setBatchPreviewErrors([`El texto contiene ${parsed.length} filas. El máximo por carga es ${BATCH_MAX_USERS}.`])
+        }
+    }
+
+    const onPasteFromClipboard = async () => {
+        try {
+            const text = await navigator.clipboard.readText()
+            onPasteTextChange(text)
+        } catch {
+            usersMessage.show('error', 'No se pudo acceder al portapapeles. Pega el texto manualmente en el área de texto.')
         }
     }
 
     const onSubmitBatchUsers = async () => {
-        if (batchRows.length === 0) {
-            usersMessage.show('error', 'Carga primero un archivo con usuarios.')
+        const rowsSnapshot = [...batchRows]
+        const normalizedDefaultPassword = batchDefaultPassword.trim()
+
+        setBatchPasteText('')
+        setBatchRows([])
+        setBatchDefaultPassword('')
+        setBatchPreviewErrors([])
+        setBatchResult(null)
+
+        if (rowsSnapshot.length === 0) {
+            usersMessage.show('error', 'Pega primero los datos de usuarios desde Excel.')
             return
         }
 
-        if (batchRows.length > BATCH_MAX_USERS) {
-            usersMessage.show('error', `El archivo supera el máximo de ${BATCH_MAX_USERS} usuarios por lote.`)
+        if (normalizedDefaultPassword && normalizedDefaultPassword.length < 6) {
+            usersMessage.show('error', 'La contraseña por defecto debe tener al menos 6 caracteres.')
             return
         }
 
-        const validation = validateBatchRows(batchRows, batchDefaultPassword, existingUserEmails)
+        if (rowsSnapshot.length > BATCH_MAX_USERS) {
+            usersMessage.show('error', `Los datos superan el máximo de ${BATCH_MAX_USERS} usuarios por lote.`)
+            return
+        }
+
+        const validation = validateBatchRows(rowsSnapshot, normalizedDefaultPassword, existingUserEmails)
         setBatchPreviewErrors(validation.errors)
 
         if (validation.validRows.length === 0) {
@@ -956,9 +909,72 @@ export default function AdminPage() {
             return
         }
 
+        const createUsersWithSingleCreateFallback = async (rows: BatchCreateUserPayload[]): Promise<BatchCreateUsersResponse> => {
+            const results: BatchCreateUsersResponse['results'] = []
+
+            for (let index = 0; index < rows.length; index += 1) {
+                const row = rows[index]
+                try {
+                    const created = await adminCreateUser({
+                        email: row.email,
+                        nombre_completo: row.nombre_completo,
+                        rol: row.rol,
+                        password: row.password ?? '',
+                        telefono: row.telefono,
+                        direccion: row.direccion
+                    })
+
+                    results.push({
+                        index,
+                        email: row.email,
+                        status: 'created',
+                        userId: created?.userId
+                    })
+                } catch (error) {
+                    results.push({
+                        index,
+                        email: row.email,
+                        status: 'error',
+                        message: error instanceof Error ? error.message : 'No se pudo crear el usuario'
+                    })
+                }
+            }
+
+            const createdCount = results.filter((item) => item.status === 'created').length
+            const errorCount = results.length - createdCount
+
+            return {
+                message: `Proceso finalizado en modo compatible. Creados: ${createdCount}. Errores: ${errorCount}.`,
+                createdCount,
+                errorCount,
+                total: results.length,
+                results
+            }
+        }
+
         try {
             setBatchSubmitting(true)
-            const response = await adminCreateUsersBatch(validation.validRows, batchDefaultPassword.trim() || undefined)
+            let response: BatchCreateUsersResponse | null = null
+
+            try {
+                response = await adminCreateUsersBatch(validation.validRows, normalizedDefaultPassword || undefined)
+            } catch (error) {
+                const message = error instanceof Error ? error.message : ''
+                const canUseCompatibilityMode =
+                    message.includes('Acción no soportada')
+                    || message.includes('Falta el campo action')
+                    || message.includes('HTTP 400: No se pudo completar la operación administrativa (action: create-batch)')
+                    || message.includes('Edge Function returned a non-2xx status code')
+
+                if (!canUseCompatibilityMode) throw error
+
+                response = await createUsersWithSingleCreateFallback(validation.validRows)
+                usersMessage.show(
+                    'error',
+                    'El endpoint create-batch no respondió correctamente. Se usó modo compatible (creación individual).'
+                )
+            }
+
             if (!response) {
                 throw new Error('La función de carga masiva no devolvió respuesta')
             }
@@ -1319,7 +1335,12 @@ export default function AdminPage() {
     const onAsignarEstudiante = async (e: React.FormEvent) => {
         e.preventDefault()
 
-        if (!estudianteSeleccionado || !selectedGrupoId) {
+        const estudianteId = estudianteSeleccionado
+        const grupoId = selectedGrupoId
+        setEstudianteSearchTerm('')
+        setEstudianteSeleccionado('')
+
+        if (!estudianteId || !grupoId) {
             gruposMessage.show('error', 'Selecciona un estudiante')
             return
         }
@@ -1331,8 +1352,8 @@ export default function AdminPage() {
             const { data: existing } = await dbClient
                 .from('estudiantes_grupos')
                 .select('id')
-                .eq('estudiante_id', estudianteSeleccionado)
-                .eq('grupo_id', selectedGrupoId)
+                .eq('estudiante_id', estudianteId)
+                .eq('grupo_id', grupoId)
                 .eq('estado', 'activo')
                 .single()
 
@@ -1342,8 +1363,8 @@ export default function AdminPage() {
             }
 
             const payload = {
-                estudiante_id: estudianteSeleccionado,
-                grupo_id: selectedGrupoId,
+                estudiante_id: estudianteId,
+                grupo_id: grupoId,
                 año_academico: new Date().getFullYear(),
                 estado: 'activo'
             }
@@ -1351,9 +1372,8 @@ export default function AdminPage() {
             const { error } = await dbClient.from('estudiantes_grupos').insert(payload as never)
             if (error) throw error
 
-            setEstudianteSeleccionado('')
             gruposMessage.show('success', 'Estudiante asignado correctamente')
-            await loadEstudiantesEnGrupo(selectedGrupoId)
+            await loadEstudiantesEnGrupo(grupoId)
         } catch (error) {
             gruposMessage.show('error', error instanceof Error ? error.message : 'No se pudo asignar el estudiante')
         } finally {
@@ -1385,6 +1405,7 @@ export default function AdminPage() {
 
     const handleVerEstudiantes = (grupoId: string) => {
         setSelectedGrupoId(grupoId)
+        setEstudianteSearchTerm('')
         void loadEstudiantesEnGrupo(grupoId)
     }
 
@@ -1392,6 +1413,7 @@ export default function AdminPage() {
         setSelectedGrupoId(null)
         setEstudiantesEnGrupo([])
         setEstudianteSeleccionado('')
+        setEstudianteSearchTerm('')
     }
 
     if (!isAdmin) {
@@ -1430,10 +1452,10 @@ export default function AdminPage() {
             </div>
 
             {activeTab === 'usuarios' && (
-                <section className="space-y-4">
+                <section className="flex flex-col gap-4">
                     <MsgBanner msg={usersMessage.msg} />
 
-                    <Card>
+                    <Card className="order-3">
                         <CardHeader>
                             <div className="flex items-center justify-between gap-3">
                                 <div>
@@ -1581,47 +1603,57 @@ export default function AdminPage() {
                         </CardContent>
                     </Card>
 
-                    <Card>
+                    <Card className="order-1">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <FileSpreadsheet className="h-5 w-5" />
-                                Carga masiva de usuarios (Excel/CSV)
+                                Carga masiva de usuarios (pegar desde Excel)
                             </CardTitle>
                             <CardDescription>
-                                Usa encabezados: {BATCH_TEMPLATE_COLUMNS.join(', ')}. Los campos obligatorios son
-                                `email`, `nombre_completo` y `rol`.
+                                Copia las filas en Excel y pégalas aquí. Orden de columnas:{' '}
+                                <span className="font-mono text-xs">{BATCH_TEMPLATE_COLUMNS.join(' | ')}</span>.
+                                Los campos obligatorios son <span className="font-mono text-xs">email</span>,{' '}
+                                <span className="font-mono text-xs">nombre_completo</span> y{' '}
+                                <span className="font-mono text-xs">rol</span>.
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="grid gap-4 md:grid-cols-2">
-                                <div className="space-y-2">
-                                    <Label htmlFor="batch-users-file">Archivo de usuarios</Label>
-                                    <Input
-                                        id="batch-users-file"
-                                        type="file"
-                                        accept=".xlsx,.xls,.csv"
-                                        onChange={(e) => void onLoadBatchFile(e)}
-                                    />
-                                    {batchFileName && (
-                                        <p className="text-xs text-muted-foreground">Archivo cargado: {batchFileName}</p>
-                                    )}
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <Label htmlFor="batch-paste-area">Datos pegados desde Excel</Label>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => void onPasteFromClipboard()}
+                                    >
+                                        <ClipboardPaste className="h-4 w-4 mr-2" />
+                                        Pegar desde portapapeles
+                                    </Button>
                                 </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="batch-default-password">Contraseña por defecto (opcional)</Label>
-                                    <Input
-                                        id="batch-default-password"
-                                        type="password"
-                                        value={batchDefaultPassword}
-                                        onChange={(e) => setBatchDefaultPassword(e.target.value)}
-                                        placeholder="Se usa cuando una fila no trae password"
-                                    />
-                                </div>
+                                <textarea
+                                    id="batch-paste-area"
+                                    className="w-full h-36 px-3 py-2 rounded-md border bg-background text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-ring"
+                                    placeholder={`Pega aquí los datos copiados de Excel. Una fila por usuario, columnas separadas por tabulador:\n${BATCH_TEMPLATE_COLUMNS.join('\t')}\nejemplo@liceo.edu\tJuan Pérez\testudiante\tPass1234\t3001234567\tCalle 1`}
+                                    value={batchPasteText}
+                                    onChange={(e) => onPasteTextChange(e.target.value)}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="batch-default-password">Contraseña por defecto (opcional)</Label>
+                                <Input
+                                    id="batch-default-password"
+                                    type="password"
+                                    value={batchDefaultPassword}
+                                    onChange={(e) => setBatchDefaultPassword(e.target.value)}
+                                    placeholder="Se usa cuando una fila no trae password"
+                                />
                             </div>
 
                             <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                                 <span>Filas detectadas: {batchRows.length}</span>
                                 <span>Máximo por lote: {BATCH_MAX_USERS}</span>
-                                <span>Tamaño máximo: {formatFileSize(BATCH_MAX_FILE_SIZE_BYTES)}</span>
                             </div>
 
                             {batchPreviewErrors.length > 0 && (
@@ -1694,7 +1726,7 @@ export default function AdminPage() {
                         </CardContent>
                     </Card>
 
-                    <div className="grid gap-6 md:grid-cols-2">
+                    <div className="order-2 grid gap-6 md:grid-cols-2">
                         <Card>
                             <CardHeader>
                                 <CardTitle>Relacionar padre con estudiantes</CardTitle>
@@ -2369,6 +2401,15 @@ export default function AdminPage() {
                                         <h3 className="font-semibold mb-3">Asignar estudiante</h3>
                                         <form onSubmit={onAsignarEstudiante} className="space-y-4">
                                             <div>
+                                                <Label htmlFor="estudiante-search">Buscar estudiante por nombre o email</Label>
+                                                <Input
+                                                    id="estudiante-search"
+                                                    placeholder="Escribe nombre o email del estudiante"
+                                                    value={estudianteSearchTerm}
+                                                    onChange={(e) => setEstudianteSearchTerm(e.target.value)}
+                                                />
+                                            </div>
+                                            <div>
                                                 <Label htmlFor="estudiante-select">Seleccionar estudiante</Label>
                                                 <select
                                                     id="estudiante-select"
@@ -2378,14 +2419,17 @@ export default function AdminPage() {
                                                     required
                                                 >
                                                     <option value="">Seleccionar estudiante</option>
-                                                    {estudiantes
-                                                        .filter((est) => !estudiantesEnGrupo.some((eg) => eg.id === est.id))
-                                                        .map((estudiante) => (
-                                                            <option key={estudiante.id} value={estudiante.id}>
-                                                                {estudiante.nombre_completo} ({estudiante.email})
-                                                            </option>
-                                                        ))}
+                                                    {estudiantesDisponiblesParaAsignar.map((estudiante) => (
+                                                        <option key={estudiante.id} value={estudiante.id}>
+                                                            {estudiante.nombre_completo} ({estudiante.email})
+                                                        </option>
+                                                    ))}
                                                 </select>
+                                                {estudiantesDisponiblesParaAsignar.length === 0 && (
+                                                    <p className="mt-2 text-xs text-muted-foreground">
+                                                        No hay estudiantes disponibles con ese nombre.
+                                                    </p>
+                                                )}
                                             </div>
                                             <Button type="submit" className="w-full" disabled={asignandoEstudiante}>
                                                 {asignandoEstudiante && <Loader2 className="h-4 w-4 animate-spin mr-2" />}

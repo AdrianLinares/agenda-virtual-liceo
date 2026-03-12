@@ -37,7 +37,21 @@ type EdgeError = {
     message?: string
 }
 
-function parseInvokeError(error: unknown, data: unknown, fallback: string) {
+type EdgeInvokeErrorLike = {
+    message?: string
+    context?: {
+        clone?: () => {
+            json?: () => Promise<unknown>
+            text?: () => Promise<string>
+        }
+        json?: () => Promise<unknown>
+        text?: () => Promise<string>
+        status?: number
+        statusText?: string
+    }
+}
+
+function parseInvokeError(error: unknown, data: unknown, fallback: string, extra?: { status?: number; action?: string }) {
     const functionMessage =
         typeof data === 'object' && data !== null && 'error' in data
             ? String((data as EdgeError).error)
@@ -49,11 +63,52 @@ function parseInvokeError(error: unknown, data: unknown, fallback: string) {
         return functionMessage
     }
 
+    const statusPrefix = extra?.status ? `HTTP ${extra.status}: ` : ''
+    const actionSuffix = extra?.action ? ` (action: ${extra.action})` : ''
+
     if (error && typeof error === 'object' && 'message' in error) {
-        return String((error as { message?: string }).message ?? fallback)
+        const raw = String((error as { message?: string }).message ?? fallback)
+        if (raw.includes('non-2xx status code')) {
+            return `${statusPrefix}${fallback}${actionSuffix}`.trim()
+        }
+        return raw
     }
 
-    return fallback
+    return `${statusPrefix}${fallback}${actionSuffix}`.trim()
+}
+
+async function tryReadErrorBody(error: unknown) {
+    const maybeError = error as EdgeInvokeErrorLike | null
+    const context = maybeError?.context
+
+    if (!context) return null
+
+    const cloned = typeof context.clone === 'function' ? context.clone() : null
+    const reader = cloned ?? context
+
+    if (typeof reader.json === 'function') {
+        try {
+            return await reader.json()
+        } catch {
+            // ignore and try text fallback
+        }
+    }
+
+    if (typeof reader.text === 'function') {
+        try {
+            const text = await reader.text()
+            if (!text) return null
+            try {
+                return JSON.parse(text)
+            } catch {
+                return { error: text }
+            }
+        } catch {
+            return null
+        }
+    }
+
+    return null
 }
 
 async function invokeManageUsers<TPayload extends Record<string, unknown>, TResponse>(payload: TPayload) {
@@ -62,7 +117,17 @@ async function invokeManageUsers<TPayload extends Record<string, unknown>, TResp
     })
 
     if (error) {
-        const message = parseInvokeError(error, data, 'No se pudo completar la operación administrativa')
+        const invokeError = error as EdgeInvokeErrorLike
+        const status = invokeError?.context?.status
+        const action =
+            typeof payload.action === 'string'
+                ? payload.action
+                : undefined
+        const errorBody = await tryReadErrorBody(error)
+        const message = parseInvokeError(error, errorBody ?? data, 'No se pudo completar la operación administrativa', {
+            status,
+            action
+        })
         throw new Error(message)
     }
 
