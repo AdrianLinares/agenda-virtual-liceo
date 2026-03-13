@@ -80,6 +80,7 @@ export default function HorariosPage() {
     const [docenteId, setDocenteId] = useState('')
     const [asignacionesGrupo, setAsignacionesGrupo] = useState<AsignacionGrupoOption[]>([])
     const [editAsignacionesGrupo, setEditAsignacionesGrupo] = useState<AsignacionGrupoOption[]>([])
+    const [loadingEditAsignaciones, setLoadingEditAsignaciones] = useState(false)
 
     const [diaSemana, setDiaSemana] = useState(1)
     const [horaInicio, setHoraInicio] = useState('')
@@ -127,11 +128,14 @@ export default function HorariosPage() {
 
     useEffect(() => {
         if (profile && editingHorarioId && editGrupoId) {
+            setLoadingEditAsignaciones(true)
             loadAsignacionesGrupo(editGrupoId)
                 .then((asignaciones) => setEditAsignacionesGrupo(asignaciones))
+                .finally(() => setLoadingEditAsignaciones(false))
             return
         }
 
+        setLoadingEditAsignaciones(false)
         setEditAsignacionesGrupo([])
     }, [profile, editingHorarioId, editGrupoId])
 
@@ -454,6 +458,19 @@ export default function HorariosPage() {
         return asignaturas.filter((asignatura) => asignaturasPermitidas.has(asignatura.id))
     }, [asignaturas, editAsignacionesGrupo, editGrupoId])
 
+    const asignaturasDisponiblesEdicionConSeleccion = useMemo(() => {
+        if (!editAsignaturaId) return asignaturasDisponiblesEdicion
+
+        if (asignaturasDisponiblesEdicion.some((asignatura) => asignatura.id === editAsignaturaId)) {
+            return asignaturasDisponiblesEdicion
+        }
+
+        const asignaturaActual = asignaturas.find((asignatura) => asignatura.id === editAsignaturaId)
+        if (!asignaturaActual) return asignaturasDisponiblesEdicion
+
+        return [asignaturaActual, ...asignaturasDisponiblesEdicion]
+    }, [asignaturas, asignaturasDisponiblesEdicion, editAsignaturaId])
+
     const docentesDisponiblesEdicion = useMemo(() => {
         if (!editGrupoId) return []
 
@@ -469,6 +486,19 @@ export default function HorariosPage() {
 
         return docentes.filter((docente) => docentesPermitidos.has(docente.id))
     }, [docentes, editAsignaturaId, editAsignacionesGrupo, editGrupoId])
+
+    const docentesDisponiblesEdicionConSeleccion = useMemo(() => {
+        if (!editDocenteId) return docentesDisponiblesEdicion
+
+        if (docentesDisponiblesEdicion.some((docente) => docente.id === editDocenteId)) {
+            return docentesDisponiblesEdicion
+        }
+
+        const docenteActual = docentes.find((docente) => docente.id === editDocenteId)
+        if (!docenteActual) return docentesDisponiblesEdicion
+
+        return [docenteActual, ...docentesDisponiblesEdicion]
+    }, [docentes, docentesDisponiblesEdicion, editDocenteId])
 
     useEffect(() => {
         if (asignaturaId && !asignaturasDisponiblesRegistro.some((asignatura) => asignatura.id === asignaturaId)) {
@@ -486,20 +516,22 @@ export default function HorariosPage() {
 
     useEffect(() => {
         if (!editingHorarioId) return
+        if (loadingEditAsignaciones) return
 
-        if (editAsignaturaId && !asignaturasDisponiblesEdicion.some((asignatura) => asignatura.id === editAsignaturaId)) {
+        if (editAsignaturaId && !asignaturasDisponiblesEdicionConSeleccion.some((asignatura) => asignatura.id === editAsignaturaId)) {
             setEditAsignaturaId('')
         }
-    }, [asignaturasDisponiblesEdicion, editAsignaturaId, editingHorarioId])
+    }, [asignaturasDisponiblesEdicionConSeleccion, editAsignaturaId, editingHorarioId, loadingEditAsignaciones])
 
     useEffect(() => {
         if (profile?.rol === 'docente') return
         if (!editingHorarioId) return
+        if (loadingEditAsignaciones) return
 
-        if (editDocenteId && !docentesDisponiblesEdicion.some((docente) => docente.id === editDocenteId)) {
+        if (editDocenteId && !docentesDisponiblesEdicionConSeleccion.some((docente) => docente.id === editDocenteId)) {
             setEditDocenteId('')
         }
-    }, [docentesDisponiblesEdicion, editDocenteId, editingHorarioId, profile?.rol])
+    }, [docentesDisponiblesEdicionConSeleccion, editDocenteId, editingHorarioId, loadingEditAsignaciones, profile?.rol])
 
     return (
         <div className="space-y-6">
@@ -720,7 +752,7 @@ export default function HorariosPage() {
                                                         <SelectValue placeholder="Selecciona asignatura" />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        {asignaturasDisponiblesEdicion.map((asignatura) => (
+                                                        {asignaturasDisponiblesEdicionConSeleccion.map((asignatura) => (
                                                             <SelectItem key={asignatura.id} value={asignatura.id}>
                                                                 {asignatura.nombre}
                                                             </SelectItem>
@@ -753,7 +785,7 @@ export default function HorariosPage() {
                                                         <SelectValue placeholder="Selecciona docente" />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        {docentesDisponiblesEdicion.map((docente) => (
+                                                        {docentesDisponiblesEdicionConSeleccion.map((docente) => (
                                                             <SelectItem key={docente.id} value={docente.id}>
                                                                 {docente.nombre_completo}
                                                             </SelectItem>
