@@ -11,6 +11,8 @@ type QueueRow = {
     attempts: number
 }
 
+const EMAIL_TEMPLATE_VERSION = 'messages-v2-2026-03-12'
+
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -539,6 +541,7 @@ Deno.serve(async (req) => {
             sent: 0,
             failed: 0,
             dryRun,
+            templateVersion: EMAIL_TEMPLATE_VERSION,
         })
     }
 
@@ -644,5 +647,6 @@ Deno.serve(async (req) => {
         googleAuthMode,
         testRecipientOverride,
         maxAttempts,
+        templateVersion: EMAIL_TEMPLATE_VERSION,
     })
 })
