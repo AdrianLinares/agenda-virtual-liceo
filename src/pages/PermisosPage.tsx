@@ -84,6 +84,8 @@ export default function PermisosPage() {
             loadPermisos()
             loadStudents()
         }
+        // Ambas cargas dependen de profile por diseño.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [profile])
 
     const loadPermisos = async () => {
@@ -217,6 +219,7 @@ export default function PermisosPage() {
                 solicitado_por: profile.id,
             } satisfies Database['public']['Tables']['permisos']['Insert']
 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const result: any = await withTimeout((supabase as any)
                 .from('permisos')
                 .insert(payload), 15000, 'Tiempo de espera agotado al registrar el permiso')
@@ -250,6 +253,7 @@ export default function PermisosPage() {
         setSuccess(null)
 
         try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const result: any = await withTimeout((supabase as any)
                 .from('permisos')
                 .update({

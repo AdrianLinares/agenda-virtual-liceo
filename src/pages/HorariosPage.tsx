@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuthStore } from '@/lib/auth-store'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -102,6 +102,32 @@ export default function HorariosPage() {
 
     const canManageHorarios = profile?.rol === 'administrador' || profile?.rol === 'administrativo'
 
+    const loadAsignacionesGrupo = useCallback(async (grupoId: string) => {
+        if (!grupoId || !profile) return []
+
+        try {
+            let query = supabase
+                .from('asignaciones_docentes')
+                .select('asignatura_id, docente_id')
+                .eq('grupo_id', grupoId)
+                .eq('año_academico', 2026)
+
+            if (profile.rol === 'docente') {
+                query = query.eq('docente_id', profile.id)
+            }
+
+            const { data, error } = await query
+
+            if (error) throw error
+
+            return (data || []) as AsignacionGrupoOption[]
+        } catch (err) {
+            console.error('Error loading asignaciones del grupo:', err)
+            setError('Error al cargar asignaturas y docentes del grupo')
+            return []
+        }
+    }, [profile])
+
     useEffect(() => {
         if (profile) {
             loadGrupos()
@@ -114,6 +140,8 @@ export default function HorariosPage() {
         if (profile && selectedGrupo) {
             loadHorarios()
         }
+        // loadHorarios depende de selectedGrupo/profile por diseño.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [profile, selectedGrupo])
 
     useEffect(() => {
@@ -124,7 +152,7 @@ export default function HorariosPage() {
         }
 
         setAsignacionesGrupo([])
-    }, [profile, selectedGrupo])
+    }, [profile, selectedGrupo, loadAsignacionesGrupo])
 
     useEffect(() => {
         if (profile && editingHorarioId && editGrupoId) {
@@ -137,7 +165,7 @@ export default function HorariosPage() {
 
         setLoadingEditAsignaciones(false)
         setEditAsignacionesGrupo([])
-    }, [profile, editingHorarioId, editGrupoId])
+    }, [profile, editingHorarioId, editGrupoId, loadAsignacionesGrupo])
 
     const loadGrupos = async () => {
         try {
@@ -201,32 +229,6 @@ export default function HorariosPage() {
             setDocentes((data || []) as DocenteOption[])
         } catch (err) {
             console.error('Error loading docentes:', err)
-        }
-    }
-
-    const loadAsignacionesGrupo = async (grupoId: string) => {
-        if (!grupoId || !profile) return []
-
-        try {
-            let query = supabase
-                .from('asignaciones_docentes')
-                .select('asignatura_id, docente_id')
-                .eq('grupo_id', grupoId)
-                .eq('año_academico', 2026)
-
-            if (profile.rol === 'docente') {
-                query = query.eq('docente_id', profile.id)
-            }
-
-            const { data, error } = await query
-
-            if (error) throw error
-
-            return (data || []) as AsignacionGrupoOption[]
-        } catch (err) {
-            console.error('Error loading asignaciones del grupo:', err)
-            setError('Error al cargar asignaturas y docentes del grupo')
-            return []
         }
     }
 
@@ -297,6 +299,7 @@ export default function HorariosPage() {
                 año_academico: 2026,
             } satisfies Database['public']['Tables']['horarios']['Insert']
 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (supabase as any)
                 .from('horarios')
                 .insert(payload)
@@ -370,6 +373,7 @@ export default function HorariosPage() {
                 aula: editAula.trim() ? editAula.trim() : null,
             } satisfies Database['public']['Tables']['horarios']['Update']
 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (supabase as any)
                 .from('horarios')
                 .update(payload)
@@ -401,6 +405,7 @@ export default function HorariosPage() {
         setSuccess(null)
 
         try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (supabase as any)
                 .from('horarios')
                 .delete()

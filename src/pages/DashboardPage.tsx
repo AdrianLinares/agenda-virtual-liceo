@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/lib/auth-store'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -37,6 +37,32 @@ export default function DashboardPage() {
   const [citacionesProximas, setCitacionesProximas] = useState(0)
   const [loadingCitaciones, setLoadingCitaciones] = useState(true)
 
+  const loadMensajesSinLeer = useCallback(async () => {
+    if (!profile) {
+      setMensajesSinLeer(0)
+      setLoadingMensajesSinLeer(false)
+      return
+    }
+
+    setLoadingMensajesSinLeer(true)
+
+    try {
+      const { count, error } = await supabase
+        .from('mensajes')
+        .select('id', { count: 'exact', head: true })
+        .eq('destinatario_id', profile.id)
+        .eq('estado', 'enviado')
+
+      if (error) throw error
+      setMensajesSinLeer(count ?? 0)
+    } catch (error) {
+      console.error('Error cargando mensajes sin leer:', error)
+      setMensajesSinLeer(0)
+    } finally {
+      setLoadingMensajesSinLeer(false)
+    }
+  }, [profile])
+
   useEffect(() => {
     console.log('DashboardPage - User:', user)
     console.log('DashboardPage - Profile:', profile)
@@ -46,7 +72,7 @@ export default function DashboardPage() {
     loadHorariosCount()
     loadMensajesSinLeer()
     loadCitacionesProximas()
-  }, [user, profile])
+  }, [user, profile, loadMensajesSinLeer])
 
   const loadEventos = async () => {
     try {
@@ -85,32 +111,6 @@ export default function DashboardPage() {
       console.error('Error cargando anuncios:', error)
     } finally {
       setLoadingAnuncios(false)
-    }
-  }
-
-  const loadMensajesSinLeer = async () => {
-    if (!profile) {
-      setMensajesSinLeer(0)
-      setLoadingMensajesSinLeer(false)
-      return
-    }
-
-    setLoadingMensajesSinLeer(true)
-
-    try {
-      const { count, error } = await supabase
-        .from('mensajes')
-        .select('id', { count: 'exact', head: true })
-        .eq('destinatario_id', profile.id)
-        .eq('estado', 'enviado')
-
-      if (error) throw error
-      setMensajesSinLeer(count ?? 0)
-    } catch (error) {
-      console.error('Error cargando mensajes sin leer:', error)
-      setMensajesSinLeer(0)
-    } finally {
-      setLoadingMensajesSinLeer(false)
     }
   }
 

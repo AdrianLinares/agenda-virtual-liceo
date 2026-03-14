@@ -37,8 +37,9 @@ export default function RestablecerContrasenaPage() {
             setTimeout(() => {
                 navigate('/login')
             }, 1500)
-        } catch (err: any) {
-            setError(err.message || 'No se pudo restablecer la contraseña')
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'No se pudo restablecer la contraseña'
+            setError(message)
         }
     }
 

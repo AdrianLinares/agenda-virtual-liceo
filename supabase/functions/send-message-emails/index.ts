@@ -277,8 +277,6 @@ function renderNotificationEmail(
 }
 
 type ProviderConfig = {
-    provider: 'resend' | 'gmail'
-    resendApiKey: string | null
     emailFrom: string | null
     googleAuthMode: 'service_account' | 'refresh_token'
     googleServiceAccountEmail: string | null
@@ -306,68 +304,6 @@ async function sendEmailWithProvider(
     }
 
     const rendered = renderNotificationEmail(row, appBaseUrl, testRecipientOverride)
-
-    if (config.provider === 'resend') {
-        if (!config.resendApiKey) {
-            return {
-                ok: false,
-                providerMessageId: null,
-                error: 'RESEND_API_KEY no configurada',
-            }
-        }
-
-        if (!config.emailFrom) {
-            return {
-                ok: false,
-                providerMessageId: null,
-                error: 'EMAIL_FROM no configurado',
-            }
-        }
-
-        const response = await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${config.resendApiKey}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                from: config.emailFrom,
-                to: [rendered.emailDestino],
-                subject: rendered.subject,
-                text: rendered.text,
-                html: rendered.html,
-            }),
-        })
-
-        let responseJson: Record<string, unknown> | null = null
-        try {
-            responseJson = (await response.json()) as Record<string, unknown>
-        } catch {
-            responseJson = null
-        }
-
-        if (!response.ok) {
-            const responseError =
-                (responseJson && typeof responseJson.message === 'string' && responseJson.message) ||
-                (responseJson && typeof responseJson.error === 'string' && responseJson.error) ||
-                `Resend error HTTP ${response.status}`
-
-            return {
-                ok: false,
-                providerMessageId: null,
-                error: responseError,
-            }
-        }
-
-        const providerMessageId =
-            responseJson && typeof responseJson.id === 'string' ? responseJson.id : `resend-${row.id}`
-
-        return {
-            ok: true,
-            providerMessageId,
-            error: null,
-        }
-    }
 
     try {
         let accessToken: string
@@ -501,8 +437,6 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: 'Configuración de Supabase incompleta en el servidor' }, 500)
     }
 
-    const resendApiKey = Deno.env.get('RESEND_API_KEY') ?? Deno.env.get('EMAIL_PROVIDER_API_KEY')
-    const emailProvider = (Deno.env.get('EMAIL_PROVIDER') ?? 'resend').trim().toLowerCase()
     const emailFrom = Deno.env.get('EMAIL_FROM')
     const googleAuthMode = (Deno.env.get('GOOGLE_WORKSPACE_AUTH_MODE') ?? 'service_account').trim().toLowerCase()
     const googleServiceAccountEmail = Deno.env.get('GOOGLE_WORKSPACE_CLIENT_EMAIL')?.trim() ?? null
@@ -517,10 +451,6 @@ Deno.serve(async (req) => {
     const testRecipientOverride = Deno.env.get('EMAIL_TEST_RECIPIENT')?.trim().toLowerCase() || null
     const maxBatch = parsePositiveInteger(Deno.env.get('EMAIL_NOTIFICATIONS_BATCH_SIZE'), 20)
     const maxAttempts = parsePositiveInteger(Deno.env.get('EMAIL_NOTIFICATIONS_MAX_ATTEMPTS'), 5)
-
-    if (emailProvider !== 'resend' && emailProvider !== 'gmail') {
-        return jsonResponse({ error: `EMAIL_PROVIDER inválido: ${emailProvider}. Usa 'resend' o 'gmail'.` }, 500)
-    }
 
     if (googleAuthMode !== 'service_account' && googleAuthMode !== 'refresh_token') {
         return jsonResponse({ error: `GOOGLE_WORKSPACE_AUTH_MODE inválido: ${googleAuthMode}. Usa 'service_account' o 'refresh_token'.` }, 500)
@@ -582,8 +512,6 @@ Deno.serve(async (req) => {
         }
 
         const result = await sendEmailWithProvider(row, appBaseUrl, dryRun, testRecipientOverride, {
-            provider: emailProvider,
-            resendApiKey,
             emailFrom,
             googleAuthMode,
             googleServiceAccountEmail,
@@ -643,7 +571,7 @@ Deno.serve(async (req) => {
         failed,
         skipped,
         dryRun,
-        provider: emailProvider,
+        provider: 'gmail',
         googleAuthMode,
         testRecipientOverride,
         maxAttempts,

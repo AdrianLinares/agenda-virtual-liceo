@@ -140,6 +140,8 @@ export default function NotasPage() {
         if (selectedPeriodo && profile) {
             loadNotas()
         }
+        // loadNotas depende de filtros/periodo/profile por diseño.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedPeriodo, profile, viewGrupo, viewAsignatura, viewEstudiante])
 
     // Cargar grupos y asignaturas asignadas al docente
@@ -147,6 +149,8 @@ export default function NotasPage() {
         if (profile?.rol === 'docente' && showCalculator) {
             loadDocenteAsignaciones()
         }
+        // Carga dependiente de perfil docente y apertura de calculadora.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [profile, showCalculator])
 
     useEffect(() => {
@@ -160,6 +164,8 @@ export default function NotasPage() {
         if (selectedGrupo) {
             loadEstudiantes()
         }
+        // Carga dependiente de grupo seleccionado.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedGrupo])
 
     const loadPeriodos = async () => {
@@ -477,6 +483,7 @@ export default function NotasPage() {
             const asignaturasMap = new Map<string, Asignatura>()
             const asignacionesPermitidas: AsignacionDocente[] = []
 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             asignaciones?.forEach((asig: any) => {
                 if (asig.grupo) {
                     gruposMap.set(asig.grupo.id, {
@@ -618,6 +625,7 @@ export default function NotasPage() {
             }
 
             const { error } = editingNotaId
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 ? await (supabase as any)
                     .from('notas')
                     .update(notaData)
@@ -625,6 +633,7 @@ export default function NotasPage() {
                     .eq('docente_id', profile.id)
                 : await supabase
                     .from('notas')
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     .insert(notaData as any)
 
             if (error) throw error
@@ -668,6 +677,7 @@ export default function NotasPage() {
         setError(null)
 
         try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (supabase as any)
                 .from('notas')
                 .delete()
@@ -815,6 +825,7 @@ export default function NotasPage() {
             // Verificar si tiene el formato de la calculadora
             if (data.actitudinal && data.procedimental && data.cognitiva) {
                 const formatPercent = (value: number) => `${value.toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1')}%`
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const categories: Array<{ key: GradeCategory; data: any }> = [
                     { key: 'A', data: data.actitudinal },
                     { key: 'P', data: data.procedimental },

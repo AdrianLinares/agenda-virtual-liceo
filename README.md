@@ -182,11 +182,11 @@ Padre:
 
 Recuerda ejecutar el UPDATE para asignar los roles después de crear cada usuario.
 
-## 📥 Carga Masiva De Usuarios (Excel/CSV)
+## 📥 Carga Masiva De Usuarios (Pegar Desde Excel)
 
 El panel de administración incluye una opción para crear usuarios en lote desde la pestaña **Usuarios**.
 
-Formato recomendado de columnas (encabezados en la primera fila):
+Formato de columnas esperado (encabezados en la primera fila):
 
 ```text
 email,nombre_completo,rol,password,telefono,direccion
@@ -199,21 +199,17 @@ Reglas:
 - `password` puede venir por fila o definirse una contraseña por defecto en la UI
 - Contraseña mínima: 6 caracteres
 - Máximo por lote: 500 usuarios
-- Soporta archivos `.xlsx`, `.xls` y `.csv`
+- El ingreso se hace pegando filas desde Excel/Google Sheets en la interfaz
 
-Ejemplo:
+Ejemplo (filas en hoja de cálculo):
 
-```csv
+```text
 email,nombre_completo,rol,password,telefono,direccion
 estudiante1@liceoag.com,Mariana Perez,estudiante,Estud123!,3001112233,Cra 10 # 12-30
 padre1@liceoag.com,Carlos Perez,padre,,3005557788,Cra 10 # 12-30
 ```
 
 En el ejemplo anterior, el segundo usuario usará la contraseña por defecto configurada en la carga masiva.
-
-Tambien puedes usar la plantilla incluida en el repositorio: `usuarios_batch_template.csv`.
-Si solo vas a registrar estudiantes y padres, usa: `usuarios_batch_estudiantes_padres_template.csv`.
-Versiones vacias (solo encabezados) para produccion: `usuarios_batch_template_empty.csv` y `usuarios_batch_estudiantes_padres_template_empty.csv`.
 
 ## 📱 Roles y Permisos
 
@@ -315,17 +311,40 @@ Cambios relevantes recientes:
 5. Aplicar migraciones SQL pendientes de `migrations/` en Supabase.
 6. Validar login, navegación por rutas internas y permisos por rol.
 
-## ⚠️ Nota de Seguridad (Dependencias)
-
-- Actualmente `xlsx@0.18.5` mantiene advisories HIGH sin parche oficial disponible en npm.
-- Mitigación vigente: carga de archivos restringida a administradores y validaciones de archivo en UI.
-- Recomendación: monitorear una versión corregida de `xlsx` para actualizar inmediatamente.
-
 ## 📧 Notificaciones por Correo para Mensajes
 
-Se dejó preparada una infraestructura base (apagada por defecto) para notificar por correo cuando se envían mensajes internos.
+La notificación por correo de mensajes internos se procesa con Google Workspace Gmail API desde la Edge Function `send-message-emails`.
 
-Revisa la guía de activación en [MENSAJES_EMAIL_NOTIFICACIONES.md](MENSAJES_EMAIL_NOTIFICACIONES.md).
+Checklist de secretos en Supabase para producción:
+
+1. `CRON_SECRET` (obligatorio en producción para autorizar el worker)
+2. `APP_ENV=production`
+3. `APP_BASE_URL=https://tu-dominio`
+4. `EMAIL_FROM=Agenda Virtual <notificaciones@tu-dominio>` (opcional, con fallback al usuario impersonado)
+5. `EMAIL_NOTIFICATIONS_DRY_RUN=false`
+6. `EMAIL_NOTIFICATIONS_BATCH_SIZE=20`
+7. `EMAIL_NOTIFICATIONS_MAX_ATTEMPTS=5`
+
+Autenticación Gmail (elige un modo):
+
+1. Modo service account
+   - `GOOGLE_WORKSPACE_AUTH_MODE=service_account`
+   - `GOOGLE_WORKSPACE_CLIENT_EMAIL=service-account@proyecto.iam.gserviceaccount.com`
+   - `GOOGLE_WORKSPACE_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----...`
+   - `GOOGLE_WORKSPACE_IMPERSONATED_USER=notificaciones@tu-dominio`
+   - `GOOGLE_WORKSPACE_SCOPE=https://www.googleapis.com/auth/gmail.send`
+2. Modo refresh token
+   - `GOOGLE_WORKSPACE_AUTH_MODE=refresh_token`
+   - `GOOGLE_OAUTH_CLIENT_ID=...`
+   - `GOOGLE_OAUTH_CLIENT_SECRET=...`
+   - `GOOGLE_OAUTH_REFRESH_TOKEN=...`
+   - `GOOGLE_WORKSPACE_IMPERSONATED_USER=notificaciones@tu-dominio`
+
+Checklist de activación:
+
+1. Desplegar `send-message-emails` en Supabase Functions.
+2. Activar el flag `mensajes_email_notificaciones` en base de datos.
+3. Configurar Netlify Scheduled Function (`netlify/functions/run-email-worker.js`) con `SUPABASE_CRON_SECRET`.
 
 ## 🤝 Contribuir
 

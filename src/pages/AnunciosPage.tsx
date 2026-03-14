@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { useAuthStore } from '@/lib/auth-store'
 import { supabase } from '@/lib/supabase'
+import type { Database } from '@/types/database.types'
 import { withTimeout } from '@/lib/async-utils'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -34,6 +36,19 @@ const DESTINATARIOS = [
     { value: 'administrador', label: 'Administradores' },
 ]
 
+type TableWithRelationships<T> = T & { Relationships: [] }
+
+type WritableDatabase = {
+    public: {
+        Tables: {
+            [K in keyof Database['public']['Tables']]: TableWithRelationships<Database['public']['Tables'][K]>
+        }
+        Enums: Database['public']['Enums']
+    }
+}
+
+const dbClient = supabase as unknown as SupabaseClient<WritableDatabase>
+
 export default function AnunciosPage() {
     const { profile } = useAuthStore()
     const [anuncios, setAnuncios] = useState<Anuncio[]>([])
@@ -53,20 +68,14 @@ export default function AnunciosPage() {
     const isStaff = profile?.rol === 'administrador' || profile?.rol === 'administrativo' || profile?.rol === 'docente'
     const canViewAll = profile?.rol === 'administrador' || profile?.rol === 'administrativo'
 
-    useEffect(() => {
-        if (profile) {
-            loadAnuncios()
-        }
-    }, [profile])
-
-    const loadAnuncios = async () => {
+    const loadAnuncios = useCallback(async () => {
         if (!profile) return
 
         setLoading(true)
         setError(null)
 
         try {
-            let query = supabase
+            let query = dbClient
                 .from('anuncios')
                 .select(`
           *,
@@ -96,7 +105,13 @@ export default function AnunciosPage() {
         } finally {
             setLoading(false)
         }
-    }
+    }, [canViewAll, profile])
+
+    useEffect(() => {
+        if (profile) {
+            void loadAnuncios()
+        }
+    }, [loadAnuncios, profile])
 
     const resetForm = () => {
         setTitulo('')
@@ -159,19 +174,21 @@ export default function AnunciosPage() {
             let error = null
 
             if (editingId) {
-                const result: any = await withTimeout((supabase as any)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const result = await withTimeout((dbClient as any)
                     .from('anuncios')
                     .update(payload)
-                    .eq('id', editingId), 15000, 'Tiempo de espera agotado al actualizar el anuncio')
+                    .eq('id', editingId), 15000, 'Tiempo de espera agotado al actualizar el anuncio') as { error: Error | null }
                 error = result.error
             } else {
-                const result: any = await withTimeout((supabase as any)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const result = await withTimeout((dbClient as any)
                     .from('anuncios')
                     .insert({
                         ...payload,
                         autor_id: profile.id,
                         fecha_publicacion: new Date().toISOString(),
-                    }), 15000, 'Tiempo de espera agotado al publicar el anuncio')
+                    }), 15000, 'Tiempo de espera agotado al publicar el anuncio') as { error: Error | null }
                 error = result.error
             }
 
@@ -209,10 +226,11 @@ export default function AnunciosPage() {
         setSuccess(null)
 
         try {
-            const result: any = await withTimeout((supabase as any)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const result = await withTimeout((dbClient as any)
                 .from('anuncios')
                 .delete()
-                .eq('id', anuncioId), 15000, 'Tiempo de espera agotado al eliminar el anuncio')
+                .eq('id', anuncioId), 15000, 'Tiempo de espera agotado al eliminar el anuncio') as { error: Error | null }
             const error = result?.error
 
             if (error) throw error
@@ -222,11 +240,15 @@ export default function AnunciosPage() {
             }
 
             setAnuncios((prev) => prev.filter((item) => item.id !== anuncioId))
-            const verification: any = await withTimeout((supabase as any)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const verification = await withTimeout((dbClient as any)
                 .from('anuncios')
                 .select('id')
                 .eq('id', anuncioId)
-                .maybeSingle(), 15000, 'Tiempo de espera agotado al verificar eliminación del anuncio')
+                .maybeSingle(), 15000, 'Tiempo de espera agotado al verificar eliminación del anuncio') as {
+                    error: Error | null
+                    data: { id?: string } | null
+                }
 
             if (verification?.error) {
                 throw verification.error

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { useAuthStore } from '@/lib/auth-store'
 import { supabase } from '@/lib/supabase'
 import type { Database } from '@/types/database.types'
@@ -70,6 +71,44 @@ interface GrupoRecordFilterOption {
     } | null
 }
 
+interface AsignacionAsignaturaRow {
+    asignatura: {
+        id: string
+        nombre: string
+        codigo: string | null
+    } | null
+}
+
+interface AsignacionGrupoRow {
+    grupo: {
+        id: string
+        nombre: string
+        grado: {
+            nombre: string
+        } | null
+    } | null
+}
+
+interface EstudianteGrupoRow {
+    estudiante: {
+        id: string
+        nombre_completo: string
+    } | null
+}
+
+type TableWithRelationships<T> = T & { Relationships: [] }
+
+type WritableDatabase = {
+    public: {
+        Tables: {
+            [K in keyof Database['public']['Tables']]: TableWithRelationships<Database['public']['Tables'][K]>
+        }
+        Enums: Database['public']['Enums']
+    }
+}
+
+const dbClient = supabase as unknown as SupabaseClient<WritableDatabase>
+
 export default function AsistenciaPage() {
     const { profile } = useAuthStore()
     const [selectedDate, setSelectedDate] = useState<string>(() => {
@@ -98,62 +137,14 @@ export default function AsistenciaPage() {
     const isStaff = profile?.rol === 'administrador' || profile?.rol === 'administrativo' || profile?.rol === 'docente'
     const canFilterRecordsByGrupo = profile?.rol === 'administrador' || profile?.rol === 'administrativo'
 
-    useEffect(() => {
-        if (profile) {
-            loadAsistencias()
-        }
-    }, [profile, selectedDate, recordGroupFilter])
-
-    useEffect(() => {
-        if (canFilterRecordsByGrupo) {
-            loadRecordGroupOptions()
-            return
-        }
-
-        setRecordGroupFilter('all')
-        setRecordGroupOptions([])
-    }, [canFilterRecordsByGrupo])
-
-    useEffect(() => {
-        if (profile && isStaff) {
-            loadAsignaturasForRegistro()
-        }
-    }, [profile, isStaff])
-
-    useEffect(() => {
-        if (!isStaff) return
-
-        setSelectedGrupo('')
-        setStudents([])
-        setSelectedStudent('')
-
-        if (selectedAsignatura) {
-            loadGruposForAsignatura()
-        } else {
-            setGrupos([])
-        }
-    }, [selectedAsignatura, isStaff])
-
-    useEffect(() => {
-        if (!isStaff) return
-
-        setSelectedStudent('')
-
-        if (selectedGrupo) {
-            loadStudentsForGrupo()
-        } else {
-            setStudents([])
-        }
-    }, [selectedGrupo, isStaff])
-
-    const loadAsistencias = async () => {
+    const loadAsistencias = useCallback(async () => {
         if (!profile) return
 
         setLoading(true)
         setError(null)
 
         try {
-            let query = supabase
+            let query = dbClient
                 .from('asistencias')
                 .select(`
           *,
@@ -167,7 +158,7 @@ export default function AsistenciaPage() {
             if (profile.rol === 'estudiante') {
                 query = query.eq('estudiante_id', profile.id)
             } else if (profile.rol === 'padre') {
-                const { data: hijos } = await supabase
+                const { data: hijos } = await dbClient
                     .from('padres_estudiantes')
                     .select('estudiante_id')
                     .eq('padre_id', profile.id)
@@ -184,7 +175,7 @@ export default function AsistenciaPage() {
             } else if (profile.rol === 'docente') {
                 query = query.eq('registrado_por', profile.id)
             } else if (profile.rol === 'administrador' || profile.rol === 'administrativo') {
-                const { data: docentes, error: docentesError } = await supabase
+                const { data: docentes, error: docentesError } = await dbClient
                     .from('profiles')
                     .select('id')
                     .eq('rol', 'docente')
@@ -217,11 +208,17 @@ export default function AsistenciaPage() {
         } finally {
             setLoading(false)
         }
-    }
+    }, [profile, recordGroupFilter, selectedDate])
 
-    const loadRecordGroupOptions = async () => {
+    useEffect(() => {
+        if (profile) {
+            void loadAsistencias()
+        }
+    }, [loadAsistencias, profile])
+
+    const loadRecordGroupOptions = useCallback(async () => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await dbClient
                 .from('grupos')
                 .select('id, nombre, grado:grado_id (nombre)')
                 .eq('año_academico', 2026)
@@ -244,15 +241,15 @@ export default function AsistenciaPage() {
             console.error('Error loading group filter options:', err)
             setError('Error al cargar grupos para filtrar asistencias')
         }
-    }
+    }, [])
 
-    const loadAsignaturasForRegistro = async () => {
+    const loadAsignaturasForRegistro = useCallback(async () => {
         if (!profile) return
 
         try {
             setError(null)
             if (profile.rol === 'docente') {
-                const { data: asignaciones, error: asignacionesError } = await supabase
+                const { data: asignaciones, error: asignacionesError } = await dbClient
                     .from('asignaciones_docentes')
                     .select('asignatura:asignatura_id (id, nombre, codigo)')
                     .eq('docente_id', profile.id)
@@ -261,7 +258,7 @@ export default function AsistenciaPage() {
                 if (asignacionesError) throw asignacionesError
 
                 const map = new Map<string, AsignaturaOption>()
-                    ; (asignaciones || []).forEach((row: any) => {
+                    ; (asignaciones as AsignacionAsignaturaRow[] | null || []).forEach((row) => {
                         if (row.asignatura?.id) {
                             map.set(row.asignatura.id, {
                                 id: row.asignatura.id,
@@ -276,7 +273,7 @@ export default function AsistenciaPage() {
                 return
             }
 
-            const { data, error } = await supabase
+            const { data, error } = await dbClient
                 .from('asignaturas')
                 .select('id, nombre, codigo')
                 .order('nombre', { ascending: true })
@@ -288,15 +285,15 @@ export default function AsistenciaPage() {
             console.error('Error loading asignaturas:', err)
             setError('Error al cargar asignaturas')
         }
-    }
+    }, [profile])
 
-    const loadGruposForAsignatura = async () => {
+    const loadGruposForAsignatura = useCallback(async () => {
         if (!profile || !selectedAsignatura) return
 
         try {
             setError(null)
 
-            let query = supabase
+            let query = dbClient
                 .from('asignaciones_docentes')
                 .select('grupo:grupo_id (id, nombre, grado:grado_id (nombre))')
                 .eq('asignatura_id', selectedAsignatura)
@@ -311,7 +308,7 @@ export default function AsistenciaPage() {
             if (error) throw error
 
             const gruposMap = new Map<string, GrupoOption>()
-                ; (data || []).forEach((row: any) => {
+                ; (data as AsignacionGrupoRow[] | null || []).forEach((row) => {
                     if (row.grupo?.id) {
                         gruposMap.set(row.grupo.id, {
                             id: row.grupo.id,
@@ -332,15 +329,15 @@ export default function AsistenciaPage() {
             console.error('Error loading grupos:', err)
             setError('Error al cargar grupos para la asignatura')
         }
-    }
+    }, [profile, selectedAsignatura])
 
-    const loadStudentsForGrupo = async () => {
+    const loadStudentsForGrupo = useCallback(async () => {
         if (!selectedGrupo) return
 
         try {
             setError(null)
 
-            const { data, error } = await supabase
+            const { data, error } = await dbClient
                 .from('estudiantes_grupos')
                 .select('estudiante:estudiante_id (id, nombre_completo)')
                 .eq('año_academico', 2026)
@@ -348,10 +345,10 @@ export default function AsistenciaPage() {
 
             if (error) throw error
 
-            const mapped = (data || [])
-                .map((row: any) => ({
-                    estudiante_id: row.estudiante?.id as string,
-                    nombre_completo: row.estudiante?.nombre_completo as string,
+            const mapped = ((data as EstudianteGrupoRow[] | null) || [])
+                .map((row) => ({
+                    estudiante_id: row.estudiante?.id ?? '',
+                    nombre_completo: row.estudiante?.nombre_completo ?? '',
                 }))
                 .filter((row) => row.estudiante_id)
                 .sort((a, b) => a.nombre_completo.localeCompare(b.nombre_completo))
@@ -361,7 +358,49 @@ export default function AsistenciaPage() {
             console.error('Error loading students:', err)
             setError('Error al cargar estudiantes')
         }
-    }
+    }, [selectedGrupo])
+
+    useEffect(() => {
+        if (canFilterRecordsByGrupo) {
+            void loadRecordGroupOptions()
+            return
+        }
+
+        setRecordGroupFilter('all')
+        setRecordGroupOptions([])
+    }, [canFilterRecordsByGrupo, loadRecordGroupOptions])
+
+    useEffect(() => {
+        if (profile && isStaff) {
+            void loadAsignaturasForRegistro()
+        }
+    }, [isStaff, loadAsignaturasForRegistro, profile])
+
+    useEffect(() => {
+        if (!isStaff) return
+
+        setSelectedGrupo('')
+        setStudents([])
+        setSelectedStudent('')
+
+        if (selectedAsignatura) {
+            void loadGruposForAsignatura()
+        } else {
+            setGrupos([])
+        }
+    }, [isStaff, loadGruposForAsignatura, selectedAsignatura])
+
+    useEffect(() => {
+        if (!isStaff) return
+
+        setSelectedStudent('')
+
+        if (selectedGrupo) {
+            void loadStudentsForGrupo()
+        } else {
+            setStudents([])
+        }
+    }, [isStaff, loadStudentsForGrupo, selectedGrupo])
 
     const handleCreateAsistencia = async () => {
         if (!profile) return
@@ -383,7 +422,8 @@ export default function AsistenciaPage() {
         setSuccess(null)
 
         try {
-            const { error } = await (supabase as any)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { error } = await (dbClient as any)
                 .from('asistencias')
                 .insert({
                     estudiante_id: student.estudiante_id,
@@ -420,7 +460,8 @@ export default function AsistenciaPage() {
         setSuccess(null)
 
         try {
-            const { error } = await (supabase as any)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { error } = await (dbClient as any)
                 .from('asistencias')
                 .update({ estado } as Database['public']['Tables']['asistencias']['Update'])
                 .eq('id', id)

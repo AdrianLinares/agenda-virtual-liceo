@@ -25,6 +25,14 @@ interface Anuncio {
     fecha_publicacion: string
 }
 
+interface PublicEventoRow extends Evento {
+    destinatarios?: string[] | null
+}
+
+interface PublicAnuncioRow extends Anuncio {
+    destinatarios?: string[] | null
+}
+
 export default function HomePage() {
     const navigate = useNavigate()
     const [eventos, setEventos] = useState<Evento[]>([])
@@ -55,10 +63,10 @@ export default function HomePage() {
 
             if (eventosError) throw eventosError
 
-            const finalEventos = (eventosData || [])
-                .filter((evento: any) => hasPublicTarget(evento.destinatarios))
+            const finalEventos = ((eventosData || []) as PublicEventoRow[])
+                .filter((evento) => hasPublicTarget(evento.destinatarios))
                 .slice(0, 5)
-                .map((evento: any) => ({
+                .map((evento) => ({
                     id: evento.id,
                     titulo: evento.titulo,
                     descripcion: evento.descripcion,
@@ -67,7 +75,7 @@ export default function HomePage() {
                     fecha_fin: evento.fecha_fin,
                     todo_el_dia: evento.todo_el_dia,
                     lugar: evento.lugar,
-                })) as Evento[]
+                }))
 
             // Obtener anuncios activos y filtrar por destinatarios públicos
             const { data: anunciosData, error: anunciosError } = await withTimeout(supabase
@@ -79,16 +87,16 @@ export default function HomePage() {
 
             if (anunciosError) throw anunciosError
 
-            const finalAnuncios = (anunciosData || [])
-                .filter((anuncio: any) => hasPublicTarget(anuncio.destinatarios))
+            const finalAnuncios = ((anunciosData || []) as PublicAnuncioRow[])
+                .filter((anuncio) => hasPublicTarget(anuncio.destinatarios))
                 .slice(0, 5)
-                .map((anuncio: any) => ({
+                .map((anuncio) => ({
                     id: anuncio.id,
                     titulo: anuncio.titulo,
                     contenido: anuncio.contenido,
                     importante: anuncio.importante,
                     fecha_publicacion: anuncio.fecha_publicacion,
-                })) as Anuncio[]
+                }))
 
             setEventos(finalEventos)
             setAnuncios(finalAnuncios)

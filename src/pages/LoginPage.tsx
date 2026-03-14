@@ -24,8 +24,9 @@ export default function LoginPage() {
     try {
       await signIn(email, password)
       navigate('/dashboard')
-    } catch (err: any) {
-      setError(err.message || 'Error al iniciar sesión')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al iniciar sesión'
+      setError(message)
     } finally {
       setLoading(false)
     }

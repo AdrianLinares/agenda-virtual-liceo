@@ -83,6 +83,8 @@ export default function MensajesPage() {
             loadMensajes()
             loadRecipients()
         }
+        // Ambas cargas dependen de profile/tab por diseño.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [profile, tab])
 
     const allowedRecipientRoles = useMemo(() => {
@@ -226,6 +228,7 @@ export default function MensajesPage() {
                 estado: 'enviado',
             } satisfies Database['public']['Tables']['mensajes']['Insert']
 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (supabase as any)
                 .from('mensajes')
                 .insert(payload)
@@ -253,6 +256,7 @@ export default function MensajesPage() {
         if (tab === 'recibidos' && mensaje.estado !== 'leido' && !markingRead) {
             setMarkingRead(mensaje.id)
             try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const { error } = await (supabase as any)
                     .from('mensajes')
                     .update({ estado: 'leido', leido_en: new Date().toISOString() })

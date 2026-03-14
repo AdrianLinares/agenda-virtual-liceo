@@ -22,8 +22,9 @@ export default function RecuperarContrasenaPage() {
             const redirectTo = `${window.location.origin}/restablecer-contrasena`
             await requestPasswordReset(email.trim(), redirectTo)
             setSubmitted(true)
-        } catch (err: any) {
-            setError(err.message || 'No se pudo procesar la solicitud')
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'No se pudo procesar la solicitud'
+            setError(message)
         }
     }
 

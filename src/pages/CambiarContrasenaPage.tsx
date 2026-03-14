@@ -36,8 +36,9 @@ export default function CambiarContrasenaPage() {
             setNewPassword('')
             setConfirmPassword('')
             setSuccess('Contraseña actualizada correctamente')
-        } catch (err: any) {
-            setError(err.message || 'No se pudo cambiar la contraseña')
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'No se pudo cambiar la contraseña'
+            setError(message)
         }
     }
 

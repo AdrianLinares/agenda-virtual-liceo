@@ -75,6 +75,8 @@ export default function BoletinesPage() {
     if (selectedPeriodo) {
       loadBoletines()
     }
+    // loadBoletines depende de selectedPeriodo y profile por diseño.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPeriodo, profile])
 
   const loadPeriodos = async () => {

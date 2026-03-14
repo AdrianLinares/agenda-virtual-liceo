@@ -53,6 +53,10 @@ type AsignacionDocenteRow = Pick<
     'asignatura_id' | 'docente_id' | 'grupo_id' | 'año_academico'
 >
 
+type EstudianteAsignadoRow = {
+    estudiante: Pick<Profile, 'id' | 'nombre_completo' | 'email'> | null
+}
+
 type Tab = 'usuarios' | 'grados' | 'asignaturas' | 'grupos'
 type UserRoleFilter = 'todos' | UserRole
 
@@ -191,6 +195,11 @@ export default function AdminPage() {
     const asignaturasMessage = useMessage(5000)
     const gruposMessage = useMessage(5000)
 
+    const showUsersMessage = usersMessage.show
+    const showGradosMessage = gradosMessage.show
+    const showAsignaturasMessage = asignaturasMessage.show
+    const showGruposMessage = gruposMessage.show
+
     const [usuarios, setUsuarios] = useState<Profile[]>([])
     const [userRoleFilter, setUserRoleFilter] = useState<UserRoleFilter>('todos')
     const [loadingUsuarios, setLoadingUsuarios] = useState(false)
@@ -294,11 +303,11 @@ export default function AdminPage() {
             if (error) throw error
             setUsuarios(data ?? [])
         } catch (error) {
-            usersMessage.show('error', error instanceof Error ? error.message : 'Error cargando usuarios')
+            showUsersMessage('error', error instanceof Error ? error.message : 'Error cargando usuarios')
         } finally {
             setLoadingUsuarios(false)
         }
-    }, [usersMessage.show])
+    }, [showUsersMessage])
 
     const loadGrados = useCallback(async () => {
         try {
@@ -307,11 +316,11 @@ export default function AdminPage() {
             if (error) throw error
             setGrados(data ?? [])
         } catch (error) {
-            gradosMessage.show('error', error instanceof Error ? error.message : 'Error cargando grados')
+            showGradosMessage('error', error instanceof Error ? error.message : 'Error cargando grados')
         } finally {
             setLoadingGradosList(false)
         }
-    }, [gradosMessage.show])
+    }, [showGradosMessage])
 
     const loadPadresEstudiantes = useCallback(async () => {
         try {
@@ -326,11 +335,11 @@ export default function AdminPage() {
             if (error) throw error
             setPadresEstudiantes((data as PadreEstudianteRow[]) ?? [])
         } catch (error) {
-            usersMessage.show('error', error instanceof Error ? error.message : 'Error cargando relaciones padre-estudiante')
+            showUsersMessage('error', error instanceof Error ? error.message : 'Error cargando relaciones padre-estudiante')
         } finally {
             setLoadingPadresEstudiantes(false)
         }
-    }, [usersMessage.show])
+    }, [showUsersMessage])
 
     const loadAsignaturas = useCallback(async () => {
         try {
@@ -339,11 +348,11 @@ export default function AdminPage() {
             if (error) throw error
             setAsignaturas(data ?? [])
         } catch (error) {
-            asignaturasMessage.show('error', error instanceof Error ? error.message : 'Error cargando asignaturas')
+            showAsignaturasMessage('error', error instanceof Error ? error.message : 'Error cargando asignaturas')
         } finally {
             setLoadingAsignaturasList(false)
         }
-    }, [asignaturasMessage.show])
+    }, [showAsignaturasMessage])
 
     const loadAsignacionesDocentes = useCallback(async () => {
         try {
@@ -354,9 +363,9 @@ export default function AdminPage() {
             if (error) throw error
             setAsignacionesDocentes((data as AsignacionDocenteRow[]) ?? [])
         } catch (error) {
-            asignaturasMessage.show('error', error instanceof Error ? error.message : 'Error cargando docentes por asignatura')
+            showAsignaturasMessage('error', error instanceof Error ? error.message : 'Error cargando docentes por asignatura')
         }
-    }, [asignaturasMessage.show])
+    }, [showAsignaturasMessage])
 
     const loadDocentes = useCallback(async () => {
         try {
@@ -369,9 +378,9 @@ export default function AdminPage() {
             if (error) throw error
             setDocentes(data ?? [])
         } catch (error) {
-            gruposMessage.show('error', error instanceof Error ? error.message : 'Error cargando docentes')
+            showGruposMessage('error', error instanceof Error ? error.message : 'Error cargando docentes')
         }
-    }, [gruposMessage.show])
+    }, [showGruposMessage])
 
     const loadGrupos = useCallback(async () => {
         try {
@@ -385,11 +394,11 @@ export default function AdminPage() {
             if (error) throw error
             setGrupos((data as GroupRow[]) ?? [])
         } catch (error) {
-            gruposMessage.show('error', error instanceof Error ? error.message : 'Error cargando grupos')
+            showGruposMessage('error', error instanceof Error ? error.message : 'Error cargando grupos')
         } finally {
             setLoadingGruposList(false)
         }
-    }, [gruposMessage.show])
+    }, [showGruposMessage])
 
     const loadEstudiantes = useCallback(async () => {
         try {
@@ -402,9 +411,9 @@ export default function AdminPage() {
             if (error) throw error
             setEstudiantes(data ?? [])
         } catch (error) {
-            gruposMessage.show('error', error instanceof Error ? error.message : 'Error cargando estudiantes')
+            showGruposMessage('error', error instanceof Error ? error.message : 'Error cargando estudiantes')
         }
-    }, [gruposMessage.show])
+    }, [showGruposMessage])
 
     const loadEstudiantesEnGrupo = useCallback(async (grupoId: string) => {
         try {
@@ -416,14 +425,16 @@ export default function AdminPage() {
                 .eq('estado', 'activo')
 
             if (error) throw error
-            const estudiantes = (data ?? []).map((item: any) => item.estudiante).filter(Boolean)
-            setEstudiantesEnGrupo(estudiantes)
+            const estudiantes = ((data ?? []) as EstudianteAsignadoRow[])
+                .map((item) => item.estudiante)
+                .filter((item): item is NonNullable<EstudianteAsignadoRow['estudiante']> => Boolean(item))
+            setEstudiantesEnGrupo(estudiantes as Profile[])
         } catch (error) {
-            gruposMessage.show('error', error instanceof Error ? error.message : 'Error cargando estudiantes del grupo')
+            showGruposMessage('error', error instanceof Error ? error.message : 'Error cargando estudiantes del grupo')
         } finally {
             setLoadingEstudiantes(false)
         }
-    }, [gruposMessage.show])
+    }, [showGruposMessage])
 
     useEffect(() => {
         if (!isAdmin) return

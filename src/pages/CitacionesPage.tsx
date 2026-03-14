@@ -92,6 +92,8 @@ export default function CitacionesPage() {
             loadCitaciones()
             loadStudents()
         }
+        // Ambas cargas dependen de profile por diseño.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [profile])
 
     const loadCitaciones = async () => {
@@ -222,6 +224,7 @@ export default function CitacionesPage() {
                 observaciones: null,
             } satisfies Database['public']['Tables']['citaciones']['Insert']
 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (supabase as any)
                 .from('citaciones')
                 .insert(payload)
@@ -253,6 +256,7 @@ export default function CitacionesPage() {
         setSuccess(null)
 
         try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (supabase as any)
                 .from('citaciones')
                 .update({ asistio } satisfies Database['public']['Tables']['citaciones']['Update'])
@@ -320,6 +324,7 @@ export default function CitacionesPage() {
                 lugar: editForm.lugar.trim() ? editForm.lugar.trim() : null,
             } satisfies Database['public']['Tables']['citaciones']['Update']
 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (supabase as any)
                 .from('citaciones')
                 .update(payload)
@@ -346,6 +351,7 @@ export default function CitacionesPage() {
         setSuccess(null)
 
         try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (supabase as any)
                 .from('citaciones')
                 .delete()

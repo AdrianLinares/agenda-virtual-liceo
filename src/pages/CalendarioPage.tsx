@@ -75,6 +75,8 @@ export default function CalendarioPage() {
         if (profile) {
             loadEventos()
         }
+        // loadEventos depende de profile/canViewAll por diseño.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [profile])
 
     const loadEventos = async () => {
@@ -153,6 +155,7 @@ export default function CalendarioPage() {
                 creado_por: profile.id,
             } satisfies Database['public']['Tables']['eventos']['Insert']
 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const result: any = await withTimeout((supabase as any)
                 .from('eventos')
                 .insert(payload), 15000, 'Tiempo de espera agotado al crear el evento')
@@ -233,6 +236,7 @@ export default function CalendarioPage() {
                 destinatarios: [editDestinatario],
             } satisfies Database['public']['Tables']['eventos']['Update']
 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const result: any = await withTimeout((supabase as any)
                 .from('eventos')
                 .update(payload)
@@ -261,6 +265,7 @@ export default function CalendarioPage() {
         setSuccess(null)
 
         try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const result: any = await withTimeout((supabase as any)
                 .from('eventos')
                 .delete()

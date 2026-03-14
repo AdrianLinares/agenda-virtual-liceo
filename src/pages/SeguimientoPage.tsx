@@ -68,6 +68,8 @@ export default function SeguimientoPage() {
             loadSeguimientos()
             loadStudents()
         }
+        // Ambas cargas dependen de profile por diseño.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [profile])
 
     const loadSeguimientos = async () => {
@@ -198,6 +200,7 @@ export default function SeguimientoPage() {
                 fecha_seguimiento: fechaSeguimiento ? new Date(fechaSeguimiento).toISOString() : null,
             } satisfies Database['public']['Tables']['seguimientos']['Insert']
 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const result: any = await withTimeout((supabase as any)
                 .from('seguimientos')
                 .insert(payload), 15000, 'Tiempo de espera agotado al registrar seguimiento')
