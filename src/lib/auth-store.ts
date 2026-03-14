@@ -104,12 +104,35 @@ export const useAuthStore = create<AuthState>((set) => ({
         throw new Error('La contraseña actual es incorrecta')
       }
 
-      const { error: updateError } = await withTimeout(supabase.auth.updateUser({
+      const { error: updateError } = await supabase.auth.updateUser({
         password: newPassword,
-      }), 15000, 'Tiempo de espera agotado al actualizar la contraseña')
+      })
 
       if (updateError) {
-        throw new Error(updateError.message || 'No se pudo actualizar la contraseña')
+        const updateMessage = updateError.message || 'No se pudo actualizar la contraseña'
+        const normalizedMessage = updateMessage.toLowerCase()
+        const shouldRetry =
+          normalizedMessage.includes('timeout') ||
+          normalizedMessage.includes('tiempo de espera') ||
+          normalizedMessage.includes('network') ||
+          normalizedMessage.includes('fetch')
+
+        if (!shouldRetry) {
+          throw new Error(updateMessage)
+        }
+
+        const { error: retryError } = await supabase.auth.updateUser({
+          password: newPassword,
+        })
+
+        if (retryError) {
+          const retryMessage = retryError.message || 'No se pudo actualizar la contraseña'
+          const samePasswordAfterRetry = /different.*(old|actual)|same as/.test(retryMessage.toLowerCase())
+
+          if (!samePasswordAfterRetry) {
+            throw new Error(retryMessage)
+          }
+        }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Error al cambiar contraseña'
@@ -158,14 +181,35 @@ export const useAuthStore = create<AuthState>((set) => ({
         throw new Error('Debes ingresar una nueva contraseña')
       }
 
-      // In recovery flows, Supabase can complete successfully after an initial delay.
-      // Avoid surfacing false timeout errors in the UI for successful updates.
       const { error } = await supabase.auth.updateUser({
         password: newPassword,
       })
 
       if (error) {
-        throw new Error(error.message || 'No se pudo restablecer la contraseña')
+        const updateMessage = error.message || 'No se pudo restablecer la contraseña'
+        const normalizedMessage = updateMessage.toLowerCase()
+        const shouldRetry =
+          normalizedMessage.includes('timeout') ||
+          normalizedMessage.includes('tiempo de espera') ||
+          normalizedMessage.includes('network') ||
+          normalizedMessage.includes('fetch')
+
+        if (!shouldRetry) {
+          throw new Error(updateMessage)
+        }
+
+        const { error: retryError } = await supabase.auth.updateUser({
+          password: newPassword,
+        })
+
+        if (retryError) {
+          const retryMessage = retryError.message || 'No se pudo restablecer la contraseña'
+          const samePasswordAfterRetry = /different.*(old|actual)|same as/.test(retryMessage.toLowerCase())
+
+          if (!samePasswordAfterRetry) {
+            throw new Error(retryMessage)
+          }
+        }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Error al restablecer contraseña'
@@ -226,20 +270,27 @@ export const useAuthStore = create<AuthState>((set) => ({
 
       // Keep store synced when Supabase emits SIGNED_IN, TOKEN_REFRESHED or SIGNED_OUT.
       supabase.auth.onAuthStateChange(async (_event, session) => {
-        if (session?.user) {
-          const { data: profileData, error: profileError } = await withTimeout(supabase
+        if (!session?.user) {
+          set({ user: null, profile: null })
+          return
+        }
+
+        try {
+          const { data: profileData, error: profileError } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', session.user.id)
-            .single(), 15000, 'Tiempo de espera agotado al refrescar el perfil')
+            .single()
 
           if (profileError) {
             console.warn('Error fetching profile on auth change:', profileError)
           }
 
           set({ user: session.user, profile: profileData || null })
-        } else {
-          set({ user: null, profile: null })
+        } catch (authChangeError) {
+          console.warn('Non-blocking profile refresh error on auth change:', authChangeError)
+          // Keep authenticated user state even if profile refresh fails transiently.
+          set({ user: session.user })
         }
       })
     } catch (error) {

@@ -34,9 +34,9 @@ function PageLoader() {
 
 // Blocks private routes until auth is initialized and a user is present.
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading, initialized } = useAuthStore()
+  const { user, initialized } = useAuthStore()
 
-  if (!initialized || loading) {
+  if (!initialized) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -61,9 +61,9 @@ function RoleProtectedRoute({
   children: React.ReactNode
   allowedRoles: string[]
 }) {
-  const { profile, loading, initialized } = useAuthStore()
+  const { profile, initialized } = useAuthStore()
 
-  if (!initialized || loading) {
+  if (!initialized) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
