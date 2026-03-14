@@ -79,6 +79,8 @@ export default function MensajesPage() {
 
     const [categoriaUsuario, setCategoriaUsuario] = useState<string>('')
     const [grupoFiltro, setGrupoFiltro] = useState('')
+    const [sendToAllStudentsInGroup, setSendToAllStudentsInGroup] = useState(false)
+    const [sendToAllParentsInGroup, setSendToAllParentsInGroup] = useState(false)
     const [destinatarioId, setDestinatarioId] = useState('')
     const [asunto, setAsunto] = useState('')
     const [contenido, setContenido] = useState('')
@@ -124,6 +126,7 @@ export default function MensajesPage() {
     const categoriaOptions = useMemo(() => {
         const allOptions = [
             { value: 'todos', label: 'Todos' },
+            { value: 'grupo', label: 'Grupo (envío masivo)' },
             { value: 'administrativo', label: 'Administrativo' },
             { value: 'docente', label: 'Docente' },
             { value: 'estudiante', label: 'Estudiante' },
@@ -149,11 +152,19 @@ export default function MensajesPage() {
         if (categoriaOptions.some((option) => option.value === categoriaUsuario)) return
         setCategoriaUsuario('')
         setGrupoFiltro('')
+        setSendToAllStudentsInGroup(false)
+        setSendToAllParentsInGroup(false)
         setDestinatarioId('')
     }, [categoriaUsuario, categoriaOptions])
 
     useEffect(() => {
-        const needsGroupFilter = categoriaUsuario === 'estudiante' || categoriaUsuario === 'padre'
+        if (categoriaUsuario === 'grupo') return
+        if (sendToAllStudentsInGroup) setSendToAllStudentsInGroup(false)
+        if (sendToAllParentsInGroup) setSendToAllParentsInGroup(false)
+    }, [categoriaUsuario, sendToAllStudentsInGroup, sendToAllParentsInGroup])
+
+    useEffect(() => {
+        const needsGroupFilter = categoriaUsuario === 'estudiante' || categoriaUsuario === 'padre' || categoriaUsuario === 'grupo'
 
         if (!needsGroupFilter) {
             if (grupoFiltro) setGrupoFiltro('')
@@ -268,23 +279,104 @@ export default function MensajesPage() {
         }
     }
 
+    const recipientById = useMemo(() => {
+        const map = new Map<string, PerfilOption>()
+        recipients.forEach((recipient) => {
+            map.set(recipient.id, recipient)
+        })
+        return map
+    }, [recipients])
+
+    const groupMassRecipientIds = useMemo(() => {
+        if (categoriaUsuario !== 'grupo' || !grupoFiltro) return []
+
+        const estudiantesEnGrupo = new Set(
+            estudiantesGrupos
+                .filter((item) => item.grupo_id === grupoFiltro)
+                .map((item) => item.estudiante_id)
+        )
+
+        const targetIds = new Set<string>()
+
+        if (sendToAllStudentsInGroup) {
+            estudiantesEnGrupo.forEach((estudianteId) => {
+                const recipient = recipientById.get(estudianteId)
+                if (recipient?.rol === 'estudiante') {
+                    targetIds.add(estudianteId)
+                }
+            })
+        }
+
+        if (sendToAllParentsInGroup) {
+            padresEstudiantes
+                .filter((item) => estudiantesEnGrupo.has(item.estudiante_id))
+                .forEach((item) => {
+                    const recipient = recipientById.get(item.padre_id)
+                    if (recipient?.rol === 'padre') {
+                        targetIds.add(item.padre_id)
+                    }
+                })
+        }
+
+        return Array.from(targetIds)
+    }, [
+        categoriaUsuario,
+        grupoFiltro,
+        sendToAllStudentsInGroup,
+        sendToAllParentsInGroup,
+        estudiantesGrupos,
+        padresEstudiantes,
+        recipientById,
+    ])
+
     const handleSendMessage = async () => {
         if (!profile) return
 
-        if (!destinatarioId || !asunto.trim() || !contenido.trim()) {
-            setError('Completa destinatario, asunto y mensaje')
+        const isGroupMassMode = categoriaUsuario === 'grupo'
+
+        if (isGroupMassMode) {
+            if (!grupoFiltro) {
+                setError('Selecciona un grupo para el envío masivo')
+                return
+            }
+
+            if (!sendToAllStudentsInGroup && !sendToAllParentsInGroup) {
+                setError('Selecciona al menos estudiantes y/o padres para el envío masivo')
+                return
+            }
+        }
+
+        if (!asunto.trim() || !contenido.trim()) {
+            setError('Completa asunto y mensaje')
             return
         }
 
-        const selectedRecipient = recipients.find((item) => item.id === destinatarioId)
-        if (!selectedRecipient) {
-            setError('Selecciona un destinatario válido')
-            return
-        }
+        let targetRecipientIds: string[] = []
 
-        if (allowedRecipientRoles && !allowedRecipientRoles.includes(selectedRecipient.rol)) {
-            setError('No tienes permiso para enviar mensajes a ese usuario')
-            return
+        if (isGroupMassMode) {
+            targetRecipientIds = groupMassRecipientIds
+            if (targetRecipientIds.length === 0) {
+                setError('No hay destinatarios disponibles para el grupo y criterios seleccionados')
+                return
+            }
+        } else {
+            if (!destinatarioId) {
+                setError('Completa destinatario, asunto y mensaje')
+                return
+            }
+
+            const selectedRecipient = recipients.find((item) => item.id === destinatarioId)
+            if (!selectedRecipient) {
+                setError('Selecciona un destinatario válido')
+                return
+            }
+
+            if (allowedRecipientRoles && !allowedRecipientRoles.includes(selectedRecipient.rol)) {
+                setError('No tienes permiso para enviar mensajes a ese usuario')
+                return
+            }
+
+            targetRecipientIds = [destinatarioId]
         }
 
         setSaving(true)
@@ -292,13 +384,13 @@ export default function MensajesPage() {
         setSuccess(null)
 
         try {
-            const payload = {
+            const payload = targetRecipientIds.map((recipientId) => ({
                 remitente_id: profile.id,
-                destinatario_id: destinatarioId,
+                destinatario_id: recipientId,
                 asunto: asunto.trim(),
                 contenido: contenido.trim(),
                 estado: 'enviado',
-            } satisfies Database['public']['Tables']['mensajes']['Insert']
+            } satisfies Database['public']['Tables']['mensajes']['Insert']))
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (supabase as any)
@@ -310,7 +402,11 @@ export default function MensajesPage() {
             setDestinatarioId('')
             setAsunto('')
             setContenido('')
-            setSuccess('Mensaje enviado')
+            if (isGroupMassMode) {
+                setSuccess(`Mensaje enviado a ${targetRecipientIds.length} destinatario(s)`)
+            } else {
+                setSuccess('Mensaje enviado')
+            }
             if (tab === 'enviados') {
                 await loadMensajes()
             }
@@ -352,7 +448,7 @@ export default function MensajesPage() {
     }
 
     const filteredRecipients = useMemo(() => {
-        const needsGroupFilter = categoriaUsuario === 'estudiante' || categoriaUsuario === 'padre'
+        const needsGroupFilter = categoriaUsuario === 'estudiante' || categoriaUsuario === 'padre' || categoriaUsuario === 'grupo'
 
         const rolMap: Record<string, string[]> = {
             'administrativo': ['administrador', 'administrativo'],
@@ -369,6 +465,7 @@ export default function MensajesPage() {
             })
 
         if (!needsGroupFilter) return baseList
+        if (categoriaUsuario === 'grupo') return []
         if (!grupoFiltro) return []
 
         const estudiantesEnGrupo = new Set(
@@ -420,7 +517,7 @@ export default function MensajesPage() {
         return labelMap
     }, [categoriaUsuario, grupoFiltro, estudiantesGrupos, padresEstudiantes])
 
-    const showGroupFilter = categoriaUsuario === 'estudiante' || categoriaUsuario === 'padre'
+    const showGroupFilter = categoriaUsuario === 'estudiante' || categoriaUsuario === 'padre' || categoriaUsuario === 'grupo'
 
     const headerDescription = useMemo(() => {
         if (profile?.rol === 'estudiante') return 'Envía y recibe mensajes institucionales'
@@ -493,6 +590,8 @@ export default function MensajesPage() {
                             <Select value={categoriaUsuario} onValueChange={(value) => {
                                 setCategoriaUsuario(value)
                                 setGrupoFiltro('')
+                                setSendToAllStudentsInGroup(false)
+                                setSendToAllParentsInGroup(false)
                                 setDestinatarioId('') // Limpiar destinatario al cambiar categoría
                             }}>
                                 <SelectTrigger>
@@ -534,39 +633,67 @@ export default function MensajesPage() {
                                 </Select>
                             </div>
                         )}
-                        <div className="space-y-2">
-                            <Label>Destinatario</Label>
-                            <Select
-                                value={destinatarioId}
-                                onValueChange={setDestinatarioId}
-                                disabled={showGroupFilter && !grupoFiltro}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder={showGroupFilter && !grupoFiltro ? 'Primero selecciona un grupo' : 'Selecciona un destinatario'} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {filteredRecipients.length === 0 && (
-                                        <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                                            {showGroupFilter && !grupoFiltro
-                                                ? 'Selecciona un grupo para ver destinatarios'
-                                                : 'No hay usuarios disponibles'}
-                                        </div>
-                                    )}
-                                    {filteredRecipients.map((user) => (
-                                        <SelectItem key={user.id} value={user.id}>
-                                            <div className="flex flex-col">
-                                                <span>{user.nombre_completo}</span>
-                                                {categoriaUsuario === 'padre' && parentChildLabelByParentId.get(user.id) && (
-                                                    <span className="text-xs text-muted-foreground">
-                                                        Hijo(a): {parentChildLabelByParentId.get(user.id)}
-                                                    </span>
-                                                )}
+                        {categoriaUsuario === 'grupo' && (
+                            <div className="space-y-2 md:col-span-2">
+                                <Label>Envío masivo por grupo</Label>
+                                <div className="rounded-md border border-border p-3 space-y-2">
+                                    <label className="flex items-center gap-2 text-sm text-foreground">
+                                        <input
+                                            type="checkbox"
+                                            checked={sendToAllStudentsInGroup}
+                                            onChange={(e) => setSendToAllStudentsInGroup(e.target.checked)}
+                                        />
+                                        Todos los estudiantes del grupo
+                                    </label>
+                                    <label className="flex items-center gap-2 text-sm text-foreground">
+                                        <input
+                                            type="checkbox"
+                                            checked={sendToAllParentsInGroup}
+                                            onChange={(e) => setSendToAllParentsInGroup(e.target.checked)}
+                                        />
+                                        Todos los padres/acudientes del grupo
+                                    </label>
+                                    <p className="text-xs text-muted-foreground">
+                                        Destinatarios estimados: {groupMassRecipientIds.length}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                        {categoriaUsuario !== 'grupo' && (
+                            <div className="space-y-2">
+                                <Label>Destinatario</Label>
+                                <Select
+                                    value={destinatarioId}
+                                    onValueChange={setDestinatarioId}
+                                    disabled={showGroupFilter && !grupoFiltro}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder={showGroupFilter && !grupoFiltro ? 'Primero selecciona un grupo' : 'Selecciona un destinatario'} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {filteredRecipients.length === 0 && (
+                                            <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                                                {showGroupFilter && !grupoFiltro
+                                                    ? 'Selecciona un grupo para ver destinatarios'
+                                                    : 'No hay usuarios disponibles'}
                                             </div>
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+                                        )}
+                                        {filteredRecipients.map((user) => (
+                                            <SelectItem key={user.id} value={user.id}>
+                                                <div className="flex flex-col">
+                                                    <span>{user.nombre_completo}</span>
+                                                    {categoriaUsuario === 'padre' && parentChildLabelByParentId.get(user.id) && (
+                                                        <span className="text-xs text-muted-foreground">
+                                                            Hijo(a): {parentChildLabelByParentId.get(user.id)}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
                         <div className="space-y-2">
                             <Label>Asunto</Label>
                             <Input value={asunto} onChange={(e) => setAsunto(e.target.value)} />
