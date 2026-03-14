@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
-import { withTimeout } from '@/lib/async-utils'
+import { withRetry, withTimeout } from '@/lib/async-utils'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Calendar, Megaphone, MapPin, Clock, AlertCircle, ChevronDown } from 'lucide-react'
@@ -53,17 +53,24 @@ export default function HomePage() {
                 return destinatarios.some((item) => publicTargets.includes((item || '').toLowerCase()))
             }
 
-            // Obtener próximos eventos y filtrar por destinatarios públicos
-            const { data: eventosData, error: eventosError } = await withTimeout(supabase
-                .from('eventos')
-                .select('id, titulo, descripcion, tipo, fecha_inicio, fecha_fin, todo_el_dia, lugar, destinatarios')
-                .gte('fecha_inicio', nowIso)
-                .order('fecha_inicio', { ascending: true })
-                .limit(30), 15000, 'Tiempo de espera agotado al cargar eventos públicos')
+            const [eventosResult, anunciosResult] = await Promise.all([
+                withRetry(async () => withTimeout(supabase
+                    .from('eventos')
+                    .select('id, titulo, descripcion, tipo, fecha_inicio, fecha_fin, todo_el_dia, lugar, destinatarios')
+                    .gte('fecha_inicio', nowIso)
+                    .order('fecha_inicio', { ascending: true })
+                    .limit(30), 15000, 'Tiempo de espera agotado al cargar eventos públicos')),
+                withRetry(async () => withTimeout(supabase
+                    .from('anuncios')
+                    .select('id, titulo, contenido, importante, fecha_publicacion, destinatarios')
+                    .or(`fecha_expiracion.is.null,fecha_expiracion.gte.${nowIso}`)
+                    .order('fecha_publicacion', { ascending: false })
+                    .limit(30), 15000, 'Tiempo de espera agotado al cargar anuncios públicos')),
+            ])
 
-            if (eventosError) throw eventosError
+            if (eventosResult.error) throw eventosResult.error
 
-            const finalEventos = ((eventosData || []) as PublicEventoRow[])
+            const finalEventos = ((eventosResult.data || []) as PublicEventoRow[])
                 .filter((evento) => hasPublicTarget(evento.destinatarios))
                 .slice(0, 5)
                 .map((evento) => ({
@@ -77,17 +84,9 @@ export default function HomePage() {
                     lugar: evento.lugar,
                 }))
 
-            // Obtener anuncios activos y filtrar por destinatarios públicos
-            const { data: anunciosData, error: anunciosError } = await withTimeout(supabase
-                .from('anuncios')
-                .select('id, titulo, contenido, importante, fecha_publicacion, destinatarios')
-                .or(`fecha_expiracion.is.null,fecha_expiracion.gte.${nowIso}`)
-                .order('fecha_publicacion', { ascending: false })
-                .limit(30), 15000, 'Tiempo de espera agotado al cargar anuncios públicos')
+            if (anunciosResult.error) throw anunciosResult.error
 
-            if (anunciosError) throw anunciosError
-
-            const finalAnuncios = ((anunciosData || []) as PublicAnuncioRow[])
+            const finalAnuncios = ((anunciosResult.data || []) as PublicAnuncioRow[])
                 .filter((anuncio) => hasPublicTarget(anuncio.destinatarios))
                 .slice(0, 5)
                 .map((anuncio) => ({

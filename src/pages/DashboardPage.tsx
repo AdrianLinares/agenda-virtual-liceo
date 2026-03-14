@@ -4,6 +4,7 @@ import { useAuthStore } from '@/lib/auth-store'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Mail, Users, UserSearch, Clock } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { withRetry, withTimeout } from '@/lib/async-utils'
 
 interface Evento {
   id: string
@@ -23,6 +24,8 @@ interface Anuncio {
 
 export default function DashboardPage() {
   const { profile, user } = useAuthStore()
+  const userId = user?.id ?? null
+  const profileId = profile?.id ?? null
   const navigate = useNavigate()
   const [eventos, setEventos] = useState<Evento[]>([])
   const [anuncios, setAnuncios] = useState<Anuncio[]>([])
@@ -38,7 +41,7 @@ export default function DashboardPage() {
   const [loadingCitaciones, setLoadingCitaciones] = useState(true)
 
   const loadMensajesSinLeer = useCallback(async () => {
-    if (!profile) {
+    if (!profileId) {
       setMensajesSinLeer(0)
       setLoadingMensajesSinLeer(false)
       return
@@ -47,11 +50,11 @@ export default function DashboardPage() {
     setLoadingMensajesSinLeer(true)
 
     try {
-      const { count, error } = await supabase
+      const { count, error } = await withRetry(async () => withTimeout(supabase
         .from('mensajes')
         .select('id', { count: 'exact', head: true })
-        .eq('destinatario_id', profile.id)
-        .eq('estado', 'enviado')
+        .eq('destinatario_id', profileId)
+        .eq('estado', 'enviado'), 15000, 'Tiempo de espera agotado al cargar mensajes sin leer'))
 
       if (error) throw error
       setMensajesSinLeer(count ?? 0)
@@ -61,32 +64,41 @@ export default function DashboardPage() {
     } finally {
       setLoadingMensajesSinLeer(false)
     }
-  }, [profile])
+  }, [profileId])
 
   useEffect(() => {
-    console.log('DashboardPage - User:', user)
-    console.log('DashboardPage - Profile:', profile)
-    loadEventos()
-    loadAnuncios()
-    loadSeguimientosCount()
-    loadHorariosCount()
-    loadMensajesSinLeer()
-    loadCitacionesProximas()
-  }, [user, profile, loadMensajesSinLeer])
+    if (!userId) {
+      return
+    }
+
+    void Promise.allSettled([
+      loadEventos(),
+      loadAnuncios(),
+      loadSeguimientosCount(),
+      loadHorariosCount(),
+      loadCitacionesProximas(),
+    ])
+  }, [userId])
+
+  useEffect(() => {
+    void loadMensajesSinLeer()
+  }, [loadMensajesSinLeer])
 
   const loadEventos = async () => {
+    setLoadingEventos(true)
+
     try {
       const hoy = new Date()
       const unaSemana = new Date()
       unaSemana.setDate(hoy.getDate() + 7)
 
-      const { data, error } = await supabase
+      const { data, error } = await withRetry(async () => withTimeout(supabase
         .from('eventos')
-        .select('*')
+        .select('id, titulo, fecha_inicio, lugar, tipo')
         .gte('fecha_inicio', hoy.toISOString())
         .lte('fecha_inicio', unaSemana.toISOString())
         .order('fecha_inicio', { ascending: true })
-        .limit(5)
+        .limit(5), 15000, 'Tiempo de espera agotado al cargar eventos del dashboard'))
 
       if (error) throw error
       setEventos(data || [])
@@ -98,12 +110,14 @@ export default function DashboardPage() {
   }
 
   const loadAnuncios = async () => {
+    setLoadingAnuncios(true)
+
     try {
-      const { data, error } = await supabase
+      const { data, error } = await withRetry(async () => withTimeout(supabase
         .from('anuncios')
-        .select('*')
+        .select('id, titulo, contenido, fecha_publicacion, importante')
         .order('fecha_publicacion', { ascending: false })
-        .limit(3)
+        .limit(3), 15000, 'Tiempo de espera agotado al cargar anuncios del dashboard'))
 
       if (error) throw error
       setAnuncios(data || [])
@@ -118,9 +132,9 @@ export default function DashboardPage() {
     setLoadingSeguimientosCount(true)
 
     try {
-      const { count, error } = await supabase
+      const { count, error } = await withRetry(async () => withTimeout(supabase
         .from('seguimientos')
-        .select('id', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true }), 15000, 'Tiempo de espera agotado al cargar seguimiento'))
 
       if (error) throw error
       setSeguimientosCount(count ?? 0)
@@ -136,9 +150,9 @@ export default function DashboardPage() {
     setLoadingHorariosCount(true)
 
     try {
-      const { count, error } = await supabase
+      const { count, error } = await withRetry(async () => withTimeout(supabase
         .from('horarios')
-        .select('id', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true }), 15000, 'Tiempo de espera agotado al cargar horarios'))
 
       if (error) throw error
       setHorariosCount(count ?? 0)
@@ -154,10 +168,10 @@ export default function DashboardPage() {
     setLoadingCitaciones(true)
 
     try {
-      const { count, error } = await supabase
+      const { count, error } = await withRetry(async () => withTimeout(supabase
         .from('citaciones')
         .select('id', { count: 'exact', head: true })
-        .gte('fecha_citacion', new Date().toISOString())
+        .gte('fecha_citacion', new Date().toISOString()), 15000, 'Tiempo de espera agotado al cargar citaciones'))
 
       if (error) throw error
       setCitacionesProximas(count ?? 0)
