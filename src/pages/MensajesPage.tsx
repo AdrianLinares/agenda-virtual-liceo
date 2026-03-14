@@ -43,6 +43,28 @@ interface PerfilOption {
     rol: string
 }
 
+interface GrupoOption {
+    id: string
+    nombre: string
+    año_academico: number
+    grado?: {
+        nombre: string
+    } | null
+}
+
+interface EstudianteGrupoLink {
+    estudiante_id: string
+    grupo_id: string
+}
+
+interface PadreEstudianteLink {
+    padre_id: string
+    estudiante_id: string
+    estudiante?: {
+        nombre_completo: string
+    } | null
+}
+
 type TabType = 'recibidos' | 'enviados'
 
 export default function MensajesPage() {
@@ -56,10 +78,14 @@ export default function MensajesPage() {
     const [success, setSuccess] = useState<string | null>(null)
 
     const [categoriaUsuario, setCategoriaUsuario] = useState<string>('')
+    const [grupoFiltro, setGrupoFiltro] = useState('')
     const [destinatarioId, setDestinatarioId] = useState('')
     const [asunto, setAsunto] = useState('')
     const [contenido, setContenido] = useState('')
     const [recipients, setRecipients] = useState<PerfilOption[]>([])
+    const [gruposDisponibles, setGruposDisponibles] = useState<GrupoOption[]>([])
+    const [estudiantesGrupos, setEstudiantesGrupos] = useState<EstudianteGrupoLink[]>([])
+    const [padresEstudiantes, setPadresEstudiantes] = useState<PadreEstudianteLink[]>([])
 
     const [selectedMessage, setSelectedMessage] = useState<Mensaje | null>(null)
     const [markingRead, setMarkingRead] = useState<string | null>(null)
@@ -82,6 +108,7 @@ export default function MensajesPage() {
         if (profile) {
             loadMensajes()
             loadRecipients()
+            loadRecipientRelations()
         }
         // Ambas cargas dependen de profile/tab por diseño.
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -121,8 +148,24 @@ export default function MensajesPage() {
         if (!categoriaUsuario || categoriaUsuario === 'todos') return
         if (categoriaOptions.some((option) => option.value === categoriaUsuario)) return
         setCategoriaUsuario('')
+        setGrupoFiltro('')
         setDestinatarioId('')
     }, [categoriaUsuario, categoriaOptions])
+
+    useEffect(() => {
+        const needsGroupFilter = categoriaUsuario === 'estudiante' || categoriaUsuario === 'padre'
+
+        if (!needsGroupFilter) {
+            if (grupoFiltro) setGrupoFiltro('')
+            return
+        }
+
+        if (!grupoFiltro) return
+        if (gruposDisponibles.some((grupo) => grupo.id === grupoFiltro)) return
+
+        setGrupoFiltro('')
+        setDestinatarioId('')
+    }, [categoriaUsuario, grupoFiltro, gruposDisponibles])
 
     const loadMensajes = async () => {
         if (!profile) return
@@ -193,6 +236,35 @@ export default function MensajesPage() {
             setRecipients(list)
         } catch (err) {
             console.error('Error loading recipients:', err)
+        }
+    }
+
+    const loadRecipientRelations = async () => {
+        try {
+            const [gruposRes, estudiantesGruposRes, padresEstudiantesRes] = await Promise.all([
+                supabase
+                    .from('grupos')
+                    .select('id, nombre, año_academico, grado:grado_id(nombre)')
+                    .order('año_academico', { ascending: false })
+                    .order('nombre', { ascending: true }),
+                supabase
+                    .from('estudiantes_grupos')
+                    .select('estudiante_id, grupo_id')
+                    .eq('estado', 'activo'),
+                supabase
+                    .from('padres_estudiantes')
+                    .select('padre_id, estudiante_id, estudiante:estudiante_id(nombre_completo)'),
+            ])
+
+            if (gruposRes.error) throw gruposRes.error
+            if (estudiantesGruposRes.error) throw estudiantesGruposRes.error
+            if (padresEstudiantesRes.error) throw padresEstudiantesRes.error
+
+            setGruposDisponibles((gruposRes.data || []) as GrupoOption[])
+            setEstudiantesGrupos((estudiantesGruposRes.data || []) as EstudianteGrupoLink[])
+            setPadresEstudiantes((padresEstudiantesRes.data || []) as PadreEstudianteLink[])
+        } catch (err) {
+            console.error('Error loading recipient relations:', err)
         }
     }
 
@@ -280,7 +352,7 @@ export default function MensajesPage() {
     }
 
     const filteredRecipients = useMemo(() => {
-        if (!categoriaUsuario || categoriaUsuario === 'todos') return recipients
+        const needsGroupFilter = categoriaUsuario === 'estudiante' || categoriaUsuario === 'padre'
 
         const rolMap: Record<string, string[]> = {
             'administrativo': ['administrador', 'administrativo'],
@@ -289,11 +361,66 @@ export default function MensajesPage() {
             'padre': ['padre']
         }
 
-        const rolesPermitidos = rolMap[categoriaUsuario.toLowerCase()] || []
-        return recipients.filter((user) =>
-            rolesPermitidos.includes(user.rol.toLowerCase())
+        const baseList = !categoriaUsuario || categoriaUsuario === 'todos'
+            ? recipients
+            : recipients.filter((user) => {
+                const rolesPermitidos = rolMap[categoriaUsuario.toLowerCase()] || []
+                return rolesPermitidos.includes(user.rol.toLowerCase())
+            })
+
+        if (!needsGroupFilter) return baseList
+        if (!grupoFiltro) return []
+
+        const estudiantesEnGrupo = new Set(
+            estudiantesGrupos
+                .filter((item) => item.grupo_id === grupoFiltro)
+                .map((item) => item.estudiante_id)
         )
-    }, [recipients, categoriaUsuario])
+
+        if (categoriaUsuario === 'estudiante') {
+            return baseList.filter((user) => estudiantesEnGrupo.has(user.id))
+        }
+
+        const padresConHijoEnGrupo = new Set(
+            padresEstudiantes
+                .filter((item) => estudiantesEnGrupo.has(item.estudiante_id))
+                .map((item) => item.padre_id)
+        )
+
+        return baseList.filter((user) => padresConHijoEnGrupo.has(user.id))
+    }, [recipients, categoriaUsuario, grupoFiltro, estudiantesGrupos, padresEstudiantes])
+
+    const parentChildLabelByParentId = useMemo(() => {
+        if (categoriaUsuario !== 'padre' || !grupoFiltro) return new Map<string, string>()
+
+        const estudiantesEnGrupo = new Set(
+            estudiantesGrupos
+                .filter((item) => item.grupo_id === grupoFiltro)
+                .map((item) => item.estudiante_id)
+        )
+
+        const map = new Map<string, Set<string>>()
+
+        padresEstudiantes
+            .filter((item) => estudiantesEnGrupo.has(item.estudiante_id))
+            .forEach((item) => {
+                const childName = item.estudiante?.nombre_completo?.trim()
+                if (!childName) return
+
+                const names = map.get(item.padre_id) ?? new Set<string>()
+                names.add(childName)
+                map.set(item.padre_id, names)
+            })
+
+        const labelMap = new Map<string, string>()
+        map.forEach((names, padreId) => {
+            labelMap.set(padreId, Array.from(names).join(', '))
+        })
+
+        return labelMap
+    }, [categoriaUsuario, grupoFiltro, estudiantesGrupos, padresEstudiantes])
+
+    const showGroupFilter = categoriaUsuario === 'estudiante' || categoriaUsuario === 'padre'
 
     const headerDescription = useMemo(() => {
         if (profile?.rol === 'estudiante') return 'Envía y recibe mensajes institucionales'
@@ -360,11 +487,12 @@ export default function MensajesPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="grid gap-4 md:grid-cols-3">
+                    <div className="grid gap-4 md:grid-cols-4">
                         <div className="space-y-2">
                             <Label>Categoría de usuario (filtro opcional)</Label>
                             <Select value={categoriaUsuario} onValueChange={(value) => {
                                 setCategoriaUsuario(value)
+                                setGrupoFiltro('')
                                 setDestinatarioId('') // Limpiar destinatario al cambiar categoría
                             }}>
                                 <SelectTrigger>
@@ -379,24 +507,61 @@ export default function MensajesPage() {
                                 </SelectContent>
                             </Select>
                         </div>
+                        {showGroupFilter && (
+                            <div className="space-y-2">
+                                <Label>Grupo</Label>
+                                <Select value={grupoFiltro} onValueChange={(value) => {
+                                    setGrupoFiltro(value)
+                                    setDestinatarioId('')
+                                }}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Selecciona un grupo" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {gruposDisponibles.length === 0 && (
+                                            <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                                                No hay grupos disponibles
+                                            </div>
+                                        )}
+                                        {gruposDisponibles.map((grupo) => (
+                                            <SelectItem key={grupo.id} value={grupo.id}>
+                                                {grupo.grado?.nombre
+                                                    ? `${grupo.grado.nombre} - ${grupo.nombre} (${grupo.año_academico})`
+                                                    : `${grupo.nombre} (${grupo.año_academico})`}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
                         <div className="space-y-2">
                             <Label>Destinatario</Label>
                             <Select
                                 value={destinatarioId}
                                 onValueChange={setDestinatarioId}
+                                disabled={showGroupFilter && !grupoFiltro}
                             >
                                 <SelectTrigger>
-                                    <SelectValue placeholder="Selecciona un destinatario" />
+                                    <SelectValue placeholder={showGroupFilter && !grupoFiltro ? 'Primero selecciona un grupo' : 'Selecciona un destinatario'} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {filteredRecipients.length === 0 && (
                                         <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                                            No hay usuarios disponibles
+                                            {showGroupFilter && !grupoFiltro
+                                                ? 'Selecciona un grupo para ver destinatarios'
+                                                : 'No hay usuarios disponibles'}
                                         </div>
                                     )}
                                     {filteredRecipients.map((user) => (
                                         <SelectItem key={user.id} value={user.id}>
-                                            {user.nombre_completo}
+                                            <div className="flex flex-col">
+                                                <span>{user.nombre_completo}</span>
+                                                {categoriaUsuario === 'padre' && parentChildLabelByParentId.get(user.id) && (
+                                                    <span className="text-xs text-muted-foreground">
+                                                        Hijo(a): {parentChildLabelByParentId.get(user.id)}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
