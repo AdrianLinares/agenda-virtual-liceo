@@ -5,6 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { AlertCircle, CheckCircle2, Clock3 } from 'lucide-react'
 
 export default function RestablecerContrasenaPage() {
     const [newPassword, setNewPassword] = useState('')
@@ -91,21 +93,26 @@ export default function RestablecerContrasenaPage() {
                             </div>
 
                             {error && (
-                                <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md">
-                                    {error}
-                                </div>
+                                <Alert variant="destructive">
+                                    <AlertCircle className="h-4 w-4" />
+                                    <AlertDescription>{error}</AlertDescription>
+                                </Alert>
                             )}
 
                             {success && (
-                                <div className="p-3 text-sm text-primary bg-primary/10 border border-primary/30 rounded-md">
-                                    {success}
-                                </div>
+                                <Alert className="border-emerald-200 bg-emerald-50 text-emerald-700 [&>svg]:text-emerald-700">
+                                    <CheckCircle2 className="h-4 w-4" />
+                                    <AlertDescription>{success}</AlertDescription>
+                                </Alert>
                             )}
 
                             {loading && slowRequestNotice && !error && !success && (
-                                <div className="p-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md">
-                                    Estamos procesando el cambio. Puede tardar unos segundos adicionales.
-                                </div>
+                                <Alert className="border-amber-200 bg-amber-50 text-amber-700 [&>svg]:text-amber-700">
+                                    <Clock3 className="h-4 w-4" />
+                                    <AlertDescription>
+                                        Estamos procesando el cambio. Puede tardar unos segundos adicionales.
+                                    </AlertDescription>
+                                </Alert>
                             )}
 
                             <Button type="submit" className="w-full" disabled={loading || Boolean(success)}>

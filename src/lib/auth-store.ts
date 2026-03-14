@@ -6,6 +6,9 @@ import type { Database } from '@/types/database.types'
 
 type Profile = Database['public']['Tables']['profiles']['Row']
 
+let isInitializingAuth = false
+let hasAuthStateListener = false
+
 interface AuthState {
   user: User | null
   profile: Profile | null
@@ -22,7 +25,7 @@ interface AuthState {
   initialize: () => Promise<void>
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   profile: null,
   loading: true,
@@ -240,6 +243,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   initialize: async () => {
+    if (isInitializingAuth || get().initialized) {
+      return
+    }
+
+    isInitializingAuth = true
+
     try {
       set({ loading: true })
 
@@ -268,36 +277,54 @@ export const useAuthStore = create<AuthState>((set) => ({
         set({ user: null, profile: null, initialized: true })
       }
 
-      // Keep store synced when Supabase emits SIGNED_IN, TOKEN_REFRESHED or SIGNED_OUT.
-      supabase.auth.onAuthStateChange(async (_event, session) => {
-        if (!session?.user) {
-          set({ user: null, profile: null })
-          return
-        }
-
-        try {
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single()
-
-          if (profileError) {
-            console.warn('Error fetching profile on auth change:', profileError)
+      if (!hasAuthStateListener) {
+        // Keep store synced with auth events and avoid profile queries on password update events.
+        supabase.auth.onAuthStateChange(async (event, session) => {
+          if (event === 'SIGNED_OUT') {
+            set({ user: null, profile: null })
+            return
           }
 
-          set({ user: session.user, profile: profileData || null })
-        } catch (authChangeError) {
-          console.warn('Non-blocking profile refresh error on auth change:', authChangeError)
-          // Keep authenticated user state even if profile refresh fails transiently.
+          if (!session?.user) {
+            return
+          }
+
+          if (event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED' || event === 'PASSWORD_RECOVERY') {
+            set({ user: session.user })
+            return
+          }
+
+          if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+            try {
+              const { data: profileData, error: profileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', session.user.id)
+                .single()
+
+              if (profileError) {
+                console.warn('Error fetching profile on auth change:', profileError)
+              }
+
+              set({ user: session.user, profile: profileData || null })
+            } catch (authChangeError) {
+              console.warn('Non-blocking profile refresh error on auth change:', authChangeError)
+              set({ user: session.user })
+            }
+            return
+          }
+
           set({ user: session.user })
-        }
-      })
+        })
+
+        hasAuthStateListener = true
+      }
     } catch (error) {
       console.error('Error initializing auth:', error)
       set({ initialized: true })
     } finally {
       set({ loading: false })
+      isInitializingAuth = false
     }
   },
 }))
