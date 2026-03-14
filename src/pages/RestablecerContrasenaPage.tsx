@@ -11,6 +11,7 @@ export default function RestablecerContrasenaPage() {
     const [confirmPassword, setConfirmPassword] = useState('')
     const [error, setError] = useState('')
     const [success, setSuccess] = useState('')
+    const [slowRequestNotice, setSlowRequestNotice] = useState(false)
 
     const updatePasswordWithRecovery = useAuthStore((state) => state.updatePasswordWithRecovery)
     const loading = useAuthStore((state) => state.loading)
@@ -20,6 +21,7 @@ export default function RestablecerContrasenaPage() {
         e.preventDefault()
         setError('')
         setSuccess('')
+        setSlowRequestNotice(false)
 
         if (newPassword.length < 6) {
             setError('La nueva contraseña debe tener al menos 6 caracteres')
@@ -31,6 +33,10 @@ export default function RestablecerContrasenaPage() {
             return
         }
 
+        const slowNoticeTimer = window.setTimeout(() => {
+            setSlowRequestNotice(true)
+        }, 5000)
+
         try {
             await updatePasswordWithRecovery(newPassword)
             setSuccess('Tu contraseña fue restablecida. Ahora puedes iniciar sesión.')
@@ -40,6 +46,9 @@ export default function RestablecerContrasenaPage() {
         } catch (err) {
             const message = err instanceof Error ? err.message : 'No se pudo restablecer la contraseña'
             setError(message)
+        } finally {
+            window.clearTimeout(slowNoticeTimer)
+            setSlowRequestNotice(false)
         }
     }
 
@@ -90,6 +99,12 @@ export default function RestablecerContrasenaPage() {
                             {success && (
                                 <div className="p-3 text-sm text-primary bg-primary/10 border border-primary/30 rounded-md">
                                     {success}
+                                </div>
+                            )}
+
+                            {loading && slowRequestNotice && !error && !success && (
+                                <div className="p-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md">
+                                    Estamos procesando el cambio. Puede tardar unos segundos adicionales.
                                 </div>
                             )}
 

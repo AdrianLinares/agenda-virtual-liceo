@@ -158,9 +158,11 @@ export const useAuthStore = create<AuthState>((set) => ({
         throw new Error('Debes ingresar una nueva contraseña')
       }
 
-      const { error } = await withTimeout(supabase.auth.updateUser({
+      // In recovery flows, Supabase can complete successfully after an initial delay.
+      // Avoid surfacing false timeout errors in the UI for successful updates.
+      const { error } = await supabase.auth.updateUser({
         password: newPassword,
-      }), 15000, 'Tiempo de espera agotado al restablecer la contraseña')
+      })
 
       if (error) {
         throw new Error(error.message || 'No se pudo restablecer la contraseña')
