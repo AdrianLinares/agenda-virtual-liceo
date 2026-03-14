@@ -16,6 +16,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertCircle, CheckCircle2, Inbox, Loader2, Mail, Send } from 'lucide-react'
 import type { Database } from '@/types/database.types'
+import { sortByGradeAndGroupName } from '@/utils/grade-order'
 
 interface Mensaje {
     id: string
@@ -271,7 +272,12 @@ export default function MensajesPage() {
             if (estudiantesGruposRes.error) throw estudiantesGruposRes.error
             if (padresEstudiantesRes.error) throw padresEstudiantesRes.error
 
-            setGruposDisponibles((gruposRes.data || []) as GrupoOption[])
+            const gruposOrdenados = sortByGradeAndGroupName(
+                (gruposRes.data || []) as GrupoOption[],
+                (g) => (g.grado as { nombre: string } | null)?.nombre,
+                (g) => g.nombre
+            )
+            setGruposDisponibles(gruposOrdenados)
             setEstudiantesGrupos((estudiantesGruposRes.data || []) as EstudianteGrupoLink[])
             setPadresEstudiantes((padresEstudiantesRes.data || []) as PadreEstudianteLink[])
         } catch (err) {
