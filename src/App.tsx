@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/lib/auth-store'
 
 const HomePage = lazy(() => import('@/pages/HomePage'))
@@ -82,6 +82,23 @@ function RoleProtectedRoute({
   return <>{children}</>
 }
 
+function RecoveryLinkRedirect() {
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    const hashParams = new URLSearchParams(location.hash.startsWith('#') ? location.hash.slice(1) : location.hash)
+    const searchParams = new URLSearchParams(location.search)
+    const recoveryType = hashParams.get('type') || searchParams.get('type')
+
+    if (recoveryType === 'recovery' && location.pathname !== '/restablecer-contrasena') {
+      navigate(`/restablecer-contrasena${location.search}${location.hash}`, { replace: true })
+    }
+  }, [location.hash, location.pathname, location.search, navigate])
+
+  return null
+}
+
 function App() {
   const initialize = useAuthStore((state) => state.initialize)
 
@@ -91,6 +108,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <RecoveryLinkRedirect />
       <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Home Page - Public */}
