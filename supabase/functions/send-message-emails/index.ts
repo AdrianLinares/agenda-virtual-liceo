@@ -258,6 +258,10 @@ function renderNotificationEmail(
                     © 2026 Liceo Angel de la Guarda. Todos los derechos reservados.<br>
                     Este es un mensaje generado automaticamente por Agenda Virtual.
                 </p>
+                <p style="font-size: 12px; color: #6b7280; text-align: center; margin-bottom: 0;">
+                Soporte Oficial:<br>
+                soporte@liceoangeldelaguarda.education
+                </p>
             </div>
         </div>
     `
