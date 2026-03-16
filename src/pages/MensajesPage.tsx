@@ -68,8 +68,28 @@ interface PadreEstudianteLink {
 
 type TabType = 'recibidos' | 'enviados'
 
+const SEND_MESSAGE_TIMEOUT_MS = 15000
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+    const timeoutPromise = new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(() => {
+            reject(new Error(timeoutMessage))
+        }, timeoutMs)
+    })
+
+    try {
+        return await Promise.race([promise, timeoutPromise])
+    } finally {
+        if (timeoutId) clearTimeout(timeoutId)
+    }
+}
+
 export default function MensajesPage() {
     const { profile } = useAuthStore()
+    const normalizedRole = profile?.rol?.trim().toLowerCase() ?? ''
+    const isAdminUser = normalizedRole === 'administrador' || normalizedRole === 'admin'
     const [searchParams, setSearchParams] = useSearchParams()
     const [tab, setTab] = useState<TabType>('recibidos')
     const [mensajes, setMensajes] = useState<Mensaje[]>([])
@@ -82,6 +102,7 @@ export default function MensajesPage() {
     const [grupoFiltro, setGrupoFiltro] = useState('')
     const [sendToAllStudentsInGroup, setSendToAllStudentsInGroup] = useState(false)
     const [sendToAllParentsInGroup, setSendToAllParentsInGroup] = useState(false)
+    const [selectedCategoriasUsuarios, setSelectedCategoriasUsuarios] = useState<Set<string>>(new Set())
     const [destinatarioId, setDestinatarioId] = useState('')
     const [asunto, setAsunto] = useState('')
     const [contenido, setContenido] = useState('')
@@ -118,26 +139,34 @@ export default function MensajesPage() {
     }, [profile, tab])
 
     const allowedRecipientRoles = useMemo(() => {
-        if (!profile?.rol) return null
-        if (profile.rol === 'estudiante') return ['docente']
-        if (profile.rol === 'padre') return ['docente', 'administrativo', 'administrador']
+        if (!normalizedRole) return null
+        if (normalizedRole === 'estudiante') return ['docente']
+        if (normalizedRole === 'padre') return ['docente', 'administrativo', 'administrador']
         return null
-    }, [profile?.rol])
+    }, [normalizedRole])
 
     const categoriaOptions = useMemo(() => {
-        const allOptions = [
+        const allOptions: Array<{ value: string; label: string }> = [
             { value: 'todos', label: 'Todos' },
+        ]
+
+        // Agregar opción de envío por categorías solo para administradores
+        if (isAdminUser) {
+            allOptions.push({ value: 'categorias', label: 'Categorías de usuarios (envío masivo)' })
+        }
+
+        allOptions.push(
             { value: 'grupo', label: 'Grupo (envío masivo)' },
             { value: 'administrativo', label: 'Administrativo' },
             { value: 'docente', label: 'Docente' },
             { value: 'estudiante', label: 'Estudiante' },
-            { value: 'padre', label: 'Padre/Madre' },
-        ]
+            { value: 'padre', label: 'Padre/Madre' }
+        )
 
         if (!allowedRecipientRoles) return allOptions
 
         return allOptions.filter((option) => {
-            if (option.value === 'todos') return true
+            if (option.value === 'todos' || option.value === 'categorias') return true
             if (option.value === 'administrativo') {
                 return (
                     allowedRecipientRoles.includes('administrativo') ||
@@ -146,7 +175,7 @@ export default function MensajesPage() {
             }
             return allowedRecipientRoles.includes(option.value)
         })
-    }, [allowedRecipientRoles])
+    }, [allowedRecipientRoles, isAdminUser])
 
     useEffect(() => {
         if (!categoriaUsuario || categoriaUsuario === 'todos') return
@@ -155,6 +184,7 @@ export default function MensajesPage() {
         setGrupoFiltro('')
         setSendToAllStudentsInGroup(false)
         setSendToAllParentsInGroup(false)
+        setSelectedCategoriasUsuarios(new Set())
         setDestinatarioId('')
     }, [categoriaUsuario, categoriaOptions])
 
@@ -163,6 +193,11 @@ export default function MensajesPage() {
         if (sendToAllStudentsInGroup) setSendToAllStudentsInGroup(false)
         if (sendToAllParentsInGroup) setSendToAllParentsInGroup(false)
     }, [categoriaUsuario, sendToAllStudentsInGroup, sendToAllParentsInGroup])
+
+    useEffect(() => {
+        if (categoriaUsuario === 'categorias') return
+        if (selectedCategoriasUsuarios.size > 0) setSelectedCategoriasUsuarios(new Set())
+    }, [categoriaUsuario, selectedCategoriasUsuarios])
 
     useEffect(() => {
         const needsGroupFilter = categoriaUsuario === 'estudiante' || categoriaUsuario === 'padre' || categoriaUsuario === 'grupo'
@@ -335,10 +370,34 @@ export default function MensajesPage() {
         recipientById,
     ])
 
+    const categoriaMassRecipientIds = useMemo(() => {
+        if (categoriaUsuario !== 'categorias' || selectedCategoriasUsuarios.size === 0) return []
+
+        const rolesMap: Record<string, string[]> = {
+            'padres': ['padre'],
+            'docentes': ['docente'],
+            'administrativos': ['administrador', 'administrativo']
+        }
+
+        const targetIds = new Set<string>()
+
+        recipients.forEach((recipient) => {
+            selectedCategoriasUsuarios.forEach((categoria) => {
+                const rolesPermitidos = rolesMap[categoria] || []
+                if (rolesPermitidos.includes(recipient.rol)) {
+                    targetIds.add(recipient.id)
+                }
+            })
+        })
+
+        return Array.from(targetIds)
+    }, [categoriaUsuario, selectedCategoriasUsuarios, recipients])
+
     const handleSendMessage = async () => {
         if (!profile) return
 
         const isGroupMassMode = categoriaUsuario === 'grupo'
+        const isCategoryMassMode = categoriaUsuario === 'categorias'
 
         if (isGroupMassMode) {
             if (!grupoFiltro) {
@@ -348,6 +407,13 @@ export default function MensajesPage() {
 
             if (!sendToAllStudentsInGroup && !sendToAllParentsInGroup) {
                 setError('Selecciona al menos estudiantes y/o padres para el envío masivo')
+                return
+            }
+        }
+
+        if (isCategoryMassMode) {
+            if (selectedCategoriasUsuarios.size === 0) {
+                setError('Selecciona al menos una categoría de usuarios para el envío masivo')
                 return
             }
         }
@@ -363,6 +429,12 @@ export default function MensajesPage() {
             targetRecipientIds = groupMassRecipientIds
             if (targetRecipientIds.length === 0) {
                 setError('No hay destinatarios disponibles para el grupo y criterios seleccionados')
+                return
+            }
+        } else if (isCategoryMassMode) {
+            targetRecipientIds = categoriaMassRecipientIds
+            if (targetRecipientIds.length === 0) {
+                setError('No hay destinatarios disponibles para las categorías seleccionadas')
                 return
             }
         } else {
@@ -399,26 +471,32 @@ export default function MensajesPage() {
             } satisfies Database['public']['Tables']['mensajes']['Insert']))
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { error } = await (supabase as any)
-                .from('mensajes')
-                .insert(payload)
+            const insertResponse = await withTimeout<any>(
+                (supabase as any)
+                    .from('mensajes')
+                    .insert(payload),
+                SEND_MESSAGE_TIMEOUT_MS,
+                'El envío tardó demasiado. Intenta nuevamente.'
+            )
+            const { error } = insertResponse
 
             if (error) throw error
 
             setDestinatarioId('')
             setAsunto('')
             setContenido('')
-            if (isGroupMassMode) {
+            if (isGroupMassMode || isCategoryMassMode) {
                 setSuccess(`Mensaje enviado a ${targetRecipientIds.length} destinatario(s)`)
             } else {
                 setSuccess('Mensaje enviado')
             }
             if (tab === 'enviados') {
-                await loadMensajes()
+                void loadMensajes()
             }
         } catch (err) {
             console.error('Error sending message:', err)
-            setError('Error al enviar el mensaje')
+            const errorMessage = err instanceof Error ? err.message : 'Error al enviar el mensaje'
+            setError(errorMessage)
         } finally {
             setSaving(false)
         }
@@ -598,6 +676,7 @@ export default function MensajesPage() {
                                 setGrupoFiltro('')
                                 setSendToAllStudentsInGroup(false)
                                 setSendToAllParentsInGroup(false)
+                                setSelectedCategoriasUsuarios(new Set())
                                 setDestinatarioId('') // Limpiar destinatario al cambiar categoría
                             }}>
                                 <SelectTrigger>
@@ -665,7 +744,65 @@ export default function MensajesPage() {
                                 </div>
                             </div>
                         )}
-                        {categoriaUsuario !== 'grupo' && (
+                        {categoriaUsuario === 'categorias' && (
+                            <div className="space-y-2 md:col-span-2">
+                                <Label>Envío masivo por categoría</Label>
+                                <div className="rounded-md border border-border p-3 space-y-2">
+                                    <label className="flex items-center gap-2 text-sm text-foreground">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedCategoriasUsuarios.has('padres')}
+                                            onChange={(e) => {
+                                                const newCategories = new Set(selectedCategoriasUsuarios)
+                                                if (e.target.checked) {
+                                                    newCategories.add('padres')
+                                                } else {
+                                                    newCategories.delete('padres')
+                                                }
+                                                setSelectedCategoriasUsuarios(newCategories)
+                                            }}
+                                        />
+                                        Todos los padres/acudientes
+                                    </label>
+                                    <label className="flex items-center gap-2 text-sm text-foreground">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedCategoriasUsuarios.has('docentes')}
+                                            onChange={(e) => {
+                                                const newCategories = new Set(selectedCategoriasUsuarios)
+                                                if (e.target.checked) {
+                                                    newCategories.add('docentes')
+                                                } else {
+                                                    newCategories.delete('docentes')
+                                                }
+                                                setSelectedCategoriasUsuarios(newCategories)
+                                            }}
+                                        />
+                                        Todos los docentes
+                                    </label>
+                                    <label className="flex items-center gap-2 text-sm text-foreground">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedCategoriasUsuarios.has('administrativos')}
+                                            onChange={(e) => {
+                                                const newCategories = new Set(selectedCategoriasUsuarios)
+                                                if (e.target.checked) {
+                                                    newCategories.add('administrativos')
+                                                } else {
+                                                    newCategories.delete('administrativos')
+                                                }
+                                                setSelectedCategoriasUsuarios(newCategories)
+                                            }}
+                                        />
+                                        Todos los administrativos
+                                    </label>
+                                    <p className="text-xs text-muted-foreground">
+                                        Destinatarios estimados: {categoriaMassRecipientIds.length}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                        {categoriaUsuario !== 'grupo' && categoriaUsuario !== 'categorias' && (
                             <div className="space-y-2">
                                 <Label>Destinatario</Label>
                                 <Select
@@ -708,7 +845,12 @@ export default function MensajesPage() {
 
                     <div className="space-y-2">
                         <Label>Mensaje</Label>
-                        <Input value={contenido} onChange={(e) => setContenido(e.target.value)} />
+                        <textarea
+                            value={contenido}
+                            onChange={(e) => setContenido(e.target.value)}
+                            className="w-full rounded-md border border-input bg-background px-3 py-2 text-base placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-none min-h-32"
+                            placeholder="Escribe tu mensaje aquí..."
+                        />
                     </div>
 
                     <Button onClick={handleSendMessage} disabled={saving}>
