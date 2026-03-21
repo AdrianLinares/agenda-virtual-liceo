@@ -68,7 +68,7 @@ interface PadreEstudianteLink {
 
 type TabType = 'recibidos' | 'enviados'
 
-const SEND_MESSAGE_TIMEOUT_MS = 15000
+const SEND_MESSAGE_TIMEOUT_MS = 45000
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
     let timeoutId: ReturnType<typeof setTimeout> | null = null
@@ -376,7 +376,8 @@ export default function MensajesPage() {
         const rolesMap: Record<string, string[]> = {
             'padres': ['padre'],
             'docentes': ['docente'],
-            'administrativos': ['administrador', 'administrativo']
+            'administrativos': ['administrador', 'administrativo'],
+            'estudiantes': ['estudiante']
         }
 
         const targetIds = new Set<string>()
@@ -462,25 +463,45 @@ export default function MensajesPage() {
         setSuccess(null)
 
         try {
-            const payload = targetRecipientIds.map((recipientId) => ({
-                remitente_id: profile.id,
-                destinatario_id: recipientId,
-                asunto: asunto.trim(),
-                contenido: contenido.trim(),
-                estado: 'enviado',
-            } satisfies Database['public']['Tables']['mensajes']['Insert']))
+            // Optimizado: aumentar batch size basado en datos de producción (400+ mensajes sin error)
+            const BATCH_SIZE = 200
+            const INTER_BATCH_DELAY = 100 // pequeño delay entre batches para distribuir carga de BD
+            const batches: Array<Database['public']['Tables']['mensajes']['Insert'][]> = []
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const insertResponse = await withTimeout<any>(
-                (supabase as any)
-                    .from('mensajes')
-                    .insert(payload),
-                SEND_MESSAGE_TIMEOUT_MS,
-                'El envío tardó demasiado. Intenta nuevamente.'
-            )
-            const { error } = insertResponse
+            // Dividir en lotes
+            for (let i = 0; i < targetRecipientIds.length; i += BATCH_SIZE) {
+                const batchIds = targetRecipientIds.slice(i, i + BATCH_SIZE)
+                const batchPayload = batchIds.map((recipientId) => ({
+                    remitente_id: profile.id,
+                    destinatario_id: recipientId,
+                    asunto: asunto.trim(),
+                    contenido: contenido.trim(),
+                    estado: 'enviado',
+                } satisfies Database['public']['Tables']['mensajes']['Insert']))
+                batches.push(batchPayload)
+            }
 
-            if (error) throw error
+            // Enviar lotes de forma secuencial con pequeño delay para mejor distribución de carga
+            for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+                const batch = batches[batchIndex]
+
+                // Pequeño delay entre batches excepto en el primero
+                if (batchIndex > 0) {
+                    await new Promise((resolve) => setTimeout(resolve, INTER_BATCH_DELAY))
+                }
+
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const insertResponse = await withTimeout<any>(
+                    (supabase as any)
+                        .from('mensajes')
+                        .insert(batch),
+                    SEND_MESSAGE_TIMEOUT_MS,
+                    'El envío tardó demasiado. Intenta nuevamente.'
+                )
+                const { error } = insertResponse
+
+                if (error) throw error
+            }
 
             setDestinatarioId('')
             setAsunto('')
@@ -795,6 +816,22 @@ export default function MensajesPage() {
                                             }}
                                         />
                                         Todos los administrativos
+                                    </label>
+                                    <label className="flex items-center gap-2 text-sm text-foreground">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedCategoriasUsuarios.has('estudiantes')}
+                                            onChange={(e) => {
+                                                const newCategories = new Set(selectedCategoriasUsuarios)
+                                                if (e.target.checked) {
+                                                    newCategories.add('estudiantes')
+                                                } else {
+                                                    newCategories.delete('estudiantes')
+                                                }
+                                                setSelectedCategoriasUsuarios(newCategories)
+                                            }}
+                                        />
+                                        Todos los estudiantes
                                     </label>
                                     <p className="text-xs text-muted-foreground">
                                         Destinatarios estimados: {categoriaMassRecipientIds.length}
