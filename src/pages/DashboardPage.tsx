@@ -22,6 +22,41 @@ interface Anuncio {
   importante: boolean
 }
 
+const DASHBOARD_CACHE_TTL_MS = 60_000
+
+type CachedEntry<T> = {
+  value: T
+  updatedAt: number
+}
+
+const dashboardCache = {
+  eventosByUser: new Map<string, CachedEntry<Evento[]>>(),
+  anunciosByUser: new Map<string, CachedEntry<Anuncio[]>>(),
+  mensajesSinLeerByProfile: new Map<string, CachedEntry<number>>(),
+  seguimientosByUser: new Map<string, CachedEntry<number>>(),
+  horariosByUser: new Map<string, CachedEntry<number>>(),
+  citacionesByUser: new Map<string, CachedEntry<number>>(),
+}
+
+function getFreshCache<T>(map: Map<string, CachedEntry<T>>, key: string): T | null {
+  const entry = map.get(key)
+  if (!entry) return null
+
+  if (Date.now() - entry.updatedAt > DASHBOARD_CACHE_TTL_MS) {
+    map.delete(key)
+    return null
+  }
+
+  return entry.value
+}
+
+function setCache<T>(map: Map<string, CachedEntry<T>>, key: string, value: T) {
+  map.set(key, {
+    value,
+    updatedAt: Date.now(),
+  })
+}
+
 export default function DashboardPage() {
   const { profile, user } = useAuthStore()
   const userId = user?.id ?? null
@@ -47,6 +82,13 @@ export default function DashboardPage() {
       return
     }
 
+    const cachedCount = getFreshCache(dashboardCache.mensajesSinLeerByProfile, profileId)
+    if (cachedCount !== null) {
+      setMensajesSinLeer(cachedCount)
+      setLoadingMensajesSinLeer(false)
+      return
+    }
+
     setLoadingMensajesSinLeer(true)
 
     try {
@@ -57,7 +99,9 @@ export default function DashboardPage() {
         .eq('estado', 'enviado'), 15000, 'Tiempo de espera agotado al cargar mensajes sin leer'))
 
       if (error) throw error
-      setMensajesSinLeer(count ?? 0)
+      const resolvedCount = count ?? 0
+      setMensajesSinLeer(resolvedCount)
+      setCache(dashboardCache.mensajesSinLeerByProfile, profileId, resolvedCount)
     } catch (error) {
       console.error('Error cargando mensajes sin leer:', error)
       setMensajesSinLeer(0)
@@ -71,20 +115,46 @@ export default function DashboardPage() {
       return
     }
 
+    let cancelled = false
+
+    // Fase 1: datos críticos para pintar el dashboard rápido.
     void Promise.allSettled([
       loadEventos(),
       loadAnuncios(),
-      loadSeguimientosCount(),
-      loadHorariosCount(),
-      loadCitacionesProximas(),
+      loadMensajesSinLeer(),
     ])
-  }, [userId])
 
-  useEffect(() => {
-    void loadMensajesSinLeer()
-  }, [loadMensajesSinLeer])
+    // Fase 2: contadores secundarios, diferidos para evitar pico inicial de consultas.
+    const deferredLoadId = window.setTimeout(() => {
+      if (cancelled) return
+
+      void Promise.allSettled([
+        loadSeguimientosCount(),
+        loadHorariosCount(),
+        loadCitacionesProximas(),
+      ])
+    }, 250)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(deferredLoadId)
+    }
+  }, [userId, loadMensajesSinLeer])
 
   const loadEventos = async () => {
+    if (!userId) {
+      setEventos([])
+      setLoadingEventos(false)
+      return
+    }
+
+    const cachedEventos = getFreshCache(dashboardCache.eventosByUser, userId)
+    if (cachedEventos) {
+      setEventos(cachedEventos)
+      setLoadingEventos(false)
+      return
+    }
+
     setLoadingEventos(true)
 
     try {
@@ -101,7 +171,9 @@ export default function DashboardPage() {
         .limit(5), 15000, 'Tiempo de espera agotado al cargar eventos del dashboard'))
 
       if (error) throw error
-      setEventos(data || [])
+      const resolvedData = data || []
+      setEventos(resolvedData)
+      setCache(dashboardCache.eventosByUser, userId, resolvedData)
     } catch (error) {
       console.error('Error cargando eventos:', error)
     } finally {
@@ -110,6 +182,19 @@ export default function DashboardPage() {
   }
 
   const loadAnuncios = async () => {
+    if (!userId) {
+      setAnuncios([])
+      setLoadingAnuncios(false)
+      return
+    }
+
+    const cachedAnuncios = getFreshCache(dashboardCache.anunciosByUser, userId)
+    if (cachedAnuncios) {
+      setAnuncios(cachedAnuncios)
+      setLoadingAnuncios(false)
+      return
+    }
+
     setLoadingAnuncios(true)
 
     try {
@@ -120,7 +205,9 @@ export default function DashboardPage() {
         .limit(3), 15000, 'Tiempo de espera agotado al cargar anuncios del dashboard'))
 
       if (error) throw error
-      setAnuncios(data || [])
+      const resolvedData = data || []
+      setAnuncios(resolvedData)
+      setCache(dashboardCache.anunciosByUser, userId, resolvedData)
     } catch (error) {
       console.error('Error cargando anuncios:', error)
     } finally {
@@ -129,15 +216,30 @@ export default function DashboardPage() {
   }
 
   const loadSeguimientosCount = async () => {
+    if (!userId) {
+      setSeguimientosCount(0)
+      setLoadingSeguimientosCount(false)
+      return
+    }
+
+    const cachedCount = getFreshCache(dashboardCache.seguimientosByUser, userId)
+    if (cachedCount !== null) {
+      setSeguimientosCount(cachedCount)
+      setLoadingSeguimientosCount(false)
+      return
+    }
+
     setLoadingSeguimientosCount(true)
 
     try {
-      const { count, error } = await withRetry(async () => withTimeout(supabase
+      const { count, error } = await withTimeout(supabase
         .from('seguimientos')
-        .select('id', { count: 'exact', head: true }), 15000, 'Tiempo de espera agotado al cargar seguimiento'))
+        .select('id', { count: 'exact', head: true }), 8000, 'Tiempo de espera agotado al cargar seguimiento')
 
       if (error) throw error
-      setSeguimientosCount(count ?? 0)
+      const resolvedCount = count ?? 0
+      setSeguimientosCount(resolvedCount)
+      setCache(dashboardCache.seguimientosByUser, userId, resolvedCount)
     } catch (error) {
       console.error('Error cargando seguimiento:', error)
       setSeguimientosCount(0)
@@ -147,15 +249,30 @@ export default function DashboardPage() {
   }
 
   const loadHorariosCount = async () => {
+    if (!userId) {
+      setHorariosCount(0)
+      setLoadingHorariosCount(false)
+      return
+    }
+
+    const cachedCount = getFreshCache(dashboardCache.horariosByUser, userId)
+    if (cachedCount !== null) {
+      setHorariosCount(cachedCount)
+      setLoadingHorariosCount(false)
+      return
+    }
+
     setLoadingHorariosCount(true)
 
     try {
-      const { count, error } = await withRetry(async () => withTimeout(supabase
+      const { count, error } = await withTimeout(supabase
         .from('horarios')
-        .select('id', { count: 'exact', head: true }), 15000, 'Tiempo de espera agotado al cargar horarios'))
+        .select('id', { count: 'exact', head: true }), 8000, 'Tiempo de espera agotado al cargar horarios')
 
       if (error) throw error
-      setHorariosCount(count ?? 0)
+      const resolvedCount = count ?? 0
+      setHorariosCount(resolvedCount)
+      setCache(dashboardCache.horariosByUser, userId, resolvedCount)
     } catch (error) {
       console.error('Error cargando horarios:', error)
       setHorariosCount(0)
@@ -165,16 +282,31 @@ export default function DashboardPage() {
   }
 
   const loadCitacionesProximas = async () => {
+    if (!userId) {
+      setCitacionesProximas(0)
+      setLoadingCitaciones(false)
+      return
+    }
+
+    const cachedCount = getFreshCache(dashboardCache.citacionesByUser, userId)
+    if (cachedCount !== null) {
+      setCitacionesProximas(cachedCount)
+      setLoadingCitaciones(false)
+      return
+    }
+
     setLoadingCitaciones(true)
 
     try {
-      const { count, error } = await withRetry(async () => withTimeout(supabase
+      const { count, error } = await withTimeout(supabase
         .from('citaciones')
         .select('id', { count: 'exact', head: true })
-        .gte('fecha_citacion', new Date().toISOString()), 15000, 'Tiempo de espera agotado al cargar citaciones'))
+        .gte('fecha_citacion', new Date().toISOString()), 8000, 'Tiempo de espera agotado al cargar citaciones')
 
       if (error) throw error
-      setCitacionesProximas(count ?? 0)
+      const resolvedCount = count ?? 0
+      setCitacionesProximas(resolvedCount)
+      setCache(dashboardCache.citacionesByUser, userId, resolvedCount)
     } catch (error) {
       console.error('Error cargando citaciones próximas:', error)
       setCitacionesProximas(0)

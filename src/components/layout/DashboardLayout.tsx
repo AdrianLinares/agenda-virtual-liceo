@@ -132,8 +132,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { profile, signOut } = useAuthStore()
 
   const handleSignOut = async () => {
-    await signOut()
-    navigate('/login')
+    try {
+      await signOut()
+    } catch (error) {
+      console.warn('Sign out flow returned an error:', error)
+    } finally {
+      navigate('/login', { replace: true })
+    }
   }
 
   const filteredMenuItems = menuItems.filter((item) => {

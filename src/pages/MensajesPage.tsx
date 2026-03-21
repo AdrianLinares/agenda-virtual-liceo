@@ -129,14 +129,19 @@ export default function MensajesPage() {
     }
 
     useEffect(() => {
-        if (profile) {
-            loadMensajes()
-            loadRecipients()
-            loadRecipientRelations()
-        }
-        // Ambas cargas dependen de profile/tab por diseño.
+        if (!profile) return
+        void loadMensajes()
+        // La carga de mensajes sí depende de la pestaña seleccionada.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [profile, tab])
+
+    useEffect(() => {
+        if (!profile) return
+        void loadRecipients()
+        void loadRecipientRelations()
+        // La carga de destinatarios/relaciones no depende de la pestaña.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [profile])
 
     const allowedRecipientRoles = useMemo(() => {
         if (!normalizedRole) return null

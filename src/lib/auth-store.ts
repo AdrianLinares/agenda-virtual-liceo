@@ -226,17 +226,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signOut: async () => {
     try {
       set({ loading: true })
-      const { error } = await withTimeout(supabase.auth.signOut(), 15000, 'Tiempo de espera agotado al cerrar sesión')
+      const { error } = await withTimeout(
+        supabase.auth.signOut(),
+        10000,
+        'Tiempo de espera agotado al cerrar sesión'
+      )
+
       if (error) {
-        const errorMessage = error.message || 'Error desconocido al cerrar sesión'
-        console.error('Error signing out:', error)
-        throw new Error(errorMessage)
+        throw error
       }
+
       set({ user: null, profile: null })
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Error al cerrar sesión'
-      console.error('Error signing out:', error)
-      throw new Error(errorMessage)
+      console.warn('Remote sign-out failed, falling back to local sign-out:', error)
+
+      try {
+        await withTimeout(
+          supabase.auth.signOut({ scope: 'local' }),
+          3000,
+          'Tiempo de espera agotado al cerrar sesión local'
+        )
+      } catch (localError) {
+        console.warn('Local sign-out fallback failed:', localError)
+      }
+
+      // Always clear local auth state to avoid blocking the UI.
+      set({ user: null, profile: null })
     } finally {
       set({ loading: false })
     }
