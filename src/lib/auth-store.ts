@@ -1,13 +1,17 @@
 import { create } from 'zustand'
 import { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
-import { withTimeout } from '@/lib/async-utils'
+import { withRetry, withTimeout } from '@/lib/async-utils'
 import type { Database } from '@/types/database.types'
 
 type Profile = Database['public']['Tables']['profiles']['Row']
 
 let isInitializingAuth = false
 let hasAuthStateListener = false
+
+const AUTH_TIMEOUT_MS = 25000
+const AUTH_RETRY_ATTEMPTS = 2
+const AUTH_RETRY_DELAY_MS = 700
 
 interface AuthState {
   user: User | null
@@ -38,10 +42,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signIn: async (email: string, password: string) => {
     try {
       set({ loading: true })
-      const { data, error } = await withTimeout(supabase.auth.signInWithPassword({
-        email,
-        password,
-      }), 15000, 'Tiempo de espera agotado al iniciar sesión')
+      const { data, error } = await withRetry(
+        () => withTimeout(
+          supabase.auth.signInWithPassword({
+            email,
+            password,
+          }),
+          AUTH_TIMEOUT_MS,
+          'Tiempo de espera agotado al iniciar sesión'
+        ),
+        AUTH_RETRY_ATTEMPTS,
+        AUTH_RETRY_DELAY_MS
+      )
 
       if (error) {
         const errorMessage = error.message || 'Error desconocido al iniciar sesión'
@@ -51,11 +63,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (data.user) {
         // Obtener el perfil del usuario
-        const { data: profileData, error: profileError } = await withTimeout(supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', data.user.id)
-          .single(), 15000, 'Tiempo de espera agotado al cargar el perfil')
+        const { data: profileData, error: profileError } = await withRetry(
+          () => withTimeout(
+            supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', data.user.id)
+              .single(),
+            AUTH_TIMEOUT_MS,
+            'Tiempo de espera agotado al cargar el perfil'
+          ),
+          AUTH_RETRY_ATTEMPTS,
+          AUTH_RETRY_DELAY_MS
+        )
 
         if (profileError) {
           console.error('Error fetching profile:', profileError)
@@ -226,10 +246,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signOut: async () => {
     try {
       set({ loading: true })
-      const { error } = await withTimeout(
-        supabase.auth.signOut(),
-        10000,
-        'Tiempo de espera agotado al cerrar sesión'
+      const { error } = await withRetry(
+        () => withTimeout(
+          supabase.auth.signOut(),
+          12000,
+          'Tiempo de espera agotado al cerrar sesión'
+        ),
+        AUTH_RETRY_ATTEMPTS,
+        AUTH_RETRY_DELAY_MS
       )
 
       if (error) {
@@ -241,13 +265,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.warn('Remote sign-out failed, falling back to local sign-out:', error)
 
       try {
-        await withTimeout(
-          supabase.auth.signOut({ scope: 'local' }),
-          3000,
-          'Tiempo de espera agotado al cerrar sesión local'
+        await withRetry(
+          () => withTimeout(
+            supabase.auth.signOut({ scope: 'local' }),
+            8000,
+            'Tiempo de espera agotado al cerrar sesión local'
+          ),
+          AUTH_RETRY_ATTEMPTS,
+          AUTH_RETRY_DELAY_MS
         )
       } catch (localError) {
-        console.warn('Local sign-out fallback failed:', localError)
+        console.info('Local sign-out fallback failed (non-blocking):', localError)
       }
 
       // Always clear local auth state to avoid blocking the UI.
