@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/lib/auth-store'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Mail, Users, UserSearch, Clock } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Mail, Users, UserSearch, Clock, RefreshCw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { withRetry, withTimeout } from '@/lib/async-utils'
 
@@ -57,6 +58,20 @@ function setCache<T>(map: Map<string, CachedEntry<T>>, key: string, value: T) {
   })
 }
 
+function clearDashboardCache(userId: string | null, profileId: string | null) {
+  if (userId) {
+    dashboardCache.eventosByUser.delete(userId)
+    dashboardCache.anunciosByUser.delete(userId)
+    dashboardCache.seguimientosByUser.delete(userId)
+    dashboardCache.horariosByUser.delete(userId)
+    dashboardCache.citacionesByUser.delete(userId)
+  }
+
+  if (profileId) {
+    dashboardCache.mensajesSinLeerByProfile.delete(profileId)
+  }
+}
+
 export default function DashboardPage() {
   const { profile, user } = useAuthStore()
   const userId = user?.id ?? null
@@ -74,6 +89,7 @@ export default function DashboardPage() {
   const [loadingMensajesSinLeer, setLoadingMensajesSinLeer] = useState(true)
   const [citacionesProximas, setCitacionesProximas] = useState(0)
   const [loadingCitaciones, setLoadingCitaciones] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
   const loadMensajesSinLeer = useCallback(async () => {
     if (!profileId) {
@@ -341,16 +357,47 @@ export default function DashboardPage() {
     return 'Hace más de una semana'
   }
 
+  const handleRefreshDashboard = async () => {
+    setRefreshing(true)
+
+    clearDashboardCache(userId, profileId)
+
+    await Promise.allSettled([
+      loadEventos(),
+      loadAnuncios(),
+      loadMensajesSinLeer(),
+      loadSeguimientosCount(),
+      loadHorariosCount(),
+      loadCitacionesProximas(),
+    ])
+
+    setRefreshing(false)
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">
-          ¡Bienvenido, {profile?.nombre_completo}!
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Aquí encontrarás un resumen de tu actividad académica
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">
+            ¡Bienvenido, {profile?.nombre_completo}!
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Aquí encontrarás un resumen de tu actividad académica
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            void handleRefreshDashboard()
+          }}
+          disabled={refreshing}
+          className="shrink-0"
+        >
+          <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          {refreshing ? 'Actualizando...' : 'Actualizar'}
+        </Button>
       </div>
 
       {/* Stats Grid */}

@@ -14,7 +14,7 @@ import {
     SelectValue,
 } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { AlertCircle, CheckCircle2, Inbox, Loader2, Mail, Send } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Inbox, Loader2, Mail, RefreshCw, Send } from 'lucide-react'
 import type { Database } from '@/types/database.types'
 import { sortByGradeAndGroupName } from '@/utils/grade-order'
 
@@ -69,6 +69,7 @@ interface PadreEstudianteLink {
 type TabType = 'recibidos' | 'enviados'
 
 const SEND_MESSAGE_TIMEOUT_MS = 45000
+const REFRESH_SUCCESS_MESSAGE = 'Datos actualizados'
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
     let timeoutId: ReturnType<typeof setTimeout> | null = null
@@ -113,6 +114,7 @@ export default function MensajesPage() {
 
     const [selectedMessage, setSelectedMessage] = useState<Mensaje | null>(null)
     const [markingRead, setMarkingRead] = useState<string | null>(null)
+    const [refreshing, setRefreshing] = useState(false)
 
     useEffect(() => {
         const tabParam = searchParams.get('tab')
@@ -528,6 +530,33 @@ export default function MensajesPage() {
         }
     }
 
+    const handleRefreshMessages = async () => {
+        if (!profile) return
+
+        setRefreshing(true)
+        setError(null)
+        setSuccess(null)
+
+        const refreshResults = await Promise.allSettled([
+            loadMensajes(),
+            loadRecipients(),
+            loadRecipientRelations(),
+        ])
+
+        const hasErrors = refreshResults.some((result) => result.status === 'rejected')
+
+        if (hasErrors) {
+            setError('No se pudieron actualizar todos los datos. Intenta nuevamente.')
+        } else {
+            setSuccess(REFRESH_SUCCESS_MESSAGE)
+            window.setTimeout(() => {
+                setSuccess((prev) => (prev === REFRESH_SUCCESS_MESSAGE ? null : prev))
+            }, 2500)
+        }
+
+        setRefreshing(false)
+    }
+
     const handleOpenMessage = async (mensaje: Mensaje) => {
         setSelectedMessage(mensaje)
 
@@ -669,7 +698,7 @@ export default function MensajesPage() {
                 </Alert>
             )}
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
                 <Button
                     variant={tab === 'recibidos' ? 'default' : 'outline'}
                     onClick={() => handleTabChange('recibidos')}
@@ -683,6 +712,18 @@ export default function MensajesPage() {
                 >
                     <Send className="mr-2 h-4 w-4" />
                     Enviados
+                </Button>
+                <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                        void handleRefreshMessages()
+                    }}
+                    disabled={refreshing || loading || saving}
+                    className="ml-auto"
+                >
+                    <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+                    {refreshing ? 'Actualizando...' : 'Actualizar'}
                 </Button>
             </div>
 
