@@ -537,11 +537,17 @@ export default function NotasPage() {
                     )
                 `)
                 .eq('grupo_id', selectedGrupo)
+                .eq('estado', 'activo')
                 .returns<Array<{ estudiante: Estudiante }>>()
 
             if (error) throw error
 
-            setEstudiantes((data || []).map(item => item.estudiante).filter(Boolean))
+            const estudiantesOrdenados = (data || [])
+                .map((item) => item.estudiante)
+                .filter(Boolean)
+                .sort((a, b) => a.nombre_completo.localeCompare(b.nombre_completo, 'es', { sensitivity: 'base' }))
+
+            setEstudiantes(estudiantesOrdenados)
         } catch (err) {
             console.error('Error loading estudiantes:', err)
             setError('Error al cargar los estudiantes del grupo')
