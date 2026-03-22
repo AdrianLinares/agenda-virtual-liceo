@@ -98,6 +98,7 @@ interface AsignacionDocente {
 export default function NotasPage() {
     const { profile } = useAuthStore()
     const canViewAllNotas = profile?.rol === 'administrador' || profile?.rol === 'administrativo'
+    const canUseViewFilters = canViewAllNotas || profile?.rol === 'docente'
     const [periodos, setPeriodos] = useState<Periodo[]>([])
     const [selectedPeriodo, setSelectedPeriodo] = useState<string>('')
     const [notas, setNotas] = useState<Nota[]>([])
@@ -111,7 +112,7 @@ export default function NotasPage() {
     const [asignacionesDocente, setAsignacionesDocente] = useState<AsignacionDocente[]>([])
     const [estudiantes, setEstudiantes] = useState<Estudiante[]>([])
 
-    // Filtros de visualización (administrador y administrativo)
+    // Filtros de visualización (administrador, administrativo y docente)
     const [viewGrupo, setViewGrupo] = useState<string>('all')
     const [viewAsignatura, setViewAsignatura] = useState<string>('all')
     const [viewEstudiante, setViewEstudiante] = useState<string>('all')
@@ -144,14 +145,14 @@ export default function NotasPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedPeriodo, profile, viewGrupo, viewAsignatura, viewEstudiante])
 
-    // Cargar grupos y asignaturas asignadas al docente
+    // Cargar opciones de filtros y calculadora para docente
     useEffect(() => {
-        if (profile?.rol === 'docente' && showCalculator) {
+        if (profile?.rol === 'docente') {
             loadDocenteAsignaciones()
         }
-        // Carga dependiente de perfil docente y apertura de calculadora.
+        // Carga dependiente de perfil docente.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [profile, showCalculator])
+    }, [profile])
 
     useEffect(() => {
         if (canViewAllNotas) {
@@ -245,7 +246,7 @@ export default function NotasPage() {
                 query = query.in('grupo_id', gruposAsignados).in('asignatura_id', asignaturasAsignadas)
             }
 
-            if (canViewAllNotas) {
+            if (canUseViewFilters) {
                 if (viewGrupo !== 'all') {
                     query = query.eq('grupo_id', viewGrupo)
                 }
@@ -390,22 +391,22 @@ export default function NotasPage() {
     }, [notas])
 
     const viewAsignaturasDisponibles = useMemo(() => {
-        if (!canViewAllNotas || viewGrupo === 'all') {
+        if (!canUseViewFilters || viewGrupo === 'all') {
             return asignaturas
         }
 
         const permitidas = new Set(adminAsignaturasPorGrupo[viewGrupo] || [])
         return asignaturas.filter((asignatura) => permitidas.has(asignatura.id))
-    }, [adminAsignaturasPorGrupo, asignaturas, canViewAllNotas, viewGrupo])
+    }, [adminAsignaturasPorGrupo, asignaturas, canUseViewFilters, viewGrupo])
 
     const viewEstudiantesDisponibles = useMemo(() => {
-        if (!canViewAllNotas || viewGrupo === 'all') {
+        if (!canUseViewFilters || viewGrupo === 'all') {
             return estudiantes
         }
 
         const permitidos = new Set(adminEstudiantesPorGrupo[viewGrupo] || [])
         return estudiantes.filter((estudiante) => permitidos.has(estudiante.id))
-    }, [adminEstudiantesPorGrupo, canViewAllNotas, estudiantes, viewGrupo])
+    }, [adminEstudiantesPorGrupo, canUseViewFilters, estudiantes, viewGrupo])
 
     const headerDescription = useMemo(() => {
         if (profile?.rol === 'estudiante') return 'Consulta tus notas parciales por periodo'
@@ -415,7 +416,7 @@ export default function NotasPage() {
     }, [profile?.rol])
 
     useEffect(() => {
-        if (!canViewAllNotas) return
+        if (!canUseViewFilters) return
 
         if (viewGrupo === 'all') {
             if (viewAsignatura !== 'all') {
@@ -434,7 +435,7 @@ export default function NotasPage() {
         if (viewEstudiante !== 'all' && !viewEstudiantesDisponibles.some((estudiante) => estudiante.id === viewEstudiante)) {
             setViewEstudiante('all')
         }
-    }, [canViewAllNotas, viewAsignatura, viewAsignaturasDisponibles, viewEstudiante, viewEstudiantesDisponibles, viewGrupo])
+    }, [canUseViewFilters, viewAsignatura, viewAsignaturasDisponibles, viewEstudiante, viewEstudiantesDisponibles, viewGrupo])
 
     const asignaturasDisponibles = useMemo(() => {
         if (profile?.rol !== 'docente' || !showCalculator) {
@@ -508,6 +509,61 @@ export default function NotasPage() {
                 }
             })
 
+            const asignaturasPorGrupo = asignacionesPermitidas.reduce<Record<string, string[]>>((acc, item) => {
+                if (!acc[item.grupo_id]) {
+                    acc[item.grupo_id] = []
+                }
+
+                if (!acc[item.grupo_id].includes(item.asignatura_id)) {
+                    acc[item.grupo_id].push(item.asignatura_id)
+                }
+
+                return acc
+            }, {})
+
+            const gruposAsignados = Array.from(new Set(asignacionesPermitidas.map((item) => item.grupo_id)))
+            const { data: estudiantesGrupoData, error: estudiantesGrupoError } = gruposAsignados.length > 0
+                ? await supabase
+                    .from('estudiantes_grupos')
+                    .select(`
+                        grupo_id,
+                        estudiante:estudiante_id (
+                            id,
+                            nombre_completo,
+                            email
+                        )
+                    `)
+                    .in('grupo_id', gruposAsignados)
+                    .eq('estado', 'activo')
+                    .returns<Array<{ grupo_id: string; estudiante: Estudiante | null }>>()
+                : { data: [], error: null }
+
+            if (estudiantesGrupoError) throw estudiantesGrupoError
+
+            const estudiantesPorGrupo = (estudiantesGrupoData || []).reduce<Record<string, string[]>>((acc, item) => {
+                const estudianteId = item.estudiante?.id
+                if (!estudianteId) {
+                    return acc
+                }
+
+                if (!acc[item.grupo_id]) {
+                    acc[item.grupo_id] = []
+                }
+
+                if (!acc[item.grupo_id].includes(estudianteId)) {
+                    acc[item.grupo_id].push(estudianteId)
+                }
+
+                return acc
+            }, {})
+
+            const estudiantesMap = new Map<string, Estudiante>()
+                ; (estudiantesGrupoData || []).forEach((item) => {
+                    if (item.estudiante) {
+                        estudiantesMap.set(item.estudiante.id, item.estudiante)
+                    }
+                })
+
             setAsignacionesDocente(asignacionesPermitidas)
             setGrupos(
                 sortByGradeAndGroupName(
@@ -517,6 +573,12 @@ export default function NotasPage() {
                 )
             )
             setAsignaturas(Array.from(asignaturasMap.values()))
+            setEstudiantes(
+                Array.from(estudiantesMap.values())
+                    .sort((a, b) => a.nombre_completo.localeCompare(b.nombre_completo, 'es', { sensitivity: 'base' }))
+            )
+            setAdminAsignaturasPorGrupo(asignaturasPorGrupo)
+            setAdminEstudiantesPorGrupo(estudiantesPorGrupo)
         } catch (err) {
             console.error('Error loading asignaciones:', err)
             setError('Error al cargar las asignaciones del docente')
@@ -737,6 +799,29 @@ export default function NotasPage() {
         setShowCalculator(true)
     }
 
+    const parseObservacionesPayload = (observaciones: string) => {
+        const tryParse = (value: string) => {
+            try {
+                return JSON.parse(value)
+            } catch {
+                return null
+            }
+        }
+
+        const direct = tryParse(observaciones)
+        if (direct) return direct
+
+        // Normaliza errores comunes en datos historicos: comillas faltantes en claves y comas colgantes.
+        const normalized = observaciones
+            .replace(/[\u201C\u201D]/g, '"')
+            .replace(/[\u2018\u2019]/g, "'")
+            .replace(/([\{,]\s*)([a-zA-Z_][\w]*)":/g, '$1"$2":')
+            .replace(/([\{,]\s*)([a-zA-Z_][\w]*)\s*:/g, '$1"$2":')
+            .replace(/,\s*([}\]])/g, '$1')
+
+        return tryParse(normalized)
+    }
+
     const parseStoredCalculatorData = (observaciones: string | null): { grades: GradesData; weights: CategoryWeights; rubrics: RubricsData } => {
         const emptyGrades: GradesData = { A: [], P: [], C: [] }
         const emptyRubrics: RubricsData = { A: [], P: [], C: [] }
@@ -746,7 +831,11 @@ export default function NotasPage() {
         }
 
         try {
-            const data = JSON.parse(observaciones)
+            const data = parseObservacionesPayload(observaciones)
+            if (!data) {
+                return { grades: emptyGrades, weights: DEFAULT_WEIGHTS, rubrics: emptyRubrics }
+            }
+
             const grades: GradesData = {
                 A: Array.isArray(data?.actitudinal?.notas) ? data.actitudinal.notas.filter((n: unknown) => Number.isFinite(Number(n))).map((n: unknown) => Number(n)) : [],
                 P: Array.isArray(data?.procedimental?.notas) ? data.procedimental.notas.filter((n: unknown) => Number.isFinite(Number(n))).map((n: unknown) => Number(n)) : [],
@@ -825,7 +914,11 @@ export default function NotasPage() {
         if (!observaciones) return null
 
         try {
-            const data = JSON.parse(observaciones)
+            const data = parseObservacionesPayload(observaciones)
+            if (!data) {
+                throw new Error('Invalid observaciones payload')
+            }
+
             const { weights, rubrics } = parseStoredCalculatorData(observaciones)
 
             // Verificar si tiene el formato de la calculadora
@@ -998,17 +1091,27 @@ export default function NotasPage() {
                                     onValueChange={setSelectedEstudiante}
                                     disabled={!selectedGrupo}
                                 >
-                                    <SelectTrigger>
+                                    <SelectTrigger className="w-full md:min-w-[18rem]">
                                         <SelectValue placeholder="Selecciona estudiante" />
                                     </SelectTrigger>
-                                    <SelectContent>
+                                    <SelectContent className="md:min-w-[22rem]">
                                         {estudiantes.map((estudiante) => (
-                                            <SelectItem key={estudiante.id} value={estudiante.id}>
+                                            <SelectItem
+                                                key={estudiante.id}
+                                                value={estudiante.id}
+                                                className="whitespace-normal py-2 leading-tight"
+                                                title={estudiante.nombre_completo}
+                                            >
                                                 {estudiante.nombre_completo}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
+                                {selectedGrupo && estudiantes.length > 8 && (
+                                    <p className="mt-2 text-xs text-muted-foreground">
+                                        Desplaza la lista para ver todos los estudiantes ({estudiantes.length} en total).
+                                    </p>
+                                )}
                             </div>
                         </div>
 
@@ -1070,7 +1173,7 @@ export default function NotasPage() {
                         </Select>
                     </div>
 
-                    {canViewAllNotas && (
+                    {canUseViewFilters && (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                             <div>
                                 <label className="text-sm font-medium mb-2 block">Grupo</label>
@@ -1109,18 +1212,28 @@ export default function NotasPage() {
                             <div>
                                 <label className="text-sm font-medium mb-2 block">Estudiante</label>
                                 <Select value={viewEstudiante} onValueChange={setViewEstudiante}>
-                                    <SelectTrigger>
+                                    <SelectTrigger className="w-full md:min-w-[18rem]">
                                         <SelectValue placeholder="Todos los estudiantes" />
                                     </SelectTrigger>
-                                    <SelectContent>
+                                    <SelectContent className="md:min-w-[22rem]">
                                         <SelectItem value="all">Todos los estudiantes</SelectItem>
                                         {viewEstudiantesDisponibles.map((estudiante) => (
-                                            <SelectItem key={estudiante.id} value={estudiante.id}>
+                                            <SelectItem
+                                                key={estudiante.id}
+                                                value={estudiante.id}
+                                                className="whitespace-normal py-2 leading-tight"
+                                                title={estudiante.nombre_completo}
+                                            >
                                                 {estudiante.nombre_completo}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
+                                {viewEstudiantesDisponibles.length > 8 && (
+                                    <p className="mt-2 text-xs text-muted-foreground">
+                                        Desplaza la lista para ver todos los estudiantes ({viewEstudiantesDisponibles.length} en total).
+                                    </p>
+                                )}
                             </div>
                         </div>
                     )}
