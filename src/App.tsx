@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, useRef } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/lib/auth-store'
 
@@ -101,16 +101,55 @@ function RecoveryLinkRedirect() {
 
 function App() {
   const initialize = useAuthStore((state) => state.initialize)
+  const syncSession = useAuthStore((state) => state.syncSession)
+  const markAppResumed = useAuthStore((state) => state.markAppResumed)
+  const resumeVersion = useAuthStore((state) => state.resumeVersion)
+  const lastResumeTriggerRef = useRef(0)
 
   useEffect(() => {
     initialize()
   }, [initialize])
 
+  useEffect(() => {
+    const wakeAuth = (reason: 'visibilitychange' | 'online') => {
+      const now = Date.now()
+      // Prevent duplicate resume work when browser fires visibility and focus together.
+      if (now - lastResumeTriggerRef.current < 3000) {
+        return
+      }
+
+      lastResumeTriggerRef.current = now
+
+      if (import.meta.env.DEV) {
+        console.info('[app] resume trigger detected:', reason)
+      }
+
+      void syncSession(reason).finally(() => {
+        markAppResumed()
+      })
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        wakeAuth('visibilitychange')
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    const handleOnline = () => wakeAuth('online')
+    window.addEventListener('online', handleOnline)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('online', handleOnline)
+    }
+  }, [markAppResumed, syncSession])
+
   return (
     <BrowserRouter>
       <RecoveryLinkRedirect />
       <Suspense fallback={<PageLoader />}>
-        <Routes>
+        <Routes key={resumeVersion}>
           {/* Home Page - Public */}
           <Route path="/" element={<HomePage />} />
 

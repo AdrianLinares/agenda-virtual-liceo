@@ -8,6 +8,7 @@ type Profile = Database['public']['Tables']['profiles']['Row']
 
 let isInitializingAuth = false
 let hasAuthStateListener = false
+let isSyncingSession = false
 
 const AUTH_TIMEOUT_MS = 25000
 const AUTH_RETRY_ATTEMPTS = 2
@@ -18,15 +19,18 @@ interface AuthState {
   profile: Profile | null
   loading: boolean
   initialized: boolean
+  resumeVersion: number
   setUser: (user: User | null) => void
   setProfile: (profile: Profile | null) => void
   setLoading: (loading: boolean) => void
+  markAppResumed: () => void
   signIn: (email: string, password: string) => Promise<void>
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>
   requestPasswordReset: (email: string, redirectTo: string) => Promise<void>
   updatePasswordWithRecovery: (newPassword: string) => Promise<void>
   signOut: () => Promise<void>
   initialize: () => Promise<void>
+  syncSession: (reason?: 'visibilitychange' | 'online' | 'manual') => Promise<void>
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -34,10 +38,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   profile: null,
   loading: true,
   initialized: false,
+  resumeVersion: 0,
 
   setUser: (user) => set({ user }),
   setProfile: (profile) => set({ profile }),
   setLoading: (loading) => set({ loading }),
+  markAppResumed: () => set((state) => ({ resumeVersion: state.resumeVersion + 1 })),
 
   signIn: async (email: string, password: string) => {
     try {
@@ -282,6 +288,72 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ user: null, profile: null })
     } finally {
       set({ loading: false })
+    }
+  },
+
+  syncSession: async (reason = 'manual') => {
+    if (isSyncingSession) {
+      return
+    }
+
+    isSyncingSession = true
+
+    try {
+      if (import.meta.env.DEV) {
+        console.info('[auth] syncing session after resume trigger:', reason)
+      }
+
+      const { data: { session }, error: sessionError } = await withRetry(
+        () => withTimeout(supabase.auth.getSession(), 20000, 'Tiempo de espera agotado al validar sesión'),
+        AUTH_RETRY_ATTEMPTS,
+        AUTH_RETRY_DELAY_MS
+      )
+
+      if (sessionError) {
+        throw sessionError
+      }
+
+      if (!session?.user) {
+        if (get().user) {
+          set({ user: null, profile: null })
+        }
+        return
+      }
+
+      const currentUserId = get().user?.id
+      const profileUserId = get().profile?.id
+      const shouldRefreshProfile = currentUserId !== session.user.id || profileUserId !== session.user.id
+
+      if (!shouldRefreshProfile) {
+        set({ user: session.user })
+        return
+      }
+
+      const { data: profileData, error: profileError } = await withRetry(
+        () => withTimeout(
+          supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single(),
+          AUTH_TIMEOUT_MS,
+          'Tiempo de espera agotado al cargar el perfil'
+        ),
+        AUTH_RETRY_ATTEMPTS,
+        AUTH_RETRY_DELAY_MS
+      )
+
+      if (profileError) {
+        console.warn('Error refreshing profile on session sync:', profileError)
+        set({ user: session.user, profile: null })
+        return
+      }
+
+      set({ user: session.user, profile: profileData || null })
+    } catch (syncError) {
+      console.warn('Non-blocking session sync error:', syncError)
+    } finally {
+      isSyncingSession = false
     }
   },
 
