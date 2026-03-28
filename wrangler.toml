@@ -9,5 +9,13 @@ VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhY
 [env.production]
 name = "agenda-virtual-liceo"
 
+[env.production.vars]
+VITE_SUPABASE_URL = "https://mkjvprcsakvfqxplqolq.supabase.co"
+VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ranZwcmNzYWt2ZnF4cGxxb2xxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk4NzMwMTAsImV4cCI6MjA4NTQ0OTAxMH0.B5GJTD9XgVNh8wrxOoaGN5pVb0TArjeyNF3AZis1a18"
+
 [env.preview]
 name = "agenda-virtual-liceo-preview"
+
+[env.preview.vars]
+VITE_SUPABASE_URL = "https://mkjvprcsakvfqxplqolq.supabase.co"
+VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ranZwcmNzYWt2ZnF4cGxxb2xxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk4NzMwMTAsImV4cCI6MjA4NTQ0OTAxMH0.B5GJTD9XgVNh8wrxOoaGN5pVb0TArjeyNF3AZis1a18"
