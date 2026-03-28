@@ -72,10 +72,11 @@ El proyecto incluye módulos funcionales de:
 
 Si ya tenías una base de datos configurada previamente, aplica las migraciones más recientes en `migrations/` para alinear políticas RLS y comportamiento de módulos.
 
-Para Netlify:
+Para Cloudflare Pages:
 - Build command: `pnpm build`
 - Publish directory: `dist`
-- Se requiere redirect SPA (ya incluido en `netlify.toml`).
+- Se requiere redirect SPA (ya incluido en `public/_redirects`).
+- Si usas cron para notificaciones de correo, desplegar `cloudflare/workers/run-email-worker.js` con `wrangler deploy --config wrangler.worker.toml`.
 
 ## 🛠️ Stack Tecnológico
 

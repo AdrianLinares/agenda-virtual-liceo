@@ -1,0 +1,25 @@
+{
+  "recommendations": [
+    // GitHub Copilot
+    "github.copilot",
+    "github.copilot-chat",
+
+    // TypeScript / React
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "ms-vscode.vscode-typescript-next",
+
+    // Tailwind CSS
+    "bradlc.vscode-tailwindcss",
+
+    // Supabase / SQL
+    "mtxr.sqltools",
+
+    // Utilidades de desarrollo
+    "christian-kohler.path-intellisense",
+    "formulahendry.auto-rename-tag",
+    "usernamehw.errorlens",
+    "eamodio.gitlens"
+  ],
+  "unwantedRecommendations": []
+}

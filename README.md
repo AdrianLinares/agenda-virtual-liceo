@@ -294,20 +294,20 @@ Módulos operativos en producción:
 
 Cambios relevantes recientes:
 
-1. Configuración de Netlify para SPA (`netlify.toml` con redirect a `index.html`).
+1. Migración de despliegue a Cloudflare Pages con redirect SPA en `public/_redirects`.
 2. Sesión de autenticación con expiración al cerrar navegador/pestaña (`sessionStorage`).
 3. Ruta `/login` disponible siempre (sin auto-redirect por sesión activa).
 4. Endurecimiento de control de acceso para `/dashboard/admin`.
 5. Mejora de dependencias: `jspdf` actualizado y override de `dompurify`.
 
-## ✅ Checklist de Despliegue en Netlify
+## ✅ Checklist de Despliegue en Cloudflare Pages
 
-1. Variables de entorno en Netlify:
+1. Variables de entorno en Cloudflare Pages (Production y Preview):
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
 2. Build command: `pnpm build`
 3. Publish directory: `dist`
-4. Confirmar que exista `netlify.toml` (incluye redirect SPA).
+4. Confirmar que exista `public/_redirects` con `/* /index.html 200`.
 5. Aplicar migraciones SQL pendientes de `migrations/` en Supabase.
 6. Validar login, navegación por rutas internas y permisos por rol.
 
@@ -344,7 +344,8 @@ Checklist de activación:
 
 1. Desplegar `send-message-emails` en Supabase Functions.
 2. Activar el flag `mensajes_email_notificaciones` en base de datos.
-3. Configurar Netlify Scheduled Function (`netlify/functions/run-email-worker.js`) con `SUPABASE_CRON_SECRET`.
+3. Desplegar el worker de Cloudflare con `wrangler deploy --config wrangler.worker.toml`.
+4. Configurar en GitHub Actions los secrets `CLOUDFLARE_WORKER_URL` y `SUPABASE_CRON_SECRET`.
 
 ## 🤝 Contribuir
 

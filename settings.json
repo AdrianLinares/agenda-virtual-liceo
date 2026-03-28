@@ -1,0 +1,52 @@
+{
+  // ── GitHub Copilot ─────────────────────────────────────────────────
+  "github.copilot.enable": {
+    "*": true,
+    "markdown": true,
+    "sql": true
+  },
+
+  // Instrucciones adicionales inline para el chat de Copilot
+  "github.copilot.chat.codeGeneration.useInstructionFiles": true,
+  "github.copilot.chat.reviewSelection.enabled": true,
+
+  // ── TypeScript ─────────────────────────────────────────────────────
+  "typescript.preferences.importModuleSpecifier": "non-relative",
+  "typescript.suggest.autoImports": true,
+  "typescript.updateImportsOnFileMove.enabled": "always",
+  "typescript.inlayHints.parameterNames.enabled": "literals",
+  "typescript.inlayHints.variableTypes.enabled": false,
+
+  // ── Editor ─────────────────────────────────────────────────────────
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+
+  // ── ESLint ─────────────────────────────────────────────────────────
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact"
+  ],
+
+  // ── Tailwind CSS ───────────────────────────────────────────────────
+  "tailwindCSS.experimental.classRegex": [
+    ["cn\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"],
+    ["cva\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"]
+  ],
+
+  // ── Archivos ───────────────────────────────────────────────────────
+  "files.associations": {
+    "*.css": "tailwindcss"
+  },
+  "files.exclude": {
+    "**/.git": true,
+    "**/node_modules": true,
+    "**/dist": true
+  }
+}

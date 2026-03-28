@@ -1,0 +1,17 @@
+name = "agenda-virtual-email-worker"
+main = "cloudflare/workers/run-email-worker.js"
+compatibility_date = "2024-01-01"
+
+# Cron Trigger — mismo intervalo que la función de Netlify (cada minuto)
+[triggers]
+crons = ["* * * * *"]
+
+# Variables de entorno — definir los valores reales en el Dashboard de Cloudflare
+# Dashboard > Workers & Pages > agenda-virtual-email-worker > Settings > Variables and Secrets
+#
+# Variables requeridas:
+#   SUPABASE_PROJECT_REF      (texto plano)
+#   SUPABASE_CRON_SECRET      (secret)
+#
+# Variable opcional:
+#   SUPABASE_FUNCTIONS_BASE_URL  (texto plano, solo si usas URL custom)

@@ -1,4 +1,4 @@
-name: Run Email Worker Cron
+name: Run Email Worker Cron (Cloudflare)
 
 on:
   workflow_dispatch:
@@ -7,13 +7,15 @@ jobs:
   trigger-worker:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Supabase email worker
+      - name: Trigger Cloudflare email worker
         env:
-          WORKER_URL: ${{ secrets.SUPABASE_WORKER_URL }}
+          # URL del Worker desplegado en Cloudflare
+          # Ejemplo: https://agenda-virtual-email-worker.<tu-subdominio>.workers.dev
+          WORKER_URL: ${{ secrets.CLOUDFLARE_WORKER_URL }}
           CRON_SECRET: ${{ secrets.SUPABASE_CRON_SECRET }}
         run: |
           if [ -z "$WORKER_URL" ] || [ -z "$CRON_SECRET" ]; then
-            echo "Missing SUPABASE_WORKER_URL or SUPABASE_CRON_SECRET GitHub secrets"
+            echo "Missing CLOUDFLARE_WORKER_URL or SUPABASE_CRON_SECRET GitHub secrets"
             exit 1
           fi
 
