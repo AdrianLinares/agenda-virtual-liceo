@@ -75,6 +75,7 @@ Si ya tenías una base de datos configurada previamente, aplica las migraciones 
 Para Cloudflare Pages:
 - Build command: `pnpm build`
 - Publish directory: `dist`
+- Deploy command: vacío
 - Se requiere redirect SPA (ya incluido en `public/_redirects`).
 - Si usas cron para notificaciones de correo, desplegar `cloudflare/workers/run-email-worker.js` con `wrangler deploy --config wrangler.worker.toml`.
 

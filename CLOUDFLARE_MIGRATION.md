@@ -30,6 +30,10 @@
    | Build output directory | `dist` |
    | Node.js version | 18 (o superior) |
 
+4. En **Deploy command** dejar vacío.
+
+> Importante: en Cloudflare Pages no debes usar `npx wrangler deploy` para el frontend. Pages publica automáticamente el directorio `dist` al terminar el build.
+
 ### 1.2 Variables de entorno en Pages
 
 En **Settings → Environment variables** agregar para **Production** y **Preview**:
@@ -81,6 +85,8 @@ wrangler login
 # Desplegar usando la config del worker (separada de Pages)
 wrangler deploy --config wrangler.worker.toml
 ```
+
+> Este comando es solo para el Worker de cron, no para desplegar el frontend en Pages.
 
 ### 2.4 Configurar las variables de entorno del Worker
 
@@ -210,3 +216,19 @@ Cloudflare Pages soporta build cache automáticamente. No se necesita configurac
 ### Compatibilidad con `pnpm`
 
 Cloudflare Pages detecta `pnpm-lock.yaml` y usa pnpm automáticamente. No se necesita configuración adicional.
+
+---
+
+## Troubleshooting Rápido
+
+### Error: `Missing entry-point to Worker script or to assets directory`
+
+Si aparece durante el deploy de Pages y ves en logs `Executing user deploy command: npx wrangler deploy`, significa que configuraste un deploy command incorrecto para el frontend.
+
+Solución:
+
+1. En Cloudflare Pages, deja **Deploy command** vacío.
+2. Mantén solo:
+  - Build command: `pnpm build`
+  - Build output directory: `dist`
+3. Usa `wrangler deploy --config wrangler.worker.toml` únicamente para el Worker de cron.

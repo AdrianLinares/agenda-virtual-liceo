@@ -307,9 +307,10 @@ Cambios relevantes recientes:
    - `VITE_SUPABASE_ANON_KEY`
 2. Build command: `pnpm build`
 3. Publish directory: `dist`
-4. Confirmar que exista `public/_redirects` con `/* /index.html 200`.
-5. Aplicar migraciones SQL pendientes de `migrations/` en Supabase.
-6. Validar login, navegación por rutas internas y permisos por rol.
+4. Deploy command en Pages: **vacío** (no usar `wrangler deploy` para frontend).
+5. Confirmar que exista `public/_redirects` con `/* /index.html 200`.
+6. Aplicar migraciones SQL pendientes de `migrations/` en Supabase.
+7. Validar login, navegación por rutas internas y permisos por rol.
 
 ## 📧 Notificaciones por Correo para Mensajes
 
