@@ -204,8 +204,9 @@ export default function DashboardPage() {
   // Notas: total y promedio
   const loadNotasStats = useCallback(async () => {
     const isAdmin = profile?.rol === 'administrador' || profile?.rol === 'administrativo'
-    const cacheKey = isAdmin ? 'global' : userId || ''
-    if (!isAdmin && !userId) {
+    const isDocente = profile?.rol === 'docente'
+    const cacheKey = isAdmin ? 'global' : isDocente ? profile?.id ?? '' : userId || ''
+    if (!isAdmin && !isDocente && !userId) {
       setNotasStats({ total: 0, promedio: 0 })
       setLoadingNotas(false)
       return
@@ -231,12 +232,32 @@ export default function DashboardPage() {
         setLoadingNotas(false)
         return
       }
-      // 2. Consultar notas de esos periodos
       let query = supabase
         .from('notas')
-        .select('nota')
+        .select('nota, grupo_id, asignatura_id')
         .in('periodo_id', periodoIds)
-      if (!isAdmin && userId) {
+      if (isAdmin) {
+        // no filter
+      } else if (isDocente && profile?.id) {
+        // Obtener grupos y asignaturas asignados al docente
+        const { data: asignaciones, error: errorAsign } = await withTimeout(
+          supabase
+            .from('asignaciones_docentes')
+            .select('grupo_id, asignatura_id')
+            .eq('docente_id', profile.id),
+          8000,
+          'Tiempo de espera agotado al cargar asignaciones del docente'
+        )
+        if (errorAsign) throw errorAsign
+        const grupos = Array.from(new Set((asignaciones || []).map((a: any) => a.grupo_id)))
+        const asignaturas = Array.from(new Set((asignaciones || []).map((a: any) => a.asignatura_id)))
+        if (grupos.length === 0 || asignaturas.length === 0) {
+          setNotasStats({ total: 0, promedio: 0 })
+          setLoadingNotas(false)
+          return
+        }
+        query = query.in('grupo_id', grupos).in('asignatura_id', asignaturas)
+      } else if (userId) {
         query = query.eq('estudiante_id', userId)
       }
       const { data, error } = await withTimeout(query, 12000, 'Tiempo de espera agotado al cargar notas')
@@ -252,7 +273,7 @@ export default function DashboardPage() {
     } finally {
       setLoadingNotas(false)
     }
-  }, [userId, profile?.rol])
+  }, [userId, profile?.rol, profile?.id])
 
   // Permisos: pendiente, aprobado, rechazado
   const loadPermisosStats = useCallback(async () => {
@@ -410,10 +431,11 @@ export default function DashboardPage() {
       setLoadingSeguimientosCount(false)
       return
     }
-
-    const cachedCount = getFreshCache(dashboardCache.seguimientosByUser, userId)
-    if (cachedCount !== null) {
-      setSeguimientosCount(cachedCount)
+    const isDocente = profile?.rol === 'docente'
+    const cacheKeyS = isDocente ? (profile?.id || '') : userId
+    const cachedCountS = getFreshCache(dashboardCache.seguimientosByUser, cacheKeyS)
+    if (cachedCountS !== null) {
+      setSeguimientosCount(cachedCountS)
       setLoadingSeguimientosCount(false)
       return
     }
@@ -428,7 +450,7 @@ export default function DashboardPage() {
       if (error) throw error
       const resolvedCount = count ?? 0
       setSeguimientosCount(resolvedCount)
-      setCache(dashboardCache.seguimientosByUser, userId, resolvedCount)
+      setCache(dashboardCache.seguimientosByUser, cacheKeyS, resolvedCount)
     } catch (error) {
       console.error('Error cargando seguimiento:', error)
       setSeguimientosCount(0)
@@ -444,9 +466,11 @@ export default function DashboardPage() {
       return
     }
 
-    const cachedCount = getFreshCache(dashboardCache.horariosByUser, userId)
-    if (cachedCount !== null) {
-      setHorariosCount(cachedCount)
+    const isDocente = profile?.rol === 'docente'
+    const cacheKeyH = isDocente ? (profile?.id || '') : userId
+    const cachedCountH = getFreshCache(dashboardCache.horariosByUser, cacheKeyH)
+    if (cachedCountH !== null) {
+      setHorariosCount(cachedCountH)
       setLoadingHorariosCount(false)
       return
     }
@@ -454,14 +478,17 @@ export default function DashboardPage() {
     setLoadingHorariosCount(true)
 
     try {
-      const { count, error } = await withTimeout(supabase
+      let query = supabase
         .from('horarios')
-        .select('id', { count: 'exact', head: true }), 8000, 'Tiempo de espera agotado al cargar horarios')
-
+        .select('id', { count: 'exact', head: true })
+      if (isDocente && profile?.id) {
+        query = query.eq('docente_id', profile.id)
+      }
+      const { count, error } = await withTimeout(query, 8000, 'Tiempo de espera agotado al cargar horarios')
       if (error) throw error
       const resolvedCount = count ?? 0
       setHorariosCount(resolvedCount)
-      setCache(dashboardCache.horariosByUser, userId, resolvedCount)
+      setCache(dashboardCache.horariosByUser, cacheKeyH, resolvedCount)
     } catch (error) {
       console.error('Error cargando horarios:', error)
       setHorariosCount(0)
@@ -477,9 +504,11 @@ export default function DashboardPage() {
       return
     }
 
-    const cachedCount = getFreshCache(dashboardCache.citacionesByUser, userId)
-    if (cachedCount !== null) {
-      setCitacionesProximas(cachedCount)
+    const isDocente = profile?.rol === 'docente'
+    const cacheKeyC = isDocente ? (profile?.id || '') : userId
+    const cachedCountC = getFreshCache(dashboardCache.citacionesByUser, cacheKeyC)
+    if (cachedCountC !== null) {
+      setCitacionesProximas(cachedCountC)
       setLoadingCitaciones(false)
       return
     }
@@ -495,7 +524,7 @@ export default function DashboardPage() {
       if (error) throw error
       const resolvedCount = count ?? 0
       setCitacionesProximas(resolvedCount)
-      setCache(dashboardCache.citacionesByUser, userId, resolvedCount)
+      setCache(dashboardCache.citacionesByUser, cacheKeyC, resolvedCount)
     } catch (error) {
       console.error('Error cargando citaciones próximas:', error)
       setCitacionesProximas(0)
@@ -544,7 +573,6 @@ export default function DashboardPage() {
       loadCitacionesProximas(),
     ])
 
-    setRefreshing(false)
   }
 
   return (
