@@ -165,7 +165,10 @@ export default function DashboardPage() {
       setLoadingAsistencia(false)
       return
     }
-    const cached = getFreshCache(dashboardCache.asistenciaByUser, userId)
+    const isAdmin = profile?.rol === 'administrador' || profile?.rol === 'administrativo'
+    const isDocente = profile?.rol === 'docente'
+    const cacheKey = isAdmin ? 'global' : isDocente ? profile?.id ?? '' : userId
+    const cached = getFreshCache(dashboardCache.asistenciaByUser, cacheKey)
     if (cached) {
       setAsistenciaStats(cached)
       setLoadingAsistencia(false)
@@ -174,14 +177,51 @@ export default function DashboardPage() {
     setLoadingAsistencia(true)
 
     try {
-      const { data, error } = await withTimeout(
-        supabase
-          .from('asistencias')
-          .select('estado')
-          .eq('año_academico', 2026),
-        12000,
-        'Tiempo de espera agotado al cargar asistencia'
-      )
+      let query = supabase
+        .from('asistencias')
+        .select('estado, estudiante_id')
+        .gte('fecha', '2026-01-01')
+        .lte('fecha', '2026-12-31')
+      if (isDocente && profile?.id) {
+        // Obtener grupos asignados al docente
+        const { data: asignaciones, error: errorAsign } = await withTimeout(
+          supabase
+            .from('asignaciones_docentes')
+            .select('grupo_id')
+            .eq('docente_id', profile.id),
+          8000,
+          'Tiempo de espera agotado al cargar asignaciones del docente'
+        )
+        if (errorAsign) throw errorAsign
+        const grupos = Array.from(new Set((asignaciones || []).map((a: any) => a.grupo_id)))
+        if (grupos.length > 0) {
+          // Obtener estudiantes de esos grupos
+          const { data: estudiantes, error: errorEst } = await withTimeout(
+            supabase
+              .from('estudiantes_grupos')
+              .select('estudiante_id')
+              .in('grupo_id', grupos),
+            8000,
+            'Tiempo de espera agotado al cargar estudiantes de los grupos del docente'
+          )
+          if (errorEst) throw errorEst
+          const estudiantesIds = Array.from(new Set((estudiantes || []).map((e: any) => e.estudiante_id)))
+          if (estudiantesIds.length > 0) {
+            query = query.in('estudiante_id', estudiantesIds)
+          } else {
+            setAsistenciaStats({ presentes: 0, ausentes: 0, tarde: 0, excusas: 0 })
+            setLoadingAsistencia(false)
+            return
+          }
+        } else {
+          setAsistenciaStats({ presentes: 0, ausentes: 0, tarde: 0, excusas: 0 })
+          setLoadingAsistencia(false)
+          return
+        }
+      } else if (!isAdmin && userId) {
+        query = query.eq('estudiante_id', userId)
+      }
+      const { data, error } = await withTimeout(query, 12000, 'Tiempo de espera agotado al cargar asistencia')
       if (error) throw error
       const stats: AsistenciaStats = { presentes: 0, ausentes: 0, tarde: 0, excusas: 0 }
       for (const row of (data as Array<{ estado: string }> || [])) {
@@ -193,13 +233,13 @@ export default function DashboardPage() {
         }
       }
       setAsistenciaStats(stats)
-      setCache(dashboardCache.asistenciaByUser, userId, stats)
+      setCache(dashboardCache.asistenciaByUser, cacheKey, stats)
     } catch (error) {
       setAsistenciaStats({ presentes: 0, ausentes: 0, tarde: 0, excusas: 0 })
     } finally {
       setLoadingAsistencia(false)
     }
-  }, [userId])
+  }, [userId, profile?.rol, profile?.id])
 
   // Notas: total y promedio
   const loadNotasStats = useCallback(async () => {
