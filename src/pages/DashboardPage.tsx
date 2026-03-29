@@ -3,7 +3,28 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/lib/auth-store'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Mail, Users, UserSearch, Clock, RefreshCw } from 'lucide-react'
+import { Mail, Users, UserSearch, Clock, RefreshCw, CheckCircle, FileText } from 'lucide-react'
+// Tipos para stats
+// Tipos para stats
+interface AsistenciaStats {
+  presentes: number
+  ausentes: number
+  tarde: number
+  excusas: number
+}
+
+interface NotasStats {
+  total: number
+  promedio: number
+}
+
+interface PermisosStats {
+  pendiente: number
+  aprobado: number
+  rechazado: number
+}
+
+// ...existing code...
 import { supabase } from '@/lib/supabase'
 import { withRetry, withTimeout } from '@/lib/async-utils'
 
@@ -37,6 +58,9 @@ const dashboardCache = {
   seguimientosByUser: new Map<string, CachedEntry<number>>(),
   horariosByUser: new Map<string, CachedEntry<number>>(),
   citacionesByUser: new Map<string, CachedEntry<number>>(),
+  asistenciaByUser: new Map<string, CachedEntry<AsistenciaStats>>(),
+  notasByUser: new Map<string, CachedEntry<NotasStats>>(),
+  permisosByUser: new Map<string, CachedEntry<PermisosStats>>(),
 }
 
 function getFreshCache<T>(map: Map<string, CachedEntry<T>>, key: string): T | null {
@@ -73,10 +97,12 @@ function clearDashboardCache(userId: string | null, profileId: string | null) {
 }
 
 export default function DashboardPage() {
+  // Declaración de hooks de usuario primero
   const { profile, user } = useAuthStore()
   const userId = user?.id ?? null
   const profileId = profile?.id ?? null
   const navigate = useNavigate()
+  // Estado y funciones para tarjetas y contadores secundarios
   const [eventos, setEventos] = useState<Evento[]>([])
   const [anuncios, setAnuncios] = useState<Anuncio[]>([])
   const [loadingEventos, setLoadingEventos] = useState(true)
@@ -85,47 +111,191 @@ export default function DashboardPage() {
   const [loadingSeguimientosCount, setLoadingSeguimientosCount] = useState(true)
   const [horariosCount, setHorariosCount] = useState(0)
   const [loadingHorariosCount, setLoadingHorariosCount] = useState(true)
-  const [mensajesSinLeer, setMensajesSinLeer] = useState(0)
-  const [loadingMensajesSinLeer, setLoadingMensajesSinLeer] = useState(true)
   const [citacionesProximas, setCitacionesProximas] = useState(0)
   const [loadingCitaciones, setLoadingCitaciones] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
+  // Mensajes sin leer
+  const [mensajesSinLeer, setMensajesSinLeer] = useState(0)
+  const [loadingMensajesSinLeer, setLoadingMensajesSinLeer] = useState(true)
   const loadMensajesSinLeer = useCallback(async () => {
     if (!profileId) {
       setMensajesSinLeer(0)
       setLoadingMensajesSinLeer(false)
       return
     }
-
     const cachedCount = getFreshCache(dashboardCache.mensajesSinLeerByProfile, profileId)
     if (cachedCount !== null) {
       setMensajesSinLeer(cachedCount)
       setLoadingMensajesSinLeer(false)
       return
     }
-
     setLoadingMensajesSinLeer(true)
-
     try {
       const { count, error } = await withRetry(async () => withTimeout(supabase
         .from('mensajes')
         .select('id', { count: 'exact', head: true })
         .eq('destinatario_id', profileId)
         .eq('estado', 'enviado'), 15000, 'Tiempo de espera agotado al cargar mensajes sin leer'))
-
       if (error) throw error
       const resolvedCount = count ?? 0
       setMensajesSinLeer(resolvedCount)
       setCache(dashboardCache.mensajesSinLeerByProfile, profileId, resolvedCount)
     } catch (error) {
-      console.error('Error cargando mensajes sin leer:', error)
       setMensajesSinLeer(0)
     } finally {
       setLoadingMensajesSinLeer(false)
     }
   }, [profileId])
+  // ...existing code...
 
+
+  // Hooks y funciones de stats
+  const [asistenciaStats, setAsistenciaStats] = useState<AsistenciaStats>({ presentes: 0, ausentes: 0, tarde: 0, excusas: 0 })
+  const [loadingAsistencia, setLoadingAsistencia] = useState(true)
+  const [notasStats, setNotasStats] = useState<NotasStats>({ total: 0, promedio: 0 })
+  const [loadingNotas, setLoadingNotas] = useState(true)
+  const [permisosStats, setPermisosStats] = useState<PermisosStats>({ pendiente: 0, aprobado: 0, rechazado: 0 })
+  const [loadingPermisos, setLoadingPermisos] = useState(true)
+
+  // Asistencia: presentes, ausentes, tarde, excusas
+  const loadAsistenciaStats = useCallback(async () => {
+    if (!userId) {
+      setAsistenciaStats({ presentes: 0, ausentes: 0, tarde: 0, excusas: 0 })
+      setLoadingAsistencia(false)
+      return
+    }
+    const cached = getFreshCache(dashboardCache.asistenciaByUser, userId)
+    if (cached) {
+      setAsistenciaStats(cached)
+      setLoadingAsistencia(false)
+      return
+    }
+    setLoadingAsistencia(true)
+
+    try {
+      const { data, error } = await withTimeout(
+        supabase
+          .from('asistencias')
+          .select('estado')
+          .eq('año_academico', 2026),
+        12000,
+        'Tiempo de espera agotado al cargar asistencia'
+      )
+      if (error) throw error
+      const stats: AsistenciaStats = { presentes: 0, ausentes: 0, tarde: 0, excusas: 0 }
+      for (const row of (data as Array<{ estado: string }> || [])) {
+        switch (row.estado) {
+          case 'presente': stats.presentes++; break
+          case 'ausente': stats.ausentes++; break
+          case 'tarde': stats.tarde++; break
+          case 'excusa': stats.excusas++; break
+        }
+      }
+      setAsistenciaStats(stats)
+      setCache(dashboardCache.asistenciaByUser, userId, stats)
+    } catch (error) {
+      setAsistenciaStats({ presentes: 0, ausentes: 0, tarde: 0, excusas: 0 })
+    } finally {
+      setLoadingAsistencia(false)
+    }
+  }, [userId])
+
+  // Notas: total y promedio
+  const loadNotasStats = useCallback(async () => {
+    const isAdmin = profile?.rol === 'administrador' || profile?.rol === 'administrativo'
+    const cacheKey = isAdmin ? 'global' : userId || ''
+    if (!isAdmin && !userId) {
+      setNotasStats({ total: 0, promedio: 0 })
+      setLoadingNotas(false)
+      return
+    }
+    const cached = getFreshCache(dashboardCache.notasByUser, cacheKey)
+    if (cached) {
+      setNotasStats(cached)
+      setLoadingNotas(false)
+      return
+    }
+    setLoadingNotas(true)
+    try {
+      // 1. Obtener periodos del año 2026
+      const { data: periodos, error: errorPeriodos } = await withTimeout(
+        supabase.from('periodos').select('id').eq('año_academico', 2026),
+        8000,
+        'Tiempo de espera agotado al cargar periodos'
+      )
+      if (errorPeriodos) throw errorPeriodos
+      const periodoIds = (periodos as Array<{ id: string }>).map((p) => p.id)
+      if (periodoIds.length === 0) {
+        setNotasStats({ total: 0, promedio: 0 })
+        setLoadingNotas(false)
+        return
+      }
+      // 2. Consultar notas de esos periodos
+      let query = supabase
+        .from('notas')
+        .select('nota')
+        .in('periodo_id', periodoIds)
+      if (!isAdmin && userId) {
+        query = query.eq('estudiante_id', userId)
+      }
+      const { data, error } = await withTimeout(query, 12000, 'Tiempo de espera agotado al cargar notas')
+      if (error) throw error
+      const notas = (data as Array<{ nota: number }> || []).map((n) => n.nota)
+      const total = notas.length
+      const promedio = total > 0 ? Math.round((notas.reduce((a, b) => a + b, 0) / total) * 100) / 100 : 0
+      const stats: NotasStats = { total, promedio }
+      setNotasStats(stats)
+      setCache(dashboardCache.notasByUser, cacheKey, stats)
+    } catch (error) {
+      setNotasStats({ total: 0, promedio: 0 })
+    } finally {
+      setLoadingNotas(false)
+    }
+  }, [userId, profile?.rol])
+
+  // Permisos: pendiente, aprobado, rechazado
+  const loadPermisosStats = useCallback(async () => {
+    const isAdmin = profile?.rol === 'administrador' || profile?.rol === 'administrativo'
+    const cacheKey = isAdmin ? 'global' : userId || ''
+    if (!isAdmin && !userId) {
+      setPermisosStats({ pendiente: 0, aprobado: 0, rechazado: 0 })
+      setLoadingPermisos(false)
+      return
+    }
+    const cached = getFreshCache(dashboardCache.permisosByUser, cacheKey)
+    if (cached) {
+      setPermisosStats(cached)
+      setLoadingPermisos(false)
+      return
+    }
+    setLoadingPermisos(true)
+    try {
+      let query = supabase
+        .from('permisos')
+        .select('estado')
+      if (!isAdmin && userId) {
+        query = query.eq('estudiante_id', userId)
+      }
+      // Si quieres filtrar por año, aquí puedes agregar lógica por fecha_inicio/fecha_fin
+      const { data, error } = await withTimeout(query, 12000, 'Tiempo de espera agotado al cargar permisos')
+      if (error) throw error
+      const stats: PermisosStats = { pendiente: 0, aprobado: 0, rechazado: 0 }
+      for (const row of (data as Array<{ estado: string }> || [])) {
+        switch (row.estado) {
+          case 'pendiente': stats.pendiente++; break
+          case 'aprobado': stats.aprobado++; break
+          case 'rechazado': stats.rechazado++; break
+        }
+      }
+      setPermisosStats(stats)
+      setCache(dashboardCache.permisosByUser, cacheKey, stats)
+    } catch (error) {
+      setPermisosStats({ pendiente: 0, aprobado: 0, rechazado: 0 })
+    } finally {
+      setLoadingPermisos(false)
+    }
+  }, [userId, profile?.rol])
   useEffect(() => {
     if (!userId) {
       return
@@ -138,6 +308,9 @@ export default function DashboardPage() {
       loadEventos(),
       loadAnuncios(),
       loadMensajesSinLeer(),
+      loadAsistenciaStats(),
+      loadNotasStats(),
+      loadPermisosStats(),
     ])
 
     // Fase 2: contadores secundarios, diferidos para evitar pico inicial de consultas.
@@ -155,7 +328,7 @@ export default function DashboardPage() {
       cancelled = true
       window.clearTimeout(deferredLoadId)
     }
-  }, [userId, loadMensajesSinLeer])
+  }, [userId, loadMensajesSinLeer, loadAsistenciaStats, loadNotasStats, loadPermisosStats])
 
   const loadEventos = async () => {
     if (!userId) {
@@ -401,7 +574,96 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+        {/* Asistencia */}
+        <Card
+          className="cursor-pointer hover:bg-muted/40 transition-colors"
+          onClick={() => navigate('/dashboard/asistencia')}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              navigate('/dashboard/asistencia')
+            }
+          }}
+          role="button"
+          tabIndex={0}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Asistencia</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            {loadingAsistencia ? (
+              <div className="text-2xl font-bold">...</div>
+            ) : (
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground">Presentes: <span className="font-bold text-green-700">{asistenciaStats.presentes}</span></span>
+                <span className="text-xs text-muted-foreground">Ausentes: <span className="font-bold text-destructive">{asistenciaStats.ausentes}</span></span>
+                <span className="text-xs text-muted-foreground">Tarde: <span className="font-bold text-yellow-600">{asistenciaStats.tarde}</span></span>
+                <span className="text-xs text-muted-foreground">Excusas: <span className="font-bold text-blue-700">{asistenciaStats.excusas}</span></span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Notas Parciales */}
+        <Card
+          className="cursor-pointer hover:bg-muted/40 transition-colors"
+          onClick={() => navigate('/dashboard/notas')}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              navigate('/dashboard/notas')
+            }
+          }}
+          role="button"
+          tabIndex={0}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Notas parciales</CardTitle>
+            <FileText className="h-4 w-4 text-indigo-600" />
+          </CardHeader>
+          <CardContent>
+            {loadingNotas ? (
+              <div className="text-2xl font-bold">...</div>
+            ) : (
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground">Total: <span className="font-bold">{notasStats.total}</span></span>
+                <span className="text-xs text-muted-foreground">Promedio: <span className="font-bold text-primary">{notasStats.promedio}</span></span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Permisos y excusas */}
+        <Card
+          className="cursor-pointer hover:bg-muted/40 transition-colors"
+          onClick={() => navigate('/dashboard/permisos')}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              navigate('/dashboard/permisos')
+            }
+          }}
+          role="button"
+          tabIndex={0}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Permisos y excusas</CardTitle>
+            <Clock className="h-4 w-4 text-orange-600" />
+          </CardHeader>
+          <CardContent>
+            {loadingPermisos ? (
+              <div className="text-2xl font-bold">...</div>
+            ) : (
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground">Pendientes: <span className="font-bold text-yellow-700">{permisosStats.pendiente}</span></span>
+                <span className="text-xs text-muted-foreground">Aprobados: <span className="font-bold text-green-700">{permisosStats.aprobado}</span></span>
+                <span className="text-xs text-muted-foreground">Rechazados: <span className="font-bold text-destructive">{permisosStats.rechazado}</span></span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
         <Card
           className="cursor-pointer hover:bg-muted/40 transition-colors"
           onClick={() => navigate('/dashboard/seguimiento')}
