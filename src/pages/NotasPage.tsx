@@ -191,10 +191,10 @@ export default function NotasPage() {
         }
     }
 
-    const loadNotas = async () => {
+    const loadNotas = async (showLoader = true) => {
         if (!selectedPeriodo || !profile) return
 
-        setLoading(true)
+        if (showLoader) setLoading(true)
         setError(null)
 
         try {
@@ -699,7 +699,7 @@ export default function NotasPage() {
             if (error) throw error
 
             // Recargar notas y cerrar modal
-            await loadNotas()
+            await loadNotas(false)
             setShowCalculator(false)
             resetCalculatorForm()
 
@@ -751,7 +751,7 @@ export default function NotasPage() {
                 resetCalculatorForm()
             }
 
-            await loadNotas()
+            await loadNotas(false)
             alert('Nota eliminada exitosamente')
         } catch (err) {
             console.error('Error deleting nota:', err)
