@@ -106,7 +106,7 @@ export default function NotasPage() {
     const [error, setError] = useState<string | null>(null)
 
     // Estados para registro de notas (solo docentes)
-    const [showCalculator, setShowCalculator] = useState(false)
+    const [showCalculator, setShowCalculator] = useState<false | true | string>(false)
     const [grupos, setGrupos] = useState<Grupo[]>([])
     const [asignaturas, setAsignaturas] = useState<Asignatura[]>([])
     const [asignacionesDocente, setAsignacionesDocente] = useState<AsignacionDocente[]>([])
@@ -796,7 +796,7 @@ export default function NotasPage() {
 
     const openNewNotaCalculator = () => {
         resetCalculatorForm()
-        setShowCalculator(true)
+        setShowCalculator(true) // Mostrar calculadora arriba para nuevo registro
     }
 
     const parseObservacionesPayload = (observaciones: string) => {
@@ -907,7 +907,7 @@ export default function NotasPage() {
         setCalculatorInitialWeights(parsedData.weights)
         setCalculatorInitialRubrics(parsedData.rubrics)
         setCalculatorRenderKey((prev) => prev + 1)
-        setShowCalculator(true)
+        setShowCalculator(nota.id)
     }
 
     const renderObservaciones = (observaciones: string | null) => {
@@ -1131,7 +1131,7 @@ export default function NotasPage() {
                             <Button
                                 variant="outline"
                                 onClick={() => {
-                                    setShowCalculator(false)
+                                    setShowCalculator(false) // Resetear el estado de la calculadora
                                     resetCalculatorForm()
                                 }}
                             >
@@ -1310,70 +1310,178 @@ export default function NotasPage() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-3">
-                            {notas.map((nota) => (
-                                <div
-                                    key={nota.id}
-                                    className="flex flex-col gap-2 rounded-lg border border-border p-4"
-                                >
-                                    <div className="flex items-start justify-between">
-                                        <div>
-                                            <p className="text-sm font-semibold text-foreground">
-                                                {nota.asignatura?.nombre}
-                                            </p>
-                                            <p className="text-xs text-muted-foreground">
-                                                {nota.grupo.grado.nombre} - Grupo {nota.grupo.nombre}
-                                            </p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-lg font-bold text-primary">
-                                                {nota.nota.toFixed(1)}
-                                            </p>
-                                            <p className="text-xs text-muted-foreground">
-                                                {new Date(nota.created_at).toLocaleDateString()}
-                                            </p>
-                                            {profile?.rol === 'docente' && (
-                                                <div className="mt-2 flex justify-end gap-2">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => openEditNotaCalculator(nota)}
-                                                        disabled={deletingNotaId === nota.id}
-                                                    >
-                                                        <Pencil className="h-3.5 w-3.5 mr-1" />
-                                                        Editar
-                                                    </Button>
-                                                    <Button
-                                                        variant="destructive"
-                                                        size="sm"
-                                                        onClick={() => handleDeleteNota(nota.id)}
-                                                        disabled={deletingNotaId === nota.id}
-                                                    >
-                                                        {deletingNotaId === nota.id ? (
-                                                            <>
-                                                                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                                                                Eliminando...
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <Trash2 className="h-3.5 w-3.5 mr-1" />
-                                                                Eliminar
-                                                            </>
+                            {notas.map((nota) => {
+                                const isEditing = showCalculator === nota.id && editingNotaId === nota.id;
+                                return (
+                                    <div
+                                        key={nota.id}
+                                        className="flex flex-col gap-2 rounded-lg border border-border p-4"
+                                    >
+                                        {/* Si está en modo edición inline para esta nota, mostrar el formulario aquí */}
+                                        {isEditing ? (
+                                            <Card className="border-2 border-primary bg-muted/60">
+                                                <CardHeader>
+                                                    <CardTitle>Editar nota</CardTitle>
+                                                    <CardDescription>
+                                                        Actualiza la nota usando la calculadora con los datos precargados
+                                                    </CardDescription>
+                                                </CardHeader>
+                                                <CardContent className="space-y-6">
+                                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                        <div>
+                                                            <label className="text-sm font-medium mb-2 block">Grupo</label>
+                                                            <Select value={selectedGrupo} onValueChange={setSelectedGrupo}>
+                                                                <SelectTrigger>
+                                                                    <SelectValue placeholder="Selecciona grupo" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {grupos.map((grupo) => (
+                                                                        <SelectItem key={grupo.id} value={grupo.id}>
+                                                                            {grupo.grado.nombre} - {grupo.nombre}
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-sm font-medium mb-2 block">Asignatura</label>
+                                                            <Select value={selectedAsignatura} onValueChange={setSelectedAsignatura}>
+                                                                <SelectTrigger>
+                                                                    <SelectValue placeholder="Selecciona asignatura" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {asignaturasDisponibles.map((asignatura) => (
+                                                                        <SelectItem key={asignatura.id} value={asignatura.id}>
+                                                                            {asignatura.nombre}
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-sm font-medium mb-2 block">Estudiante</label>
+                                                            <Select
+                                                                value={selectedEstudiante}
+                                                                onValueChange={setSelectedEstudiante}
+                                                                disabled={!selectedGrupo}
+                                                            >
+                                                                <SelectTrigger className="w-full md:min-w-[18rem]">
+                                                                    <SelectValue placeholder="Selecciona estudiante" />
+                                                                </SelectTrigger>
+                                                                <SelectContent className="md:min-w-[22rem]">
+                                                                    {estudiantes.map((estudiante) => (
+                                                                        <SelectItem
+                                                                            key={estudiante.id}
+                                                                            value={estudiante.id}
+                                                                            className="whitespace-normal py-2 leading-tight"
+                                                                            title={estudiante.nombre_completo}
+                                                                        >
+                                                                            {estudiante.nombre_completo}
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                            {selectedGrupo && estudiantes.length > 8 && (
+                                                                <p className="mt-2 text-xs text-muted-foreground">
+                                                                    Desplaza la lista para ver todos los estudiantes ({estudiantes.length} en total).
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    {selectedGrupo && selectedAsignatura && selectedEstudiante && (
+                                                        <div className="border-t pt-6">
+                                                            <GradeCalculator
+                                                                key={calculatorRenderKey}
+                                                                initialGrades={calculatorInitialGrades}
+                                                                initialWeights={calculatorInitialWeights}
+                                                                initialRubrics={calculatorInitialRubrics}
+                                                                onResultsChange={handleResultsChange}
+                                                            />
+                                                        </div>
+                                                    )}
+                                                    <div className="flex justify-end gap-3 pt-4 border-t">
+                                                        <Button
+                                                            variant="outline"
+                                                            onClick={resetCalculatorForm}
+                                                        >
+                                                            Cancelar
+                                                        </Button>
+                                                        <Button
+                                                            onClick={handleSaveNota}
+                                                            disabled={!calculatedResults || saving}
+                                                        >
+                                                            {saving ? (
+                                                                <>
+                                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                                    Guardando...
+                                                                </>
+                                                            ) : 'Actualizar Nota'}
+                                                        </Button>
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        ) : (
+                                            <>
+                                                <div className="flex items-start justify-between">
+                                                    <div>
+                                                        <p className="text-sm font-semibold text-foreground">
+                                                            {nota.asignatura?.nombre}
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            {nota.grupo.grado.nombre} - Grupo {nota.grupo.nombre}
+                                                        </p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-lg font-bold text-primary">
+                                                            {nota.nota.toFixed(1)}
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            {new Date(nota.created_at).toLocaleDateString()}
+                                                        </p>
+                                                        {profile?.rol === 'docente' && (
+                                                            <div className="mt-2 flex justify-end gap-2">
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() => openEditNotaCalculator(nota)}
+                                                                    disabled={deletingNotaId === nota.id}
+                                                                >
+                                                                    <Pencil className="h-3.5 w-3.5 mr-1" />
+                                                                    Editar
+                                                                </Button>
+                                                                <Button
+                                                                    variant="destructive"
+                                                                    size="sm"
+                                                                    onClick={() => handleDeleteNota(nota.id)}
+                                                                    disabled={deletingNotaId === nota.id}
+                                                                >
+                                                                    {deletingNotaId === nota.id ? (
+                                                                        <>
+                                                                            <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                                                            Eliminando...
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <Trash2 className="h-3.5 w-3.5 mr-1" />
+                                                                            Eliminar
+                                                                        </>
+                                                                    )}
+                                                                </Button>
+                                                            </div>
                                                         )}
-                                                    </Button>
+                                                    </div>
                                                 </div>
-                                            )}
-                                        </div>
+                                                {nota.estudiante && (profile?.rol === 'administrador' || profile?.rol === 'administrativo' || profile?.rol === 'docente') && (
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Estudiante: {nota.estudiante.nombre_completo}
+                                                    </p>
+                                                )}
+                                                {renderObservaciones(nota.observaciones)}
+                                            </>
+                                        )}
                                     </div>
-
-                                    {nota.estudiante && (profile?.rol === 'administrador' || profile?.rol === 'administrativo' || profile?.rol === 'docente') && (
-                                        <p className="text-xs text-muted-foreground">
-                                            Estudiante: {nota.estudiante.nombre_completo}
-                                        </p>
-                                    )}
-
-                                    {renderObservaciones(nota.observaciones)}
-                                </div>
-                            ))}
+                                );
+                            })}
                         </CardContent>
                     </Card>
                 </div>
