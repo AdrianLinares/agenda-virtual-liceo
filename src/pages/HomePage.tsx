@@ -168,6 +168,27 @@ export default function HomePage() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Left Sidebar - 1/3 */}
                     <div className="space-y-6">
+                        {/* Tutoriales */}
+                        <Card className="shadow-lg overflow-hidden">
+                            <details className="group">
+                                <summary className="bg-primary text-primary-foreground px-6 py-4 cursor-pointer font-semibold text-lg select-none list-none [&::-webkit-details-marker]:hidden flex items-center justify-between">
+                                    <span>Tutoriales</span>
+                                    <ChevronDown className="h-5 w-5 transition-transform duration-200 group-open:rotate-180" />
+                                </summary>
+                                <CardContent className="p-6">
+                                    <ul>
+                                        <li className="mb-2"><a href="https://www.youtube.com/watch?v=kglFjRYTU30" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline' }}>
+                                            Restablecer contraseña
+                                        </a></li>
+                                        <li className="mb-2"><a href="https://www.youtube.com/watch?v=K30bu9Dp9eY" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline' }}>
+                                            Mapa de navegación estudiantes</a></li>
+                                        <li className="mb-2"><a href="https://www.youtube.com/watch?v=sk96Q10LbWg" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline' }}>
+                                            Mapa de navegación padres</a></li>
+                                    </ul>
+                                </CardContent>
+                            </details>
+                        </Card>
+
                         {/* Misión */}
                         <Card className="shadow-lg overflow-hidden">
                             <details className="group">
@@ -239,6 +260,10 @@ export default function HomePage() {
                                     <div>
                                         <p className="font-semibold text-foreground">Email:</p>
                                         <p>secretaria.angel@liceoangeldelaguarda.education</p>
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold text-foreground">Email de soporte a plataforma:</p>
+                                        <p>soporte@liceoangeldelaguarda.education</p>
                                     </div>
                                     <div>
                                         <p className="font-semibold text-foreground">Instagram:</p>
@@ -379,7 +404,9 @@ export default function HomePage() {
             <footer className="bg-white border-t mt-12">
                 <div className="container mx-auto px-4 py-6">
                     <div className="text-center text-muted-foreground text-sm">
-                        <p>&copy; {new Date().getFullYear()} Liceo Ángel de la Guarda. Todos los derechos reservados.</p>
+                        <p>PQRS: soporte@liceoangeldelaguarda.education
+                            <br />
+                            &copy; {new Date().getFullYear()} Liceo Ángel de la Guarda. Todos los derechos reservados.</p>
                     </div>
                 </div>
             </footer>

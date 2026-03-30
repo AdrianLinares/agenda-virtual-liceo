@@ -118,6 +118,7 @@ export default function LoginPage() {
         </Card>
 
         <p className="text-center text-sm text-muted-foreground mt-6">
+          PQRS: soporte@liceoangeldelaguarda.education <br />
           © 2026 Liceo Ángel de la Guarda. Todos los derechos reservados.
         </p>
       </div>
