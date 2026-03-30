@@ -125,6 +125,7 @@ export default function NotasPage() {
     const [calculatedResults, setCalculatedResults] = useState<GradeResults | null>(null)
     const [calculatedGrades, setCalculatedGrades] = useState<GradesData | null>(null)
     const [calculatedRubrics, setCalculatedRubrics] = useState<RubricsData | null>(null)
+    const [calculatedWeights, setCalculatedWeights] = useState<CategoryWeights | null>(null)
     const [calculatorInitialGrades, setCalculatorInitialGrades] = useState<GradesData | undefined>(undefined)
     const [calculatorInitialWeights, setCalculatorInitialWeights] = useState<CategoryWeights | undefined>(undefined)
     const [calculatorInitialRubrics, setCalculatorInitialRubrics] = useState<RubricsData | undefined>(undefined)
@@ -616,6 +617,7 @@ export default function NotasPage() {
         }
     }
 
+
     const handleSaveNota = async () => {
         if (!selectedPeriodo || !selectedGrupo || !selectedAsignatura || !selectedEstudiante || !calculatedResults || !profile) {
             setError('Debes completar todos los campos y calcular la nota')
@@ -647,17 +649,7 @@ export default function NotasPage() {
             }
 
             // Guardar la nota con los detalles de la calculadora en observaciones
-            const inferWeight = (average: number, weighted: number, fallback: number) => {
-                if (!Number.isFinite(average) || !Number.isFinite(weighted) || average <= 0) return fallback
-                return Number(((weighted / average) * 100).toFixed(2))
-            }
-
-            const weights = {
-                A: inferWeight(calculatedResults.averages.A, calculatedResults.weighted.A, DEFAULT_WEIGHTS.A),
-                P: inferWeight(calculatedResults.averages.P, calculatedResults.weighted.P, DEFAULT_WEIGHTS.P),
-                C: inferWeight(calculatedResults.averages.C, calculatedResults.weighted.C, DEFAULT_WEIGHTS.C),
-            }
-
+            const weights = calculatedWeights ?? DEFAULT_WEIGHTS
             const observaciones = JSON.stringify({
                 actitudinal: {
                     promedio: calculatedResults.averages.A,
@@ -776,6 +768,7 @@ export default function NotasPage() {
         setCalculatedResults(null)
         setCalculatedGrades(null)
         setCalculatedRubrics(null)
+        setCalculatedWeights(null)
         setCalculatorInitialGrades(undefined)
         setCalculatorInitialWeights(undefined)
         setCalculatorInitialRubrics(undefined)
@@ -787,11 +780,13 @@ export default function NotasPage() {
     const handleResultsChange = (
         results: GradeResults,
         grades: GradesData,
-        rubrics: RubricsData
+        rubrics: RubricsData,
+        weights: CategoryWeights
     ) => {
         setCalculatedResults(results)
         setCalculatedGrades(grades)
         setCalculatedRubrics(rubrics)
+        setCalculatedWeights(weights)
     }
 
     const openNewNotaCalculator = () => {
@@ -848,46 +843,13 @@ export default function NotasPage() {
                 C: Array.isArray(data?.cognitiva?.rubrica) ? data.cognitiva.rubrica.map((r: unknown) => String(r ?? '')) : [],
             }
 
-            const inferWeight = (promedio: unknown, ponderacion: unknown, fallback: number) => {
-                const avg = Number(promedio)
-                const weighted = Number(ponderacion)
-                if (!Number.isFinite(avg) || !Number.isFinite(weighted) || avg <= 0) return fallback
-                return Math.max(0, Math.min(100, Number(((weighted / avg) * 100).toFixed(2))))
-            }
-
-            const roundTwoDecimals = (value: number) => Number(value.toFixed(2))
-            const snapNearInteger = (value: number) => {
-                const nearestInteger = Math.round(value)
-                if (Math.abs(value - nearestInteger) <= 0.05) {
-                    return nearestInteger
-                }
-                return roundTwoDecimals(value)
-            }
-
             const parsedWeights: CategoryWeights = {
-                A: inferWeight(data?.actitudinal?.promedio, data?.actitudinal?.ponderacion, DEFAULT_WEIGHTS.A),
-                P: inferWeight(data?.procedimental?.promedio, data?.procedimental?.ponderacion, DEFAULT_WEIGHTS.P),
-                C: inferWeight(data?.cognitiva?.promedio, data?.cognitiva?.ponderacion, DEFAULT_WEIGHTS.C),
+                A: Number.isFinite(Number(data?.actitudinal?.porcentaje)) ? Number(data.actitudinal.porcentaje) : DEFAULT_WEIGHTS.A,
+                P: Number.isFinite(Number(data?.procedimental?.porcentaje)) ? Number(data.procedimental.porcentaje) : DEFAULT_WEIGHTS.P,
+                C: Number.isFinite(Number(data?.cognitiva?.porcentaje)) ? Number(data.cognitiva.porcentaje) : DEFAULT_WEIGHTS.C,
             }
 
-            const totalWeight = parsedWeights.A + parsedWeights.P + parsedWeights.C
-
-            let weights = DEFAULT_WEIGHTS
-            if (Math.abs(totalWeight - 100) <= 0.5) {
-                const normalizedA = snapNearInteger(parsedWeights.A)
-                const normalizedP = snapNearInteger(parsedWeights.P)
-                const calculatedC = roundTwoDecimals(100 - normalizedA - normalizedP)
-
-                if (calculatedC >= 0 && calculatedC <= 100) {
-                    weights = {
-                        A: normalizedA,
-                        P: normalizedP,
-                        C: snapNearInteger(calculatedC),
-                    }
-                }
-            }
-
-            return { grades, weights, rubrics }
+            return { grades, weights: parsedWeights, rubrics }
         } catch {
             return { grades: emptyGrades, weights: DEFAULT_WEIGHTS, rubrics: emptyRubrics }
         }

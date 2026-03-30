@@ -21,7 +21,8 @@ interface GradeCalculatorProps {
     onResultsChange?: (
         results: GradeResults,
         grades: GradesData,
-        rubrics: RubricsData
+        rubrics: RubricsData,
+        weights: CategoryWeights
     ) => void;
 }
 
@@ -78,7 +79,7 @@ export function GradeCalculator({
     useEffect(() => {
         const newResults = calculateResults(grades, weights);
         setResults(newResults);
-        onResultsChange?.(newResults, grades, rubrics);
+        onResultsChange?.(newResults, grades, rubrics, weights);
     }, [grades, weights, rubrics, onResultsChange]);
 
     const handleCountChange = (category: GradeCategory, count: number) => {
