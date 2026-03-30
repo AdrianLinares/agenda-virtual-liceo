@@ -32,24 +32,33 @@ export function GradeCalculator({
     initialRubrics,
     onResultsChange,
 }: GradeCalculatorProps) {
-    const getInitialCount = (category: GradeCategory) => {
-        if (!initialGrades) return 3;
-        const count = initialGrades[category]?.length ?? 0;
-        return Math.max(1, count);
+
+    // Función de ayuda para lectura segura
+    const getSavedItem = (key: string, defaultValue: any) => {
+        try {
+            const saved = localStorage.getItem(key);
+            return saved ? JSON.parse(saved) : defaultValue;
+        } catch (e) {
+            console.error("Error loading " + key, e);
+            return defaultValue;
+        }
     };
 
-    const [gradeCounts, setGradeCounts] = useState<GradeCounts>({
-        A: getInitialCount('A'),
-        P: getInitialCount('P'),
-        C: getInitialCount('C'),
+    const [weights, setWeights] = useState<CategoryWeights>(() =>
+        initialWeights || getSavedItem('gradeCalculatorWeights', { A: 10, P: 40, C: 50 })
+    );
+
+    const [gradeCounts, setGradeCounts] = useState<GradeCounts>(() => {
+        if (initialGrades) return {
+            A: initialGrades.A?.length || 3,
+            P: initialGrades.P?.length || 3,
+            C: initialGrades.C?.length || 3
+        };
+        return getSavedItem('gradeCalculatorCounts', { A: 3, P: 3, C: 3 });
     });
 
-    const [weights, setWeights] = useState<CategoryWeights>(
-        initialWeights || {
-            A: 10,
-            P: 40,
-            C: 50,
-        }
+    const [rubricDescriptions, setRubricDescriptions] = useState<Record<string, string[]>>(() =>
+        getSavedItem('gradeCalculatorDescriptions', { A: [], P: [], C: [] })
     );
 
     const [grades, setGrades] = useState<GradesData>(
@@ -60,6 +69,7 @@ export function GradeCalculator({
         }
     );
 
+    // rubrics se mantiene para compatibilidad, pero se usará rubricDescriptions para las descripciones
     const [rubrics, setRubrics] = useState<RubricsData>(
         initialRubrics || {
             A: [],
@@ -67,6 +77,16 @@ export function GradeCalculator({
             C: [],
         }
     );
+    useEffect(() => {
+        if (!initialWeights) localStorage.setItem('gradeCalculatorWeights', JSON.stringify(weights));
+    }, [weights, initialWeights]);
+
+    useEffect(() => {
+        if (!initialGrades) {
+            localStorage.setItem('gradeCalculatorCounts', JSON.stringify(gradeCounts));
+            localStorage.setItem('gradeCalculatorDescriptions', JSON.stringify(rubricDescriptions));
+        }
+    }, [gradeCounts, rubricDescriptions, initialGrades]);
 
     const [results, setResults] = useState<GradeResults>({
         averages: { A: 0, P: 0, C: 0 },
@@ -133,15 +153,15 @@ export function GradeCalculator({
         });
     };
 
-    const handleRubricChange = (
+    const handleRubricDescriptionChange = (
         category: GradeCategory,
         index: number,
         description: string
     ) => {
-        setRubrics((prev) => {
-            const newRubrics = [...prev[category]];
-            newRubrics[index] = description;
-            return { ...prev, [category]: newRubrics };
+        setRubricDescriptions((prev) => {
+            const newArr = [...(prev[category] || [])];
+            newArr[index] = description;
+            return { ...prev, [category]: newArr };
         });
     };
 
@@ -165,9 +185,9 @@ export function GradeCalculator({
             <GradeTable
                 gradeCounts={gradeCounts}
                 grades={grades}
-                rubrics={rubrics}
+                rubrics={rubricDescriptions}
                 onGradeChange={handleGradeChange}
-                onRubricChange={handleRubricChange}
+                onRubricChange={handleRubricDescriptionChange}
             />
 
             <ResultsSection results={results} weights={weights} />

@@ -762,18 +762,12 @@ export default function NotasPage() {
     }
 
     const resetCalculatorForm = () => {
-        setSelectedGrupo('')
-        setSelectedAsignatura('')
         setSelectedEstudiante('')
         setCalculatedResults(null)
         setCalculatedGrades(null)
-        setCalculatedRubrics(null)
-        setCalculatedWeights(null)
         setCalculatorInitialGrades(undefined)
         setCalculatorInitialWeights(undefined)
-        setCalculatorInitialRubrics(undefined)
         setEditingNotaId(null)
-        setEstudiantes([])
         setCalculatorRenderKey((prev) => prev + 1)
     }
 
