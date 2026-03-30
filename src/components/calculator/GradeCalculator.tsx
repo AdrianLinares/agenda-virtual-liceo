@@ -57,7 +57,7 @@ export function GradeCalculator({
         return getSavedItem('gradeCalculatorCounts', { A: 3, P: 3, C: 3 });
     });
 
-    const [rubricDescriptions, setRubricDescriptions] = useState<Record<string, string[]>>(() =>
+    const [rubricDescriptions, setRubricDescriptions] = useState<RubricsData>(() =>
         getSavedItem('gradeCalculatorDescriptions', { A: [], P: [], C: [] })
     );
 
