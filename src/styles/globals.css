@@ -53,7 +53,70 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
+    /* Prevenir layout shift por font loading */
+    font-feature-settings: "rlig" 1, "calt" 1;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Prevenir CLS en imágenes */
+  img {
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+  }
+
+  /* Prevenir layout shifts en inputs */
+  input, textarea, select {
+    font-size: 16px; /* Prevenir zoom en iOS */
+  }
+
+  /* Prevenir zoom en mobile al hacer tap */
+  @media (max-width: 768px) {
+    * {
+      touch-action: manipulation;
+    }
+  }
+}
+
+@layer utilities {
+  /* Skeleton loading para mejorar perceived performance */
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--border)) 25%,
+      hsl(var(--muted)) 50%,
+      hsl(var(--border)) 75%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s infinite;
+  }
+
+  @keyframes skeleton-loading {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+
+  /* Prevenir CLS en elementos dinámicos */
+  .min-h-safe {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  /* Mejorar rendimiento de animaciones */
+  .will-animate {
+    will-change: transform, opacity;
+  }
+
+  /* Contener layout para elementos dinámicos */
+  .layout-contained {
+    contain: layout style;
   }
 }

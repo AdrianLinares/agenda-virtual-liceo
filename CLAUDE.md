@@ -1,4 +1,8 @@
-# CLAUDE.md — Agenda Virtual Liceo Ángel de la Guarda
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+---
 
 Archivo de contexto para Claude Code. Describe convenciones, patrones y reglas del proyecto.
 
@@ -82,6 +86,42 @@ Rutas con `RoleProtectedRoute` restringido solo a `administrador`:
 ---
 
 ## Patrones Críticos
+
+### Patrones de Estado Comunes
+
+**Formularios Desplegables** — Los formularios usan estado `formOpen` con botón toggle:
+
+```typescript
+const [formOpen, setFormOpen] = useState(false)
+
+<Button onClick={() => setFormOpen(prev => !prev)}>
+  {formOpen ? 'Ocultar formulario' : 'Registrar X'}
+</Button>
+{formOpen && <Card>...</Card>}
+```
+
+**Filtros Encadenados** — Patrón grupo → asignatura → estudiante (Notas, Asistencia, Horarios):
+
+```typescript
+// Al cambiar grupo, limpiar asignatura y estudiante dependientes
+useEffect(() => {
+  setSelectedAsignatura('')
+  setSelectedEstudiante('')
+  if (selectedGrupo) loadAsignaturasForGrupo()
+}, [selectedGrupo])
+```
+
+**Optimistic Updates** — Usado en AdminPage para evitar delays:
+
+```typescript
+const previousData = data
+setData(prev => prev.map(item => item.id === id ? { ...item, ...changes } : item))
+try {
+  await supabase.from('tabla').update(changes).eq('id', id)
+} catch {
+  setData(previousData) // revert
+}
+```
 
 ### Queries Supabase Siempre con Timeout
 
@@ -172,6 +212,37 @@ const handleSave = async () => {
 
 ---
 
+## Arquitectura de Módulos
+
+### Calculadora de Notas
+
+Tres categorías con pesos configurables:
+
+| Categoría | Key | Default |
+|-----------|-----|---------|
+| Actitudinal | `A` | 10% |
+| Procedimental | `P` | 40% |
+| Cognitiva | `C` | 50% |
+
+```typescript
+// Fórmula:
+Promedio_cat = Σ notas / cantidad
+Ponderación_cat = Promedio_cat × (Peso / 100)
+Nota_final = Σ Ponderaciones
+```
+
+Las notas se guardan en `notas.observaciones` como JSON con desglose completo.
+
+Componentes en `src/components/calculator/`:
+- `GradeCalculator.tsx` — estado principal y lógica
+- `GradeInput.tsx` — inputs de notas por categoría
+- `GradeTable.tsx` — tabla de estudiantes
+- `ResultsSection.tsx` — resultados y totales
+
+Tipos en `src/types/grades.ts`, utilidades en `src/utils/calculations.ts` y `src/utils/grade-order.ts`.
+
+---
+
 ## Relaciones Importantes de la BD
 
 ```
@@ -188,6 +259,50 @@ Para **docente**: filtrar siempre por `asignaciones_docentes.docente_id = profil
 Para **padre**: primero obtener `padres_estudiantes.estudiante_id` → luego filtrar por esos IDs.  
 Para **estudiante**: filtrar directamente por `profile.id`.  
 Para **admin/administrativo**: sin filtro adicional.
+
+---
+
+## Convenciones de Código
+
+### Imports
+
+Siempre usar el alias `@/` para imports del proyecto:
+
+```typescript
+import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/lib/auth-store'
+import { Button } from '@/components/ui/button'
+import { withTimeout } from '@/lib/async-utils'
+```
+
+### Componentes React
+
+- Exportación `default` en páginas, named en componentes reutilizables
+- Props tipadas con interfaces TypeScript explícitas
+- `useMemo` y `useCallback` para evitar re-renders costosos
+- **Nunca usar `<form>` HTML**; usar `onClick` / `onChange` directos
+
+```typescript
+// ✅ Correcto
+const handleSave = async () => { ... }
+<Button onClick={handleSave}>Guardar</Button>
+
+// ❌ Incorrecto
+<form onSubmit={handleSave}>...</form>
+```
+
+### Estilos
+
+- **No usar** `style={{}}` inline; preferir clases Tailwind
+- Colores semánticos vía CSS variables: `text-primary`, `bg-muted`, `text-destructive`
+- Para ordenar grados académicos usar siempre `sortByGradeAndGroupName` de `@/utils/grade-order`
+
+### Año Académico
+
+```typescript
+// Siempre usar 2026 como año académico activo
+.eq('año_academico', 2026)
+```
 
 ---
 
@@ -217,12 +332,12 @@ Para **admin/administrativo**: sin filtro adicional.
 
 ### "infinite recursion detected in policy for relation profiles"
 
-Causa: una política RLS de `profiles` hace `EXISTS (SELECT 1 FROM profiles ...)`.  
+Causa: una política RLS de `profiles` hace `EXISTS (SELECT 1 FROM profiles ...)`.
 Solución: usar funciones `SECURITY DEFINER` como `is_admin()` o `get_user_role()`.
 
 ### "duplicate key value violates unique constraint" en notas
 
-Cada estudiante solo puede tener una nota por `(estudiante_id, asignatura_id, periodo_id)`.  
+Cada estudiante solo puede tener una nota por `(estudiante_id, asignatura_id, periodo_id)`.
 Verificar duplicado antes de insertar o usar `ON CONFLICT DO UPDATE`.
 
 ### "new row violates check constraint" en notas
@@ -237,6 +352,19 @@ Si hay error de tipos en `.insert()`, usar cast `as any` solo en ese punto y doc
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const { error } = await (supabase as any).from('tabla').insert(payload)
 ```
+
+---
+
+## Lo que NO hacer
+
+- ❌ No usar `localStorage` ni `sessionStorage` directamente (el cliente Supabase ya maneja la sesión en `sessionStorage`)
+- ❌ No usar `<form>` HTML
+- ❌ No consultar `profiles` dentro de políticas RLS de `profiles` (recursión infinita)
+- ❌ No usar `as any` a menos que sea estrictamente necesario por tipos incompletos
+- ❌ No hardcodear IDs de usuarios o recursos
+- ❌ No hacer fetch sin `withTimeout`
+- ❌ No mostrar datos de un rol a otro (respetar RLS en frontend también)
+- ❌ No usar `style={{}}` inline; preferir clases Tailwind
 
 ---
 

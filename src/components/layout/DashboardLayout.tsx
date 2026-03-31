@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react'
+import { ReactNode, useState, useCallback, useMemo, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/lib/auth-store'
 import { Button } from '@/components/ui/button'
@@ -131,7 +131,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const navigate = useNavigate()
   const { profile, signOut } = useAuthStore()
 
-  const handleSignOut = async () => {
+  const handleSignOut = useCallback(async () => {
     try {
       await signOut()
     } catch (error) {
@@ -139,37 +139,48 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     } finally {
       navigate('/login', { replace: true })
     }
-  }
+  }, [signOut, navigate])
 
-  const filteredMenuItems = menuItems.filter((item) => {
+  // Memoizar filtrado de menú para evitar re-renders
+  const filteredMenuItems = useMemo(() => {
     const userRole = profile?.rol
-    // Safe default: without a resolved role we do not render role-based menu entries.
-    if (!userRole) {
-      return false
-    }
-    return item.roles.includes(userRole)
-  })
+    if (!userRole) return []
+    return menuItems.filter((item) => item.roles.includes(userRole))
+  }, [profile?.rol])
 
-  const getInitials = (name: string) => {
+  // Memoizar función de iniciales
+  const getInitials = useCallback((name: string) => {
     return name
       .split(' ')
       .map((n) => n[0])
       .join('')
       .toUpperCase()
       .slice(0, 2)
-  }
+  }, [])
+
+  // Prevenir scroll bounce en mobile
+  useEffect(() => {
+    const preventBounce = (e: TouchEvent) => {
+      if ((e.target as HTMLElement).tagName !== 'INPUT' && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
+        e.preventDefault()
+      }
+    }
+    document.addEventListener('touchmove', preventBounce, { passive: false })
+    return () => document.removeEventListener('touchmove', preventBounce)
+  }, [])
 
   return (
-    <div className="min-h-screen bg-muted">
-      {/* Header */}
-      <header className="bg-white border-b border-border sticky top-0 z-40">
+    <div className="min-h-screen min-h-dvh bg-muted">
+      {/* Header - optimized for mobile */}
+      <header className="bg-white border-b border-border sticky top-0 z-40 will-change-transform">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
               size="icon"
-              className="lg:hidden"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="lg:hidden touch-manipulation"
+              onClick={() => setSidebarOpen((prev) => !prev)}
+              aria-label="Toggle menu"
             >
               {sidebarOpen ? (
                 <X className="w-6 h-6" />
@@ -242,16 +253,17 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       </header>
 
       <div className="flex">
-        {/* Sidebar */}
+        {/* Sidebar - optimized for mobile with will-change */}
         <aside
           className={`
             fixed lg:static inset-y-0 left-0 z-30 w-64 bg-white border-r border-border
             transform transition-transform duration-200 ease-in-out lg:translate-x-0
             ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-            mt-[57px] lg:mt-0
+            mt-[57px] lg:mt-0 will-change-transform
           `}
+          aria-hidden={!sidebarOpen && 'true'}
         >
-          <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100vh-57px)]">
+          <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100dvh - 57px)]">
             {filteredMenuItems.map((item) => {
               const isActive = !item.external && location.pathname === item.href
 
@@ -296,16 +308,17 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </nav>
         </aside>
 
-        {/* Overlay para móviles */}
-        {sidebarOpen && (
-          <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
+        {/* Overlay para móviles - optimized with opacity transition */}
+        <div
+          className={`fixed inset-0 bg-black z-20 lg:hidden transition-opacity duration-200 ${
+            sidebarOpen ? 'opacity-50 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          }`}
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
 
-        {/* Main Content */}
-        <main className="flex-1 p-4 lg:p-8 overflow-x-hidden">
+        {/* Main Content - optimized layout */}
+        <main className="flex-1 p-4 lg:p-8 overflow-x-hidden layout-contained">
           {children}
         </main>
       </div>

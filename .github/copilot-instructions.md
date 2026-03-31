@@ -71,7 +71,7 @@ type UserRole = 'administrador' | 'administrativo' | 'docente' | 'estudiante' | 
 - Exportación `default` en páginas, named en componentes reutilizables.
 - Props tipadas con interfaces TypeScript explícitas.
 - `useMemo` y `useCallback` para evitar re-renders costosos.
-- Nunca usar `<form>` HTML; usar `onClick` / `onChange` directos.
+- **Nunca usar `<form>` HTML**; usar `onClick` / `onChange` directos.
 
 ```typescript
 // ✅ Correcto

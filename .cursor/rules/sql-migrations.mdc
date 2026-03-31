@@ -1,0 +1,91 @@
+---
+name: sql-migrations
+description: Reglas para migraciones SQL de Supabase
+globs: migrations/*.sql,*.sql
+---
+
+# Migraciones SQL - Reglas
+
+## Formato de Archivo
+
+- Ubicación: `migrations/` o raíz para fixes
+- Nombre: `YYYYMMDD_descripcion.sql`
+- Ejemplo: `20260331_agregar_columna_tabla.sql`
+
+## Estructura Obligatoria
+
+```sql
+BEGIN;
+
+-- 1. Drop políticas existentes
+DROP POLICY IF EXISTS nombre_policy ON tabla;
+
+-- 2. Crear/alterar tablas
+-- 3. Crear índices
+-- 4. Crear políticas RLS
+-- 5. Grants
+
+COMMIT;
+```
+
+## Funciones Helper RLS
+
+Para evitar recursión infinita en políticas de `profiles`:
+
+```sql
+CREATE OR REPLACE FUNCTION is_admin()
+RETURNS BOOLEAN
+LANGUAGE SQL
+SECURITY DEFINER
+STABLE
+AS $$
+  SELECT rol = 'administrador'
+  FROM profiles
+  WHERE id = auth.uid()
+$$;
+```
+
+## Políticas por Rol
+
+```sql
+-- Admin
+USING (is_admin())
+
+-- Docente
+USING (
+  EXISTS (
+    SELECT 1 FROM asignaciones_docentes
+    WHERE docente_id = auth.uid()
+    AND grupo_id = tabla.grupo_id
+  )
+)
+
+-- Padre
+USING (
+  EXISTS (
+    SELECT 1 FROM padres_estudiantes
+    WHERE padre_id = auth.uid()
+    AND estudiante_id = tabla.estudiante_id
+  )
+)
+
+-- Estudiante
+USING (estudiante_id = auth.uid())
+```
+
+## Índices Comunes
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_notas_periodo ON notas(periodo_id);
+CREATE INDEX IF NOT EXISTS idx_notas_estudiante ON notas(estudiante_id);
+CREATE INDEX IF NOT EXISTS idx_asignaciones_docente ON asignaciones_docentes(docente_id);
+CREATE INDEX IF NOT EXISTS idx_padres_estudiante ON padres_estudiantes(padre_id, estudiante_id);
+```
+
+## Verificación
+
+- [ ] BEGIN/COMMIT wrapping
+- [ ] DROP POLICY IF EXISTS antes de crear
+- [ ] Índices para columns en WHERE/JOIN
+- [ ] RLS habilitado
+- [ ] Funciones SECURITY DEFINER para evitar recursión

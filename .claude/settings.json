@@ -1,0 +1,59 @@
+{
+  "hooks": {
+    "ToolUse": [
+      {
+        "command": "echo 'Verificando cambios en curso...'",
+        "regex": "(Edit|Write|Bash).*\\.(tsx|ts|sql)$",
+        "description": "Track file changes for review"
+      }
+    ],
+    "BeforeCommit": [
+      {
+        "command": "pnpm lint && pnpm tsc --noEmit",
+        "description": "Run lint and TypeScript check before commit"
+      }
+    ],
+    "AfterToolUse": [
+      {
+        "command": "echo 'Tool executed successfully'",
+        "regex": ".*",
+        "description": "Acknowledge tool execution"
+      }
+    ]
+  },
+  "skills": {
+    "nueva-pagina": ".claude/skills/nueva-pagina.md",
+    "nueva-migracion": ".claude/skills/nueva-migracion.md",
+    "nuevo-componente-ui": ".claude/skills/nuevo-componente-ui.md",
+    "revisar-cambios": ".claude/skills/revisar-cambios.md",
+    "fix-rls-policy": ".claude/skills/fix-rls-policy.md",
+    "analizar-query-supabase": ".claude/skills/analizar-query-supabase.md"
+  },
+  "agents": {
+    "migrations": {
+      "description": "Agente especializado en migraciones SQL de Supabase",
+      "prompt": "Eres un experto en migraciones SQL para Supabase. Tu tarea es crear migraciones siguiendo el patrón del proyecto: BEGIN/COMMIT, DROP POLICY IF EXISTS, índices de rendimiento, políticas RLS por rol, y funciones SECURITY DEFINER para evitar recursión. Siempre verifica que las políticas no causen recursión infinita.",
+      "skills": ["nueva-migracion", "fix-rls-policy"]
+    },
+    "componentes": {
+      "description": "Agente especializado en componentes UI React",
+      "prompt": "Eres un experto en componentes React con TypeScript y Tailwind CSS. Tu tarea es crear componentes siguiendo el patrón Shadcn: forwardRef, cn() para clases, cva para variantes, props tipadas explícitamente. Nunca uses estilos inline ni <form> HTML.",
+      "skills": ["nuevo-componente-ui"]
+    },
+    "paginas": {
+      "description": "Agente especializado en páginas completas",
+      "prompt": "Eres un experto en crear páginas React completas para Agenda Virtual Liceo. Debes incluir: imports correctos con @/, estados (loading/error/success), patrón loadData con useCallback, patrón handleSave, timeout en todas las queries Supabase, y filtrado por rol del usuario.",
+      "skills": ["nueva-pagina", "analizar-query-supabase"]
+    },
+    "review": {
+      "description": "Agente especializado en code review",
+      "prompt": "Eres un experto en code review para proyectos React + Supabase. Revisa: 1) Uso de withTimeout en queries, 2) Estados loading/error/success presentes, 3) No <form> HTML, 4) No estilos inline, 5) Filtrado por rol correcto, 6) Tipos TypeScript correctos, 7) Patrones de estado apropiados.",
+      "skills": ["revisar-cambios", "analizar-query-supabase", "fix-rls-policy"]
+    }
+  },
+  "autoMemory": {
+    "enabled": true,
+    "path": ".claude/memory/",
+    "types": ["user", "feedback", "project", "reference"]
+  }
+}

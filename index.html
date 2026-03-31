@@ -3,11 +3,48 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+
+    <!-- SEO y Metadatos -->
     <title>Agenda Virtual - Liceo Ángel de la Guarda</title>
+    <meta name="description" content="Plataforma de gestión académica del Liceo Ángel de la Guarda" />
+    <meta name="theme-color" content="#6b281b" />
+
+    <!-- Preconnect a recursos críticos -->
+    <link rel="preconnect" href="https://mkjvprcsakvfqxplqolq.supabase.co" crossorigin />
+
+    <!-- Preload de fuentes si usas Google Fonts -->
+    <!-- <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin> -->
+
+    <!-- Manifest para PWA -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Apple Touch Icon -->
+    <link rel="apple-touch-icon" href="/vite.svg" />
+
+    <!-- Meta tags para mobile -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Agenda Virtual" />
+
+    <!-- Critical CSS inline para reducir LCP -->
+    <style>
+      /* Critical CSS para above-the-fold */
+      *{box-sizing:border-box;margin:0;padding:0}
+      html{font-family:system-ui,-apple-system,sans-serif}
+      body{min-height:100vh;background:hsl(36 31% 96%);color:hsl(8 42% 18%)}
+      #root{min-height:100vh}
+      .skeleton{background:linear-gradient(90deg,hsl(34 28% 78%) 25%,hsl(33 20% 89%) 50%,hsl(34 28% 78%) 75%);background-size:200% 100%;animation:skeleton-loading 1.5s infinite}
+      @keyframes skeleton-loading{0%{background-position:200% 0}100%{background-position:-200% 0}}
+    </style>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Preload de chunk principal si es posible -->
+    <!-- <link rel="modulepreload" href="/src/main.tsx" /> -->
   </body>
 </html>
