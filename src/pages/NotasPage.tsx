@@ -690,7 +690,6 @@ export default function NotasPage() {
                     .from('notas')
                     .update(notaData)
                     .eq('id', editingNotaId)
-                    .eq('docente_id', profile.id)
                 : await supabase
                     .from('notas')
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -742,7 +741,6 @@ export default function NotasPage() {
                 .from('notas')
                 .delete()
                 .eq('id', notaId)
-                .eq('docente_id', profile.id)
 
             if (error) throw error
 
