@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { useAuthStore } from '@/lib/auth-store'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,7 +12,8 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { AlertCircle, BookOpen, Loader2, TrendingUp, Plus, Pencil, Trash2 } from 'lucide-react'
-import { GradeCalculator } from '@/components/calculator/GradeCalculator'
+
+const GradeCalculator = lazy(() => import('@/components/calculator/GradeCalculator').then(m => ({ default: m.GradeCalculator })))
 import type { CategoryWeights, GradeResults, GradesData, RubricsData } from '@/types/grades'
 import { categoryLabels, type GradeCategory } from '@/types/grades'
 import { sortByGradeAndGroupName } from '@/utils/grade-order'
@@ -1071,13 +1072,19 @@ export default function NotasPage() {
 
                         {selectedGrupo && selectedAsignatura && selectedEstudiante && (
                             <div className="border-t pt-6">
-                                <GradeCalculator
-                                    key={calculatorRenderKey}
-                                    initialGrades={calculatorInitialGrades}
-                                    initialWeights={calculatorInitialWeights}
-                                    initialRubrics={calculatorInitialRubrics}
-                                    onResultsChange={handleResultsChange}
-                                />
+                                <Suspense fallback={
+                                    <div className="flex items-center justify-center py-8">
+                                        <div className="animate-pulse text-muted-foreground">Cargando calculadora...</div>
+                                    </div>
+                                }>
+                                    <GradeCalculator
+                                        key={calculatorRenderKey}
+                                        initialGrades={calculatorInitialGrades}
+                                        initialWeights={calculatorInitialWeights}
+                                        initialRubrics={calculatorInitialRubrics}
+                                        onResultsChange={handleResultsChange}
+                                    />
+                                </Suspense>
                             </div>
                         )}
 

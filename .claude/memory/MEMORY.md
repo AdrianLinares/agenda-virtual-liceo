@@ -1,0 +1,1 @@
+- [Core Web Vitals Optimizations](project_core_web_vitals.md) — Optimizaciones de LCP, INP y CLS implementadas en marzo 2026

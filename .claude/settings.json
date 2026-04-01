@@ -1,26 +1,4 @@
 {
-  "hooks": {
-    "ToolUse": [
-      {
-        "command": "echo 'Verificando cambios en curso...'",
-        "regex": "(Edit|Write|Bash).*\\.(tsx|ts|sql)$",
-        "description": "Track file changes for review"
-      }
-    ],
-    "BeforeCommit": [
-      {
-        "command": "pnpm lint && pnpm tsc --noEmit",
-        "description": "Run lint and TypeScript check before commit"
-      }
-    ],
-    "AfterToolUse": [
-      {
-        "command": "echo 'Tool executed successfully'",
-        "regex": ".*",
-        "description": "Acknowledge tool execution"
-      }
-    ]
-  },
   "skills": {
     "nueva-pagina": ".claude/skills/nueva-pagina.md",
     "nueva-migracion": ".claude/skills/nueva-migracion.md",

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/lib/auth-store'
 import { Button } from '@/components/ui/button'
@@ -12,17 +12,9 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [imageLoaded, setImageLoaded] = useState(false)
 
   const signIn = useAuthStore((state) => state.signIn)
   const navigate = useNavigate()
-
-  // Preload image para mejorar LCP
-  useEffect(() => {
-    const img = new Image()
-    img.src = '/images/escudo.jpg'
-    img.onload = () => setImageLoaded(true)
-  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -41,21 +33,20 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen min-h-dvh flex items-center justify-center bg-gradient-to-br from-background via-muted to-secondary p-4">
+    <div className="min-h-dvh flex items-center justify-center bg-gradient-to-br from-background via-muted to-secondary p-4">
       <div className="w-full max-w-md">
         {/* Logo y título */}
         <div className="text-center mb-8">
-          <div
-            className={`w-40 h-40 rounded-xl mx-auto mb-4 overflow-hidden bg-muted ${!imageLoaded ? 'skeleton' : ''}`}
-          >
+          <div className="w-40 h-40 rounded-xl mx-auto mb-4 overflow-hidden bg-muted">
             <img
               src="/images/escudo.jpg"
               alt="Escudo Liceo Ángel de la Guarda"
-              className={`w-full h-full object-cover transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+              className="w-full h-full object-cover"
               loading="eager"
               fetchPriority="high"
               width="160"
               height="160"
+              decoding="async"
             />
           </div>
           <h1 className="text-3xl font-bold text-foreground mb-2">

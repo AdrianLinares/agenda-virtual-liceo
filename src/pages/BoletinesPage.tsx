@@ -3,7 +3,6 @@ import { useAuthStore } from '@/lib/auth-store'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { jsPDF } from 'jspdf'
 import {
   Select,
   SelectContent,
@@ -296,7 +295,7 @@ export default function BoletinesPage() {
       if (notasError) throw notasError
 
       const notasDetalle = (notas || []) as NotaDetalle[]
-      const pdf = generateBoletinPDF(boletinData, notasDetalle)
+      const pdf = await generateBoletinPDF(boletinData, notasDetalle)
       const studentName = (boletinData.estudiante?.nombre_completo || 'estudiante')
         .toLowerCase()
         .replace(/\s+/g, '-')
@@ -310,7 +309,8 @@ export default function BoletinesPage() {
     }
   }
 
-  const generateBoletinPDF = (boletinData: Boletin, notasDetalle: NotaDetalle[]) => {
+  const generateBoletinPDF = async (boletinData: Boletin, notasDetalle: NotaDetalle[]) => {
+    const { jsPDF } = await import('jspdf')
     const doc = new jsPDF()
 
     const pageWidth = doc.internal.pageSize.getWidth()

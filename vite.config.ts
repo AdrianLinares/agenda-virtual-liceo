@@ -23,16 +23,33 @@ export default defineConfig({
     rollupOptions: {
       output: {
         // Code splitting optimizado
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'supabase': ['@supabase/supabase-js'],
-          'ui': [
-            '@/components/ui/button',
-            '@/components/ui/card',
-            '@/components/ui/input',
-            '@/components/ui/select',
-            '@/components/ui/alert',
-          ],
+        manualChunks: (id) => {
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('scheduler')) {
+              return 'react-vendor'
+            }
+            if (id.includes('@supabase')) {
+              return 'supabase'
+            }
+            if (id.includes('lucide-react')) {
+              return 'icons'
+            }
+            if (id.includes('jspdf')) {
+              return 'pdf'
+            }
+            if (id.includes('zustand')) {
+              return 'state'
+            }
+          }
+          if (id.includes('/components/ui/')) {
+            return 'ui'
+          }
+          if (id.includes('/components/calculator/')) {
+            return 'calculator'
+          }
+          if (id.includes('/components/layout/')) {
+            return 'layout'
+          }
         },
         // Naming pattern con hash para cacheo
         entryFileNames: 'assets/[name].[hash].js',
