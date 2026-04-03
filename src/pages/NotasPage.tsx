@@ -651,6 +651,15 @@ export default function NotasPage() {
 
             // Guardar la nota con los detalles de la calculadora en observaciones
             const weights = calculatedWeights ?? DEFAULT_WEIGHTS
+            
+            console.log('[DEBUG handleSaveNota] Valores actuales antes de guardar:', {
+                calculatedResults: calculatedResults?.final,
+                weights: weights,
+                calculatedGrades: calculatedGrades,
+                calculatedResultsAverages: calculatedResults?.averages,
+                calculatedResultsWeighted: calculatedResults?.weighted
+            })
+            
             const observaciones = JSON.stringify({
                 actitudinal: {
                     promedio: calculatedResults.averages.A,
@@ -865,6 +874,13 @@ export default function NotasPage() {
         rubrics: RubricsData,
         weights: CategoryWeights
     ) => {
+        console.log('[DEBUG handleResultsChange] Nuevo resultado recibido:', {
+            final: results.final,
+            averages: results.averages,
+            weighted: results.weighted,
+            weights: weights,
+            gradesCount: { A: grades.A?.length, P: grades.P?.length, C: grades.C?.length }
+        })
         setCalculatedResults(results)
         setCalculatedGrades(grades)
         setCalculatedRubrics(rubrics)
