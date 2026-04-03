@@ -1,15 +1,4 @@
 {
-  // ── GitHub Copilot ─────────────────────────────────────────────────
-  "github.copilot.enable": {
-    "*": true,
-    "markdown": true,
-    "sql": true
-  },
-
-  // Instrucciones adicionales inline para el chat de Copilot
-  "github.copilot.chat.codeGeneration.useInstructionFiles": true,
-  "github.copilot.chat.reviewSelection.enabled": true,
-
   // ── TypeScript ─────────────────────────────────────────────────────
   "typescript.preferences.importModuleSpecifier": "non-relative",
   "typescript.suggest.autoImports": true,
