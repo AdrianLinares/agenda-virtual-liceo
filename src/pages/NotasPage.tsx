@@ -706,16 +706,30 @@ export default function NotasPage() {
 
                 // Verificar que el update realmente cambió datos comparando con el ORIGINAL
                 if (!result.error && originalNotaData) {
+                    // Comparar objetos parsed para detectar cambios en porcentajes/promedios
+                    const parseObs = (obs: string) => {
+                        try { return JSON.parse(obs) } catch { return null }
+                    }
+                    const originalParsed = parseObs(originalNotaData.observaciones)
+                    const tryingParsed = parseObs(observaciones)
+                    
                     const cambioReal = 
                         originalNotaData.nota !== notaData.nota ||
-                        originalNotaData.observaciones !== observaciones
+                        (originalParsed && tryingParsed && (
+                            originalParsed.actitudinal?.porcentaje !== tryingParsed.actitudinal?.porcentaje ||
+                            originalParsed.procedimental?.porcentaje !== tryingParsed.procedimental?.porcentaje ||
+                            originalParsed.cognitiva?.porcentaje !== tryingParsed.cognitiva?.porcentaje ||
+                            originalParsed.actitudinal?.notas?.length !== tryingParsed.actitudinal?.notas?.length ||
+                            originalParsed.procedimental?.notas?.length !== tryingParsed.procedimental?.notas?.length ||
+                            originalParsed.cognitiva?.notas?.length !== tryingParsed.cognitiva?.notas?.length
+                        ))
                     
                     if (!cambioReal) {
                         console.warn('Update no detecto cambios reales - valores iguales al original', { 
                             original: originalNotaData.nota, 
                             trying: notaData.nota,
-                            originalObs: originalNotaData.observaciones?.substring(0, 100),
-                            tryingObs: observaciones.substring(0, 100)
+                            originalPct: originalParsed?.actitudinal?.porcentaje,
+                            tryingPct: tryingParsed?.actitudinal?.porcentaje
                         })
                     } else {
                         console.log('Cambio real detectado y guardado:', {
