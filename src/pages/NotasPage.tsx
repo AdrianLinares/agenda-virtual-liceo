@@ -685,18 +685,57 @@ export default function NotasPage() {
                 observaciones
             }
 
-            const { error } = editingNotaId
+            let result: { error: unknown; data: { nota: number; observaciones: string } | null }
+            if (editingNotaId) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                ? await (supabase as any)
+                result = await (supabase as any)
                     .from('notas')
                     .update(notaData)
                     .eq('id', editingNotaId)
-                : await supabase
+                    .select()
+                    .single()
+            } else {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                result = await supabase
                     .from('notas')
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     .insert(notaData as any)
+                    .select()
+                    .single()
+            }
+
+            const { error, data: savedNota } = result
 
             if (error) throw error
+
+            // Verificar que el update realmente cambió datos
+            if (editingNotaId && savedNota) {
+                const notaActualizada = savedNota
+                const cambioReal = 
+                    notaActualizada.nota !== notaData.nota ||
+                    notaActualizada.observaciones !== observaciones
+                
+                if (!cambioReal) {
+                    console.warn('Update no detecto cambios reales en la nota', { 
+                        saved: notaActualizada.nota, 
+                        trying: notaData.nota,
+                        savedObs: notaActualizada.observaciones?.substring(0, 50),
+                        tryingObs: observaciones.substring(0, 50)
+                    })
+                    // Forzar verificacion con query directa a la DB
+                    const { data: verifyData } = await supabase
+                        .from('notas')
+                        .select('nota, observaciones')
+                        .eq('id', editingNotaId)
+                        .single()
+                    
+                    const verifyNota = verifyData as { nota: number; observaciones: string } | null
+                    if (verifyNota && verifyNota.nota === notaData.nota) {
+                        console.log('Nota verificada correctamente en BD')
+                    } else {
+                        console.error('ERROR: La nota no se actualizo en BD:', verifyNota)
+                    }
+                }
+            }
 
             // Recargar notas y cerrar modal
             await loadNotas(false)
