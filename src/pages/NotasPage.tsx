@@ -687,6 +687,15 @@ export default function NotasPage() {
 
             let result: { error: unknown; data: { nota: number; observaciones: string } | null }
             if (editingNotaId) {
+                // Primero obtener la nota original antes de actualizar
+                const { data: originalNota } = await supabase
+                    .from('notas')
+                    .select('nota, observaciones')
+                    .eq('id', editingNotaId)
+                    .single()
+                
+                const originalNotaData = originalNota as { nota: number; observaciones: string } | null
+                
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 result = await (supabase as any)
                     .from('notas')
@@ -694,6 +703,27 @@ export default function NotasPage() {
                     .eq('id', editingNotaId)
                     .select()
                     .single()
+
+                // Verificar que el update realmente cambió datos comparando con el ORIGINAL
+                if (!result.error && originalNotaData) {
+                    const cambioReal = 
+                        originalNotaData.nota !== notaData.nota ||
+                        originalNotaData.observaciones !== observaciones
+                    
+                    if (!cambioReal) {
+                        console.warn('Update no detecto cambios reales - valores iguales al original', { 
+                            original: originalNotaData.nota, 
+                            trying: notaData.nota,
+                            originalObs: originalNotaData.observaciones?.substring(0, 100),
+                            tryingObs: observaciones.substring(0, 100)
+                        })
+                    } else {
+                        console.log('Cambio real detectado y guardado:', {
+                            original: originalNotaData.nota,
+                            nuevo: notaData.nota
+                        })
+                    }
+                }
             } else {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 result = await supabase
@@ -703,39 +733,9 @@ export default function NotasPage() {
                     .single()
             }
 
-            const { error, data: savedNota } = result
+            const { error } = result
 
             if (error) throw error
-
-            // Verificar que el update realmente cambió datos
-            if (editingNotaId && savedNota) {
-                const notaActualizada = savedNota
-                const cambioReal = 
-                    notaActualizada.nota !== notaData.nota ||
-                    notaActualizada.observaciones !== observaciones
-                
-                if (!cambioReal) {
-                    console.warn('Update no detecto cambios reales en la nota', { 
-                        saved: notaActualizada.nota, 
-                        trying: notaData.nota,
-                        savedObs: notaActualizada.observaciones?.substring(0, 50),
-                        tryingObs: observaciones.substring(0, 50)
-                    })
-                    // Forzar verificacion con query directa a la DB
-                    const { data: verifyData } = await supabase
-                        .from('notas')
-                        .select('nota, observaciones')
-                        .eq('id', editingNotaId)
-                        .single()
-                    
-                    const verifyNota = verifyData as { nota: number; observaciones: string } | null
-                    if (verifyNota && verifyNota.nota === notaData.nota) {
-                        console.log('Nota verificada correctamente en BD')
-                    } else {
-                        console.error('ERROR: La nota no se actualizo en BD:', verifyNota)
-                    }
-                }
-            }
 
             // Recargar notas y cerrar modal
             await loadNotas(false)
