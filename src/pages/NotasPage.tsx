@@ -686,6 +686,8 @@ export default function NotasPage() {
             }
 
             let result: { error: unknown; data: { nota: number; observaciones: string } | null }
+            let cambioNotaFinal = false
+            
             if (editingNotaId) {
                 // Primero obtener la nota original antes de actualizar
                 const { data: originalNota } = await supabase
@@ -695,6 +697,7 @@ export default function NotasPage() {
                     .single()
                 
                 const originalNotaData = originalNota as { nota: number; observaciones: string } | null
+                const notaOriginalNum = Number(originalNotaData?.nota)
                 
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 result = await (supabase as any)
@@ -713,7 +716,6 @@ export default function NotasPage() {
                     const originalParsed = parseObs(originalNotaData.observaciones)
                     const tryingParsed = parseObs(observaciones)
                     
-                    const notaOriginalNum = Number(originalNotaData.nota)
                     const notaNuevaNum = Number(notaData.nota)
                     
                     const cambioReal = 
@@ -752,6 +754,7 @@ export default function NotasPage() {
                             originalDB: notaOriginalNum,
                             nuevaDB: dbNotaNum
                         })
+                        cambioNotaFinal = true
                     } else if (notaNuevaNum !== notaOriginalNum) {
                         console.error('ERROR: Update retorno exito pero la BD no cambio:', {
                             originalDB: notaOriginalNum,
@@ -780,7 +783,16 @@ export default function NotasPage() {
             setShowCalculator(false)
             resetCalculatorForm()
 
-            alert(editingNotaId ? 'Nota actualizada exitosamente' : 'Nota guardada exitosamente')
+            // Solo mostrar éxito si hubo cambio real en la nota
+            if (editingNotaId) {
+                if (cambioNotaFinal) {
+                    alert('Nota actualizada exitosamente')
+                } else {
+                    alert('Los valores de la nota no cambiaron. Los porcentajes se han actualizado en las notas.')
+                }
+            } else {
+                alert('Nota guardada exitosamente')
+            }
         } catch (err) {
             console.error('Error saving nota:', err)
             const errorObj = err as { code?: string; message?: string; details?: string; constraint?: string }
