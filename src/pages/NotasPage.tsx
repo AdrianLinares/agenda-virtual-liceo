@@ -713,29 +713,53 @@ export default function NotasPage() {
                     const originalParsed = parseObs(originalNotaData.observaciones)
                     const tryingParsed = parseObs(observaciones)
                     
+                    const notaOriginalNum = Number(originalNotaData.nota)
+                    const notaNuevaNum = Number(notaData.nota)
+                    
                     const cambioReal = 
-                        originalNotaData.nota !== notaData.nota ||
+                        notaOriginalNum !== notaNuevaNum ||
                         (originalParsed && tryingParsed && (
-                            originalParsed.actitudinal?.porcentaje !== tryingParsed.actitudinal?.porcentaje ||
-                            originalParsed.procedimental?.porcentaje !== tryingParsed.procedimental?.porcentaje ||
-                            originalParsed.cognitiva?.porcentaje !== tryingParsed.cognitiva?.porcentaje ||
+                            Number(originalParsed.actitudinal?.porcentaje) !== Number(tryingParsed.actitudinal?.porcentaje) ||
+                            Number(originalParsed.procedimental?.porcentaje) !== Number(tryingParsed.procedimental?.porcentaje) ||
+                            Number(originalParsed.cognitiva?.porcentaje) !== Number(tryingParsed.cognitiva?.porcentaje) ||
                             originalParsed.actitudinal?.notas?.length !== tryingParsed.actitudinal?.notas?.length ||
                             originalParsed.procedimental?.notas?.length !== tryingParsed.procedimental?.notas?.length ||
                             originalParsed.cognitiva?.notas?.length !== tryingParsed.cognitiva?.notas?.length
                         ))
                     
+                    // Siempre verificar con query directa a la BD despues del update
+                    const { data: verifyData } = await supabase
+                        .from('notas')
+                        .select('nota, observaciones')
+                        .eq('id', editingNotaId)
+                        .single()
+                    
+                    const verifyNota = verifyData as { nota: number; observaciones: string } | null
+                    const dbNotaNum = Number(verifyNota?.nota)
+                    
                     if (!cambioReal) {
-                        console.warn('Update no detecto cambios reales - valores iguales al original', { 
-                            original: originalNotaData.nota, 
-                            trying: notaData.nota,
+                        console.warn('Comparacion local: no detecto cambios reales', { 
+                            original: notaOriginalNum, 
+                            trying: notaNuevaNum,
                             originalPct: originalParsed?.actitudinal?.porcentaje,
                             tryingPct: tryingParsed?.actitudinal?.porcentaje
                         })
-                    } else {
-                        console.log('Cambio real detectado y guardado:', {
-                            original: originalNotaData.nota,
-                            nuevo: notaData.nota
+                    }
+                    
+                    // Verificar contra la BD
+                    if (dbNotaNum !== notaOriginalNum) {
+                        console.log('DB VERIFIED: Cambio real guardado en BD:', {
+                            originalDB: notaOriginalNum,
+                            nuevaDB: dbNotaNum
                         })
+                    } else if (notaNuevaNum !== notaOriginalNum) {
+                        console.error('ERROR: Update retorno exito pero la BD no cambio:', {
+                            originalDB: notaOriginalNum,
+                            tryingSave: notaNuevaNum,
+                            actualDB: dbNotaNum
+                        })
+                    } else {
+                        console.log('Nota final no cambio (valores iguales) - OK')
                     }
                 }
             } else {
