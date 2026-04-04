@@ -102,6 +102,13 @@ export function GradeCalculator({
         onResultsChange?.(newResults, grades, rubrics, weights);
     }, [grades, weights, rubrics, onResultsChange]);
 
+    // Enviar cálculo inicial al padre apenas se monte el componente
+    useEffect(() => {
+        const initialResults = calculateResults(grades, weights);
+        onResultsChange?.(initialResults, grades, rubrics, weights);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     const handleCountChange = (category: GradeCategory, count: number) => {
         setGradeCounts((prev) => ({ ...prev, [category]: count }));
 

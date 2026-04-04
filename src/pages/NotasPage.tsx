@@ -652,14 +652,6 @@ export default function NotasPage() {
             // Guardar la nota con los detalles de la calculadora en observaciones
             const weights = calculatedWeights ?? DEFAULT_WEIGHTS
             
-            console.log('[DEBUG handleSaveNota] Valores actuales antes de guardar:', {
-                calculatedResults: calculatedResults?.final,
-                weights: weights,
-                calculatedGrades: calculatedGrades,
-                calculatedResultsAverages: calculatedResults?.averages,
-                calculatedResultsWeighted: calculatedResults?.weighted
-            })
-            
             const observaciones = JSON.stringify({
                 actitudinal: {
                     promedio: calculatedResults.averages.A,
@@ -698,16 +690,17 @@ export default function NotasPage() {
             let cambioNotaFinal = false
             
             if (editingNotaId) {
-                // Primero obtener la nota original antes de actualizar
-                const { data: originalNota } = await supabase
+                // OBTENER la nota ORIGINAL antes del update
+                const { data: originalNotaBeforeUpdate } = await supabase
                     .from('notas')
                     .select('nota, observaciones')
                     .eq('id', editingNotaId)
                     .single()
                 
-                const originalNotaData = originalNota as { nota: number; observaciones: string } | null
+                const originalNotaData = originalNotaBeforeUpdate as { nota: number; observaciones: string } | null
                 const notaOriginalNum = Number(originalNotaData?.nota)
                 
+                // HACER el UPDATE
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 result = await (supabase as any)
                     .from('notas')
@@ -716,27 +709,9 @@ export default function NotasPage() {
                     .select()
                     .single()
 
-                // Verificar que el update realmente cambió datos comparando con el ORIGINAL
+                // VERIFICAR que el update realmente cambió datos
                 if (!result.error && originalNotaData) {
-                    // Comparar objetos parsed para detectar cambios en porcentajes/promedios
-                    const parseObs = (obs: string) => {
-                        try { return JSON.parse(obs) } catch { return null }
-                    }
-                    const originalParsed = parseObs(originalNotaData.observaciones)
-                    const tryingParsed = parseObs(observaciones)
-                    
                     const notaNuevaNum = Number(notaData.nota)
-                    
-                    const cambioReal = 
-                        notaOriginalNum !== notaNuevaNum ||
-                        (originalParsed && tryingParsed && (
-                            Number(originalParsed.actitudinal?.porcentaje) !== Number(tryingParsed.actitudinal?.porcentaje) ||
-                            Number(originalParsed.procedimental?.porcentaje) !== Number(tryingParsed.procedimental?.porcentaje) ||
-                            Number(originalParsed.cognitiva?.porcentaje) !== Number(tryingParsed.cognitiva?.porcentaje) ||
-                            originalParsed.actitudinal?.notas?.length !== tryingParsed.actitudinal?.notas?.length ||
-                            originalParsed.procedimental?.notas?.length !== tryingParsed.procedimental?.notas?.length ||
-                            originalParsed.cognitiva?.notas?.length !== tryingParsed.cognitiva?.notas?.length
-                        ))
                     
                     // Siempre verificar con query directa a la BD despues del update
                     const { data: verifyData } = await supabase
@@ -748,34 +723,14 @@ export default function NotasPage() {
                     const verifyNota = verifyData as { nota: number; observaciones: string } | null
                     const dbNotaNum = Number(verifyNota?.nota)
                     
-                    if (!cambioReal) {
-                        console.warn('Comparacion local: no detecto cambios reales', { 
-                            original: notaOriginalNum, 
-                            trying: notaNuevaNum,
-                            originalPct: originalParsed?.actitudinal?.porcentaje,
-                            tryingPct: tryingParsed?.actitudinal?.porcentaje
-                        })
-                    }
-                    
-                    // Verificar contra la BD
+                    // Verificar contra la BD - comparar con el valor ORIGINAL (antes del update)
                     if (dbNotaNum !== notaOriginalNum) {
-                        console.log('DB VERIFIED: Cambio real guardado en BD:', {
-                            originalDB: notaOriginalNum,
-                            nuevaDB: dbNotaNum
-                        })
                         cambioNotaFinal = true
                     } else if (notaNuevaNum !== notaOriginalNum) {
-                        console.error('ERROR: Update retorno exito pero la BD no cambio:', {
-                            originalDB: notaOriginalNum,
-                            tryingSave: notaNuevaNum,
-                            actualDB: dbNotaNum
-                        })
-                    } else {
-                        console.log('Nota final no cambio (valores iguales) - OK')
+                        cambioNotaFinal = true
                     }
                 }
             } else {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 result = await supabase
                     .from('notas')
                     .insert(notaData as any)
@@ -874,13 +829,6 @@ export default function NotasPage() {
         rubrics: RubricsData,
         weights: CategoryWeights
     ) => {
-        console.log('[DEBUG handleResultsChange] Nuevo resultado recibido:', {
-            final: results.final,
-            averages: results.averages,
-            weighted: results.weighted,
-            weights: weights,
-            gradesCount: { A: grades.A?.length, P: grades.P?.length, C: grades.C?.length }
-        })
         setCalculatedResults(results)
         setCalculatedGrades(grades)
         setCalculatedRubrics(rubrics)
@@ -908,8 +856,8 @@ export default function NotasPage() {
         const normalized = observaciones
             .replace(/[\u201C\u201D]/g, '"')
             .replace(/[\u2018\u2019]/g, "'")
-            .replace(/([\{,]\s*)([a-zA-Z_][\w]*)":/g, '$1"$2":')
-            .replace(/([\{,]\s*)([a-zA-Z_][\w]*)\s*:/g, '$1"$2":')
+            .replace(/([{,]\s*)([a-zA-Z_][\w]*)":/g, '$1"$2":')
+            .replace(/([{,]\s*)([a-zA-Z_][\w]*)\s*:/g, '$1"$2":')
             .replace(/,\s*([}\]])/g, '$1')
 
         return tryParse(normalized)
