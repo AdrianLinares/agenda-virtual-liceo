@@ -143,7 +143,8 @@ export default function NotasPage() {
         if (selectedPeriodo && profile) {
             loadNotas()
         }
-        // loadNotas depende de filtros/periodo/profile por diseño.
+        // Motivo: loadNotas depende de selectedPeriodo y filtros; omitimos otras dependencias intencionalmente
+        // para controlar cuándo se ejecuta. Revisar si se necesita incluir más dependencias antes de eliminar esta línea.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedPeriodo, profile, viewGrupo, viewAsignatura, viewEstudiante])
 
@@ -152,7 +153,7 @@ export default function NotasPage() {
         if (profile?.rol === 'docente') {
             loadDocenteAsignaciones()
         }
-        // Carga dependiente de perfil docente.
+        // Motivo: efecto ejecutado cuando cambie el perfil docente. Dependencias omitidas intencionalmente.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [profile])
 
@@ -167,7 +168,7 @@ export default function NotasPage() {
         if (selectedGrupo) {
             loadEstudiantes()
         }
-        // Carga dependiente de grupo seleccionado.
+        // Motivo: cargar estudiantes cuando cambia el grupo seleccionado. Dependencias intencionales.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedGrupo])
 
@@ -486,6 +487,7 @@ export default function NotasPage() {
             const asignaturasMap = new Map<string, Asignatura>()
             const asignacionesPermitidas: AsignacionDocente[] = []
 
+            // Motivo: respuesta de Supabase tiene tipo dinámico; convertir después a los tipos esperados.
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             asignaciones?.forEach((asig: any) => {
                 if (asig.grupo) {
@@ -701,6 +703,7 @@ export default function NotasPage() {
                 const notaOriginalNum = Number(originalNotaData?.nota)
                 
                 // HACER el UPDATE
+                // Motivo: datos de la consulta contienen campos anidados con tipos dinámicos.
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 result = await (supabase as any)
                     .from('notas')
@@ -790,6 +793,7 @@ export default function NotasPage() {
         setError(null)
 
         try {
+            // Motivo: iteración sobre resultados con estructura no estricta proveniente de la BD.
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (supabase as any)
                 .from('notas')
@@ -932,6 +936,7 @@ export default function NotasPage() {
             // Verificar si tiene el formato de la calculadora
             if (data.actitudinal && data.procedimental && data.cognitiva) {
                 const formatPercent = (value: number) => `${value.toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1')}%`
+                // Motivo: supabase retorna any para insert/delete en este proyecto; casteamos a tipos conocidos.
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const categories: Array<{ key: GradeCategory; data: any }> = [
                     { key: 'A', data: data.actitudinal },

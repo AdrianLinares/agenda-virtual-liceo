@@ -84,7 +84,7 @@ export default function PermisosPage() {
             loadPermisos()
             loadStudents()
         }
-        // Ambas cargas dependen de profile por diseño.
+        // Motivo: ambas cargas dependen del perfil; se omiten otras dependencias intencionalmente.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [profile])
 
@@ -219,6 +219,7 @@ export default function PermisosPage() {
                 solicitado_por: profile.id,
             } satisfies Database['public']['Tables']['permisos']['Insert']
 
+            // Motivo: la llamada a supabase devuelve any en este proyecto; casteamos al tipo esperado.
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const result: any = await withTimeout((supabase as any)
                 .from('permisos')
@@ -253,6 +254,7 @@ export default function PermisosPage() {
         setSuccess(null)
 
         try {
+            // Motivo: uso de any por la respuesta dinámica del cliente Supabase en este contexto.
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const result: any = await withTimeout((supabase as any)
                 .from('permisos')

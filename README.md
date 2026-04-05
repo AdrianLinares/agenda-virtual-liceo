@@ -81,12 +81,23 @@ Este script creará:
 
 1. Ve a **Settings** > **API** en tu proyecto de Supabase
 2. Copia:
-   - **Project URL**
-   - **anon/public key**
+   - **Project URL** (VITE_SUPABASE_URL)
+   - **anon/public key** (VITE_SUPABASE_ANON_KEY)
+
+Notas adicionales de secretos (servidor/cron):
+
+- `SUPABASE_SERVICE_ROLE_KEY` (service role): sólo para uso en funciones de servidor/edge. Nunca exponer al cliente.
+- `SUPABASE_CRON_SECRET` o `CRON_SECRET`: secreto usado para autorizar el worker/cron que ejecuta notificaciones por correo.
+
+Dónde configurar:
+
+- Variables de frontend (prefijo VITE_) en Cloudflare Pages: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY.
+- Secrets de Supabase y Supabase Functions: SUPABASE_SERVICE_ROLE_KEY, CRON_SECRET.
+- Cloudflare Workers / wrangler: configurar secrets en el dashboard de Cloudflare o mediante `wrangler secret put` para claves de Gmail u otros.
 
 ### 4. Configurar variables de entorno
 
-1. Copia el archivo `.env.example` a `.env`:
+1. Copia el archivo `.env.example` a `.env` (para desarrollo local):
 
 ```bash
 cp .env.example .env
@@ -95,8 +106,13 @@ cp .env.example .env
 2. Edita el archivo `.env` y agrega tus credenciales:
 
 ```env
+# Frontend (prefijo VITE_ para que Vite lo inyecte en build)
 VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
 VITE_SUPABASE_ANON_KEY=tu_clave_anonima_aqui
+
+# (Opcional) variables usadas por funciones/cron - NO agregar estas al código cliente
+# SUPABASE_SERVICE_ROLE_KEY=tu_service_role_key_aqui
+# SUPABASE_CRON_SECRET=tu_cron_secret_aqui
 ```
 
 ### 5. Crear usuarios de prueba
@@ -108,23 +124,13 @@ Para poder iniciar sesión, necesitas crear usuarios en Supabase:
 Ejecuta este SQL para crear un usuario administrador de prueba:
 
 ```sql
--- Primero, crea el usuario en auth.users (esto lo hace Supabase automáticamente al registrarse)
--- Para testing, puedes crear usuarios manualmente:
-
--- Insertar en la tabla profiles (el trigger de Supabase creará el usuario auth)
--- Nota: Primero debes crear el usuario desde la UI de Supabase Authentication
-
--- 1. Ve a Authentication > Users en Supabase
--- 2. Haz clic en "Add user" > "Create new user"
--- 3. Agrega email y contraseña (ej: admin@liceo.com / Admin123!)
--- 4. Luego ejecuta esto para actualizar el perfil:
-
-UPDATE profiles 
-SET 
+-- Después de crear el usuario vía Authentication > Users, asigna el rol en profiles
+UPDATE profiles
+SET
   rol = 'administrador',
   nombre_completo = 'Administrador Sistema',
   activo = true
-WHERE email = 'admin@liceo.com';
+WHERE email = 'admin@liceoag.com';
 ```
 
 #### Opción B: Crear usuarios desde la UI de Supabase
@@ -138,7 +144,7 @@ WHERE email = 'admin@liceo.com';
 4. Guarda el usuario
 5. Ejecuta el UPDATE de arriba para asignar el rol
 
-### 6. Ejecutar el proyecto
+### 6. Ejecutar el proyecto (desarrollo local)
 
 ```bash
 pnpm dev
@@ -146,7 +152,14 @@ pnpm dev
 npm run dev
 ```
 
-El proyecto estará disponible en `http://localhost:5173`
+El proyecto estará disponible en `http://localhost:5173` (puerto por defecto de Vite).
+
+Si necesitas crear un build para producción localmente:
+
+```bash
+pnpm build
+pnpm preview
+```
 
 ### Comportamiento de sesión
 
@@ -156,28 +169,28 @@ El proyecto estará disponible en `http://localhost:5173`
 
 ## 👤 Usuarios de Prueba Sugeridos
 
-Te recomendamos crear estos usuarios de prueba:
+Te recomendamos crear estos usuarios de prueba (ejemplos). NOTA DE SEGURIDAD: no subas credenciales reales al repositorio ni uses contraseñas triviales en entornos públicos. Usa contraseñas seguras en producción.
 
-```
+```text
 Administrador:
-- Email: administrativo@liceoag.com
-- Password: Adminintrativo123!
-- Rol: administrativo
+  Email: administrativo@liceoag.com
+  Password: AdminIntr4t1vo!2026
+  Rol: administrativo
 
 Docente:
-- Email: docente@liceoag.com
-- Password: Docente123!
-- Rol: docente
+  Email: docente@liceoag.com
+  Password: Docente!2026
+  Rol: docente
 
 Estudiante:
-- Email: estudiante@liceoag.com
-- Password: Estudiante123!
-- Rol: estudiante
+  Email: estudiante@liceoag.com
+  Password: Estud!ante2026
+  Rol: estudiante
 
 Padre:
-- Email: padre@liceoag.com
-- Password: Padre123!
-- Rol: padre
+  Email: padre@liceoag.com
+  Password: Padre!2026
+  Rol: padre
 ```
 
 Recuerda ejecutar el UPDATE para asignar los roles después de crear cada usuario.
@@ -281,7 +294,19 @@ El proyecto implementa Row Level Security (RLS) en Supabase para garantizar que:
 - Los docentes solo accedan a datos de sus grupos asignados
 - Los administradores tengan control total
 
-## 🚀 Estado Actual del Proyecto (Marzo 2026)
+Notas operativas y de seguridad:
+
+- Nunca subas archivos `.env` ni claves al repositorio. Añade `.env` a tu `.gitignore` si usas otro nombre local.
+- Variables sensibles y secretos que requieren configuración:
+  - En Supabase Functions: `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET` (o `SUPABASE_CRON_SECRET`) y variables de Gmail (si aplica).
+  - En Cloudflare Workers: credenciales para Gmail/Google (service account JSON o refresh token) y `SUPABASE_CRON_SECRET` como secret de Worker.
+  - En GitHub Actions / CI: configurar secrets `CLOUDFLARE_WORKER_URL`, `SUPABASE_CRON_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, etc.
+
+- Carpetas que normalmente contienen código que usa secretos: `supabase/functions/` y `cloudflare/workers/`.
+
+- En producción, sólo exponer en el frontend las variables con prefijo `VITE_` (anon/public). Las claves de servicio y secretos deben permanecer en el servidor/entorno de funciones.
+
+## 🚀 Estado Actual del Proyecto
 
 Módulos operativos en producción:
 
@@ -305,6 +330,7 @@ Cambios relevantes recientes:
 1. Variables de entorno en Cloudflare Pages (Production y Preview):
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
+   (No incluir claves de servicio en Pages)
 2. Build command: `pnpm build`
 3. Publish directory: `dist`
 4. Deploy command en Pages: **vacío** (no usar `wrangler deploy` para frontend).
@@ -374,4 +400,14 @@ Si tienes problemas con la configuración:
 
 ---
 
-Desarrollado con ❤️ para el Liceo Ángel de la Guarda
+### Primeros pasos para desarrolladores (rápido)
+
+1. Clona el repositorio: `git clone <url>`
+2. Entra a la carpeta: `cd agenda-virtual-liceo`
+3. Instala dependencias: `pnpm install` (o `npm install`)
+4. Crea un proyecto en Supabase y copia `supabase-schema.sql` a SQL Editor; ejecuta el script.
+5. Configura variables locales copiando `.env.example` a `.env` y rellena `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`.
+6. Crea un usuario admin en Supabase (Authentication > Users) y asigna rol en `profiles` con un `UPDATE`.
+7. Arranca el frontend: `pnpm dev` y abre `http://localhost:5173`.
+
+Si necesitas trabajar con funciones server/cron, añade `SUPABASE_SERVICE_ROLE_KEY` y `CRON_SECRET` en el dashboard de Supabase Functions o en tus secrets de CI/Cloudflare.

@@ -133,7 +133,8 @@ export default function MensajesPage() {
     useEffect(() => {
         if (!profile) return
         void loadMensajes()
-        // La carga de mensajes sí depende de la pestaña seleccionada.
+        // Motivo: la carga de mensajes depende de la pestaña activa; se omiten otras dependencias intencionalmente
+        // para controlar la recarga manual desde la UI.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [profile, tab])
 
@@ -141,7 +142,7 @@ export default function MensajesPage() {
         if (!profile) return
         void loadRecipients()
         void loadRecipientRelations()
-        // La carga de destinatarios/relaciones no depende de la pestaña.
+        // Motivo: cargar destinatarios y relaciones cuando cambia el perfil. Dependencias omitidas intencionalmente.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [profile])
 
@@ -472,7 +473,7 @@ export default function MensajesPage() {
         try {
             // Optimizado: aumentar batch size basado en datos de producción (400+ mensajes sin error)
             const BATCH_SIZE = 200
-            const INTER_BATCH_DELAY = 100 // pequeño delay entre batches para distribuir carga de BD
+            const INTER_BATCH_DELAY = 100 // Retraso entre lotes para evitar picos de carga en la BD; ajustar según producción
             const batches: Array<Database['public']['Tables']['mensajes']['Insert'][]> = []
 
             // Dividir en lotes
@@ -497,6 +498,7 @@ export default function MensajesPage() {
                     await new Promise((resolve) => setTimeout(resolve, INTER_BATCH_DELAY))
                 }
 
+                // Motivo: usamos cast por limitaciones del cliente supabase en tipo genérico para insert masivo.
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const insertResponse = await withTimeout<any>(
                     (supabase as any)
@@ -563,6 +565,7 @@ export default function MensajesPage() {
         if (tab === 'recibidos' && mensaje.estado !== 'leido' && !markingRead) {
             setMarkingRead(mensaje.id)
             try {
+                // Motivo: update de estado usa any por la firma de supabase en este proyecto.
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const { error } = await (supabase as any)
                     .from('mensajes')

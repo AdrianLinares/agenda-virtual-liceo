@@ -74,7 +74,7 @@ export default function BoletinesPage() {
     if (selectedPeriodo) {
       loadBoletines()
     }
-    // loadBoletines depende de selectedPeriodo y profile por diseño.
+    // Motivo: loadBoletines depende del periodo y perfil; omitimos otras dependencias intencionalmente.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPeriodo, profile])
 

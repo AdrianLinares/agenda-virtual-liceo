@@ -68,7 +68,7 @@ export default function SeguimientoPage() {
             loadSeguimientos()
             loadStudents()
         }
-        // Ambas cargas dependen de profile por diseño.
+        // Motivo: ambas cargas dependen del perfil; omitimos otras dependencias intencionalmente.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [profile])
 

@@ -4,8 +4,7 @@ import { useAuthStore } from '@/lib/auth-store'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Mail, Users, UserSearch, Clock, RefreshCw, CheckCircle, FileText } from 'lucide-react'
-// Tipos para stats
-// Tipos para stats
+// Tipos y estructura de estadísticas mostradas en el dashboard
 interface AsistenciaStats {
   presentes: number
   ausentes: number
@@ -24,7 +23,7 @@ interface PermisosStats {
   rechazado: number
 }
 
-// ...existing code...
+// Código auxiliar de caché y utilidades para el dashboard
 import { supabase } from '@/lib/supabase'
 import { withRetry, withTimeout } from '@/lib/async-utils'
 

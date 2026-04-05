@@ -33,7 +33,7 @@ export function GradeCalculator({
     onResultsChange,
 }: GradeCalculatorProps) {
 
-    // Función de ayuda para lectura segura
+    // Función auxiliar: leer y parsear desde localStorage sin romper el flujo si falla
     const getSavedItem = (key: string, defaultValue: any) => {
         try {
             const saved = localStorage.getItem(key);
@@ -103,10 +103,13 @@ export function GradeCalculator({
     }, [grades, weights, rubrics, onResultsChange]);
 
     // Enviar cálculo inicial al padre apenas se monte el componente
+    // Enviar cálculo inicial al padre al montar. Omitimos dependencias intencionalmente
+    // para evitar re-ejecutar al actualizar los arrays internos de notas (controlado por otros efectos).
+    // Motivo: queremos enviar el estado inicial una vez en mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         const initialResults = calculateResults(grades, weights);
         onResultsChange?.(initialResults, grades, rubrics, weights);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleCountChange = (category: GradeCategory, count: number) => {

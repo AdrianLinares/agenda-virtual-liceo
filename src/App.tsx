@@ -120,6 +120,7 @@ function App() {
 
       lastResumeTriggerRef.current = now
 
+      // En entorno de desarrollo se registra el motivo del resume para depuración.
       if (import.meta.env.DEV) {
         console.info('[app] resume trigger detected:', reason)
       }

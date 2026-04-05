@@ -158,7 +158,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       .slice(0, 2)
   }, [])
 
-  // Prevenir scroll bounce en mobile
+  // Prevenir rebote de scroll en móviles para mejorar la experiencia táctil
   useEffect(() => {
     const preventBounce = (e: TouchEvent) => {
       if ((e.target as HTMLElement).tagName !== 'INPUT' && (e.target as HTMLElement).tagName !== 'TEXTAREA') {

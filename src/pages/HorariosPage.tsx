@@ -140,7 +140,7 @@ export default function HorariosPage() {
         if (profile && selectedGrupo) {
             loadHorarios()
         }
-        // loadHorarios depende de selectedGrupo/profile por diseño.
+        // Motivo: loadHorarios depende de selectedGrupo y profile; omitimos otras dependencias intencionalmente.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [profile, selectedGrupo])
 
