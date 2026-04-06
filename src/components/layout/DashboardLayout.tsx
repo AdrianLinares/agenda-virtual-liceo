@@ -1,4 +1,4 @@
-import { ReactNode, useState, useCallback, useMemo, useEffect } from 'react'
+import { ReactNode, useState, useCallback, useMemo } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/lib/auth-store'
 import { Button } from '@/components/ui/button'
@@ -158,19 +158,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       .slice(0, 2)
   }, [])
 
-  // Prevenir rebote de scroll en móviles para mejorar la experiencia táctil
-  useEffect(() => {
-    const preventBounce = (e: TouchEvent) => {
-      if ((e.target as HTMLElement).tagName !== 'INPUT' && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
-        e.preventDefault()
-      }
-    }
-    document.addEventListener('touchmove', preventBounce, { passive: false })
-    return () => document.removeEventListener('touchmove', preventBounce)
-  }, [])
-
   return (
-    <div className="min-h-screen min-h-dvh bg-muted">
+    <div className="min-h-dvh bg-muted">
       {/* Header - optimized for mobile */}
       <header className="bg-white border-b border-border sticky top-0 z-40 will-change-transform">
         <div className="flex items-center justify-between px-4 py-3">
@@ -310,9 +299,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
         {/* Overlay para móviles - optimized with opacity transition */}
         <div
-          className={`fixed inset-0 bg-black z-20 lg:hidden transition-opacity duration-200 ${
-            sidebarOpen ? 'opacity-50 pointer-events-auto' : 'opacity-0 pointer-events-none'
-          }`}
+          className={`fixed inset-0 bg-black z-20 lg:hidden transition-opacity duration-200 ${sidebarOpen ? 'opacity-50 pointer-events-auto' : 'opacity-0 pointer-events-none'
+            }`}
           onClick={() => setSidebarOpen(false)}
           aria-hidden="true"
         />

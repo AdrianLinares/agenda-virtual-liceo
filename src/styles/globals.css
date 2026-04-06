@@ -61,6 +61,9 @@
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+
+    /* Prevenir scroll bounce de forma nativa */
+    overscroll-behavior-y: none;
   }
 
   /* Prevenir CLS en imágenes */
