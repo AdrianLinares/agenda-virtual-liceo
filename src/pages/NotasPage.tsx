@@ -949,20 +949,23 @@ export default function NotasPage() {
                         <p className="text-xs font-semibold text-primary mb-3 uppercase tracking-wide">
                             Desglose de Evaluación
                         </p>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
+                        <p className="mb-2 text-[11px] text-muted-foreground md:hidden">
+                            Desliza horizontalmente para ver todas las columnas.
+                        </p>
+                        <div className="w-full min-w-0 overflow-x-auto">
+                            <table className="w-full min-w-[620px] text-sm">
                                 <thead>
                                     <tr className="border-b border-primary/30">
-                                        <th className="text-left py-2 px-3 font-semibold text-primary">Categoría</th>
-                                        <th className="text-center py-2 px-3 font-semibold text-primary">Notas</th>
-                                        <th className="text-center py-2 px-3 font-semibold text-primary">Promedio</th>
-                                        <th className="text-center py-2 px-3 font-semibold text-primary">Ponderación</th>
+                                        <th className="text-left py-2 px-3 font-semibold text-primary whitespace-nowrap">Categoría</th>
+                                        <th className="text-center py-2 px-3 font-semibold text-primary whitespace-nowrap">Notas</th>
+                                        <th className="text-center py-2 px-3 font-semibold text-primary whitespace-nowrap">Promedio</th>
+                                        <th className="text-center py-2 px-3 font-semibold text-primary whitespace-nowrap">Ponderación</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {categories.map(({ key, data }) => (
                                         <tr key={key} className="border-b border-primary/20 hover:bg-white/50 transition-colors">
-                                            <td className="py-2 px-3 font-medium text-foreground">
+                                            <td className="py-2 px-3 font-medium text-foreground whitespace-nowrap">
                                                 {categoryLabels[key]}: {formatPercent(Number.isFinite(Number(data?.porcentaje)) ? Number(data.porcentaje) : weights[key])}
                                             </td>
                                             <td className="py-2 px-3 text-center">
@@ -1321,7 +1324,7 @@ export default function NotasPage() {
                         </CardContent>
                     </Card>
 
-                    <Card className="lg:col-span-2">
+                    <Card className="lg:col-span-2 min-w-0">
                         <CardHeader>
                             <CardTitle>Detalle de notas</CardTitle>
                             <CardDescription>
@@ -1334,7 +1337,7 @@ export default function NotasPage() {
                                 return (
                                     <div
                                         key={nota.id}
-                                        className="flex flex-col gap-2 rounded-lg border border-border p-4"
+                                        className="flex min-w-0 flex-col gap-2 rounded-lg border border-border p-4"
                                     >
                                         {/* Si está en modo edición inline para esta nota, mostrar el formulario aquí */}
                                         {isEditing ? (
