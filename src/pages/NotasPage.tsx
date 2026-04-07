@@ -653,7 +653,7 @@ export default function NotasPage() {
 
             // Guardar la nota con los detalles de la calculadora en observaciones
             const weights = calculatedWeights ?? DEFAULT_WEIGHTS
-            
+
             const observaciones = JSON.stringify({
                 actitudinal: {
                     promedio: calculatedResults.averages.A,
@@ -690,7 +690,7 @@ export default function NotasPage() {
 
             let result: { error: unknown; data: { nota: number; observaciones: string } | null }
             let cambioNotaFinal = false
-            
+
             if (editingNotaId) {
                 // OBTENER la nota ORIGINAL antes del update
                 const { data: originalNotaBeforeUpdate } = await supabase
@@ -698,10 +698,10 @@ export default function NotasPage() {
                     .select('nota, observaciones')
                     .eq('id', editingNotaId)
                     .single()
-                
+
                 const originalNotaData = originalNotaBeforeUpdate as { nota: number; observaciones: string } | null
                 const notaOriginalNum = Number(originalNotaData?.nota)
-                
+
                 // HACER el UPDATE
                 // Motivo: datos de la consulta contienen campos anidados con tipos dinámicos.
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -715,17 +715,17 @@ export default function NotasPage() {
                 // VERIFICAR que el update realmente cambió datos
                 if (!result.error && originalNotaData) {
                     const notaNuevaNum = Number(notaData.nota)
-                    
+
                     // Siempre verificar con query directa a la BD despues del update
                     const { data: verifyData } = await supabase
                         .from('notas')
                         .select('nota, observaciones')
                         .eq('id', editingNotaId)
                         .single()
-                    
+
                     const verifyNota = verifyData as { nota: number; observaciones: string } | null
                     const dbNotaNum = Number(verifyNota?.nota)
-                    
+
                     // Verificar contra la BD - comparar con el valor ORIGINAL (antes del update)
                     if (dbNotaNum !== notaOriginalNum) {
                         cambioNotaFinal = true
