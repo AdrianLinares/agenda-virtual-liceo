@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { RotateCcw } from 'lucide-react';
 import type {
     GradeCategory,
@@ -14,7 +14,7 @@ import { GradeTable } from './GradeTable';
 import { ResultsSection } from './ResultsSection';
 import { Button } from '../ui/button';
 
-interface GradeCalculatorProps {
+export interface GradeCalculatorProps {
     initialGrades?: GradesData;
     initialWeights?: CategoryWeights;
     initialRubrics?: RubricsData;
@@ -26,12 +26,21 @@ interface GradeCalculatorProps {
     ) => void;
 }
 
-export function GradeCalculator({
+export interface GradeCalculatorRef {
+    getLatestData: () => {
+        results: GradeResults;
+        grades: GradesData;
+        rubrics: RubricsData;
+        weights: CategoryWeights;
+    };
+}
+
+export const GradeCalculator = forwardRef<GradeCalculatorRef, GradeCalculatorProps>(({
     initialGrades,
     initialWeights,
     initialRubrics,
     onResultsChange,
-}: GradeCalculatorProps) {
+}: GradeCalculatorProps, ref) => {
 
     // Función auxiliar: leer y parsear desde localStorage sin romper el flujo si falla
     const getSavedItem = (key: string, defaultValue: any) => {
@@ -77,6 +86,21 @@ export function GradeCalculator({
             C: [],
         }
     );
+
+    // Exponer una API imperativa para que el padre pueda solicitar el estado más reciente
+    // en el momento del guardado y evitar condiciones de carrera.
+    useImperativeHandle(ref, () => ({
+        getLatestData: () => {
+            const currentResults = calculateResults(grades, weights)
+            // Nota: las descripciones activas se mantienen en `rubricDescriptions`.
+            return {
+                results: currentResults,
+                grades,
+                rubrics: rubricDescriptions,
+                weights,
+            }
+        }
+    }))
     useEffect(() => {
         if (!initialWeights) localStorage.setItem('gradeCalculatorWeights', JSON.stringify(weights));
     }, [weights, initialWeights]);
@@ -203,4 +227,4 @@ export function GradeCalculator({
             <ResultsSection results={results} weights={weights} />
         </div>
     );
-}
+});

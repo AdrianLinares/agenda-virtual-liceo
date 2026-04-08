@@ -1,0 +1,12 @@
+Step B summary (sdd-apply)
+
+- Verified branch and pending Step A changes before execution.
+- Ran TypeScript check (`pnpm -s tsc --noEmit`): passed without additional fixes.
+- Ran production build (`pnpm -s build`): passed.
+- Prepared commit including Step A code updates and this artifact.
+
+Files included in commit scope:
+- src/components/calculator/GradeCalculator.tsx
+- src/pages/NotasPage.tsx
+- openspec/changes/fix-notas-parciales-guardar-a-la-primera/patch-A.txt
+- openspec/changes/fix-notas-parciales-guardar-a-la-primera/patch-B.txt

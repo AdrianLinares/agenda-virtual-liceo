@@ -1,0 +1,15 @@
+Step A — fix-notas-parciales/guardar-a-la-primera
+
+Archivos modificados:
+- src/pages/NotasPage.tsx
+- src/components/calculator/GradeCalculator.tsx
+
+Resumen corto:
+- Se reemplazó la importación lazy de GradeCalculator por importación directa en NotasPage para soportar refs tipados sin cast frágil.
+- Se agregó `calculatorRef` tipado y se pasó `ref={calculatorRef}` en las dos instancias de GradeCalculator (formulario principal y edición inline).
+- Se eliminó el `// @ts-ignore` relacionado al ref en la calculadora.
+- El guardado (`handleSaveNota`) ahora consume `getLatestData()` desde el ref para obtener resultados, notas, rúbricas y pesos más recientes al primer intento.
+- GradeCalculator expone explícitamente tipos exportados de Props y Ref para consumo desde padres.
+
+Validación:
+- Type-check ejecutado con `pnpm -s tsc --noEmit` sin errores.

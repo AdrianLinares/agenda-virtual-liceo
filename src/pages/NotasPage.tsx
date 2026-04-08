@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { useAuthStore } from '@/lib/auth-store'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,7 +13,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { AlertCircle, BookOpen, Loader2, TrendingUp, Plus, Pencil, Trash2 } from 'lucide-react'
 
-const GradeCalculator = lazy(() => import('@/components/calculator/GradeCalculator').then(m => ({ default: m.GradeCalculator })))
+import { GradeCalculator, type GradeCalculatorRef } from '@/components/calculator/GradeCalculator'
 import type { CategoryWeights, GradeResults, GradesData, RubricsData } from '@/types/grades'
 import { categoryLabels, type GradeCategory } from '@/types/grades'
 import { sortByGradeAndGroupName } from '@/utils/grade-order'
@@ -124,9 +124,6 @@ export default function NotasPage() {
     const [selectedAsignatura, setSelectedAsignatura] = useState<string>('')
     const [selectedEstudiante, setSelectedEstudiante] = useState<string>('')
     const [calculatedResults, setCalculatedResults] = useState<GradeResults | null>(null)
-    const [calculatedGrades, setCalculatedGrades] = useState<GradesData | null>(null)
-    const [calculatedRubrics, setCalculatedRubrics] = useState<RubricsData | null>(null)
-    const [calculatedWeights, setCalculatedWeights] = useState<CategoryWeights | null>(null)
     const [calculatorInitialGrades, setCalculatorInitialGrades] = useState<GradesData | undefined>(undefined)
     const [calculatorInitialWeights, setCalculatorInitialWeights] = useState<CategoryWeights | undefined>(undefined)
     const [calculatorInitialRubrics, setCalculatorInitialRubrics] = useState<RubricsData | undefined>(undefined)
@@ -134,6 +131,7 @@ export default function NotasPage() {
     const [editingNotaId, setEditingNotaId] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
     const [deletingNotaId, setDeletingNotaId] = useState<string | null>(null)
+    const calculatorRef = useRef<GradeCalculatorRef | null>(null)
 
     useEffect(() => {
         loadPeriodos()
@@ -622,7 +620,14 @@ export default function NotasPage() {
 
 
     const handleSaveNota = async () => {
-        if (!selectedPeriodo || !selectedGrupo || !selectedAsignatura || !selectedEstudiante || !calculatedResults || !profile) {
+        if (!calculatorRef.current) {
+            setError('La calculadora no está lista. Intenta de nuevo.');
+            return;
+        }
+
+        const { results: latestResults, grades: latestGrades, rubrics: latestRubrics, weights: latestWeights } = calculatorRef.current.getLatestData();
+
+        if (!selectedPeriodo || !selectedGrupo || !selectedAsignatura || !selectedEstudiante || !latestResults || !profile) {
             setError('Debes completar todos los campos y calcular la nota')
             return
         }
@@ -652,29 +657,29 @@ export default function NotasPage() {
             }
 
             // Guardar la nota con los detalles de la calculadora en observaciones
-            const weights = calculatedWeights ?? DEFAULT_WEIGHTS
+            const weights = latestWeights ?? DEFAULT_WEIGHTS
 
             const observaciones = JSON.stringify({
                 actitudinal: {
-                    promedio: calculatedResults.averages.A,
-                    ponderacion: calculatedResults.weighted.A,
+                    promedio: latestResults.averages.A,
+                    ponderacion: latestResults.weighted.A,
                     porcentaje: weights.A,
-                    notas: calculatedGrades?.A || [],
-                    rubrica: calculatedRubrics?.A || []
+                    notas: latestGrades?.A || [],
+                    rubrica: latestRubrics?.A || []
                 },
                 procedimental: {
-                    promedio: calculatedResults.averages.P,
-                    ponderacion: calculatedResults.weighted.P,
+                    promedio: latestResults.averages.P,
+                    ponderacion: latestResults.weighted.P,
                     porcentaje: weights.P,
-                    notas: calculatedGrades?.P || [],
-                    rubrica: calculatedRubrics?.P || []
+                    notas: latestGrades?.P || [],
+                    rubrica: latestRubrics?.P || []
                 },
                 cognitiva: {
-                    promedio: calculatedResults.averages.C,
-                    ponderacion: calculatedResults.weighted.C,
+                    promedio: latestResults.averages.C,
+                    ponderacion: latestResults.weighted.C,
                     porcentaje: weights.C,
-                    notas: calculatedGrades?.C || [],
-                    rubrica: calculatedRubrics?.C || []
+                    notas: latestGrades?.C || [],
+                    rubrica: latestRubrics?.C || []
                 }
             })
 
@@ -684,7 +689,7 @@ export default function NotasPage() {
                 periodo_id: selectedPeriodo,
                 grupo_id: selectedGrupo,
                 docente_id: profile.id,
-                nota: calculatedResults.final,
+                nota: latestResults.final,
                 observaciones
             }
 
@@ -820,7 +825,6 @@ export default function NotasPage() {
     const resetCalculatorForm = () => {
         setSelectedEstudiante('')
         setCalculatedResults(null)
-        setCalculatedGrades(null)
         setCalculatorInitialGrades(undefined)
         setCalculatorInitialWeights(undefined)
         setEditingNotaId(null)
@@ -829,14 +833,11 @@ export default function NotasPage() {
 
     const handleResultsChange = (
         results: GradeResults,
-        grades: GradesData,
-        rubrics: RubricsData,
-        weights: CategoryWeights
+        _grades: GradesData,
+        _rubrics: RubricsData,
+        _weights: CategoryWeights
     ) => {
         setCalculatedResults(results)
-        setCalculatedGrades(grades)
-        setCalculatedRubrics(rubrics)
-        setCalculatedWeights(weights)
     }
 
     const openNewNotaCalculator = () => {
@@ -913,8 +914,6 @@ export default function NotasPage() {
         setSelectedAsignatura(nota.asignatura_id)
         setSelectedEstudiante(nota.estudiante_id)
         setCalculatedResults(null)
-        setCalculatedGrades(parsedData.grades)
-        setCalculatedRubrics(parsedData.rubrics)
         setCalculatorInitialGrades(parsedData.grades)
         setCalculatorInitialWeights(parsedData.weights)
         setCalculatorInitialRubrics(parsedData.rubrics)
@@ -1133,19 +1132,14 @@ export default function NotasPage() {
 
                         {selectedGrupo && selectedAsignatura && selectedEstudiante && (
                             <div className="border-t pt-6">
-                                <Suspense fallback={
-                                    <div className="flex items-center justify-center py-8">
-                                        <div className="animate-pulse text-muted-foreground">Cargando calculadora...</div>
-                                    </div>
-                                }>
-                                    <GradeCalculator
-                                        key={calculatorRenderKey}
-                                        initialGrades={calculatorInitialGrades}
-                                        initialWeights={calculatorInitialWeights}
-                                        initialRubrics={calculatorInitialRubrics}
-                                        onResultsChange={handleResultsChange}
-                                    />
-                                </Suspense>
+                                <GradeCalculator
+                                    key={calculatorRenderKey}
+                                    ref={calculatorRef}
+                                    initialGrades={calculatorInitialGrades}
+                                    initialWeights={calculatorInitialWeights}
+                                    initialRubrics={calculatorInitialRubrics}
+                                    onResultsChange={handleResultsChange}
+                                />
                             </div>
                         )}
 
@@ -1414,6 +1408,7 @@ export default function NotasPage() {
                                                         <div className="border-t pt-6">
                                                             <GradeCalculator
                                                                 key={calculatorRenderKey}
+                                                                ref={calculatorRef}
                                                                 initialGrades={calculatorInitialGrades}
                                                                 initialWeights={calculatorInitialWeights}
                                                                 initialRubrics={calculatorInitialRubrics}
