@@ -66,8 +66,10 @@ export const GradeCalculator = forwardRef<GradeCalculatorRef, GradeCalculatorPro
         return getSavedItem('gradeCalculatorCounts', { A: 3, P: 3, C: 3 });
     });
 
+    // Prefer initialRubrics when provided (editing an existing nota). Otherwise
+    // fall back to the saved descriptions in localStorage.
     const [rubricDescriptions, setRubricDescriptions] = useState<RubricsData>(() =>
-        getSavedItem('gradeCalculatorDescriptions', { A: [], P: [], C: [] })
+        initialRubrics || getSavedItem('gradeCalculatorDescriptions', { A: [], P: [], C: [] })
     );
 
     const [grades, setGrades] = useState<GradesData>(
@@ -119,21 +121,22 @@ export const GradeCalculator = forwardRef<GradeCalculatorRef, GradeCalculatorPro
         total: 0,
     });
 
-    // Recalcular cuando cambien las notas o los pesos
+    // Recalcular cuando cambien las notas, pesos o las descripciones de la rúbrica
     useEffect(() => {
         const newResults = calculateResults(grades, weights);
         setResults(newResults);
-        onResultsChange?.(newResults, grades, rubrics, weights);
-    }, [grades, weights, rubrics, onResultsChange]);
+        // Exportar las descripciones activas (rubricDescriptions) en lugar de la
+        // variable de compatibilidad `rubrics` para evitar inconsistencias cuando
+        // el padre provee `initialRubrics`.
+        onResultsChange?.(newResults, grades, rubricDescriptions, weights);
+    }, [grades, weights, rubricDescriptions, onResultsChange]);
 
     // Enviar cálculo inicial al padre apenas se monte el componente
-    // Enviar cálculo inicial al padre al montar. Omitimos dependencias intencionalmente
-    // para evitar re-ejecutar al actualizar los arrays internos de notas (controlado por otros efectos).
-    // Motivo: queremos enviar el estado inicial una vez en mount.
+    // Omitimos dependencias intencionalmente para ejecutar solo en mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         const initialResults = calculateResults(grades, weights);
-        onResultsChange?.(initialResults, grades, rubrics, weights);
+        onResultsChange?.(initialResults, grades, rubricDescriptions, weights);
     }, []);
 
     const handleCountChange = (category: GradeCategory, count: number) => {
