@@ -48,10 +48,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signIn: async (email: string, password: string) => {
     try {
       set({ loading: true })
+      const normalizedEmail = email.trim().toLowerCase()
+
+      if (!normalizedEmail) {
+        throw new Error('Debes ingresar un correo electrónico válido')
+      }
+
       const { data, error } = await withRetry(
         () => withTimeout(
           supabase.auth.signInWithPassword({
-            email,
+            email: normalizedEmail,
             password,
           }),
           AUTH_TIMEOUT_MS,
@@ -217,6 +223,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (error) {
         const updateMessage = error.message || 'No se pudo restablecer la contraseña'
         const normalizedMessage = updateMessage.toLowerCase()
+
+        if (normalizedMessage.includes('auth session missing')) {
+          throw new Error('La sesión de recuperación expiró. Solicita un nuevo enlace para restablecer la contraseña.')
+        }
+
         const shouldRetry =
           normalizedMessage.includes('timeout') ||
           normalizedMessage.includes('tiempo de espera') ||
@@ -240,6 +251,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
         }
       }
+
+      // End recovery flow with a clean local session before returning to login.
+      const { error: localSignOutError } = await supabase.auth.signOut({ scope: 'local' })
+      if (localSignOutError) {
+        console.warn('Non-blocking local sign-out after recovery:', localSignOutError)
+      }
+
+      set({ user: null, profile: null })
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Error al restablecer contraseña'
       console.error('Error updating password with recovery:', error)

@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/lib/auth-store'
+import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -14,16 +15,113 @@ export default function RestablecerContrasenaPage() {
     const [error, setError] = useState('')
     const [success, setSuccess] = useState('')
     const [slowRequestNotice, setSlowRequestNotice] = useState(false)
+    const [validatingRecovery, setValidatingRecovery] = useState(true)
+    const [recoveryReady, setRecoveryReady] = useState(false)
 
     const updatePasswordWithRecovery = useAuthStore((state) => state.updatePasswordWithRecovery)
     const loading = useAuthStore((state) => state.loading)
     const navigate = useNavigate()
+
+    useEffect(() => {
+        let cancelled = false
+
+        const ensureRecoverySession = async () => {
+            setValidatingRecovery(true)
+
+            try {
+                const {
+                    data: { session },
+                    error: sessionError,
+                } = await supabase.auth.getSession()
+
+                if (sessionError) {
+                    throw sessionError
+                }
+
+                if (session?.user) {
+                    if (!cancelled) {
+                        setRecoveryReady(true)
+                        setError('')
+                    }
+                    return
+                }
+
+                const hash = window.location.hash.startsWith('#')
+                    ? window.location.hash.slice(1)
+                    : window.location.hash
+                const hashParams = new URLSearchParams(hash)
+                const searchParams = new URLSearchParams(window.location.search)
+
+                const accessToken = hashParams.get('access_token')
+                const refreshToken = hashParams.get('refresh_token')
+                const code = searchParams.get('code')
+
+                if (accessToken && refreshToken) {
+                    const { error: setSessionError } = await supabase.auth.setSession({
+                        access_token: accessToken,
+                        refresh_token: refreshToken,
+                    })
+
+                    if (setSessionError) {
+                        throw setSessionError
+                    }
+
+                    if (!cancelled) {
+                        setRecoveryReady(true)
+                        setError('')
+                    }
+                    return
+                }
+
+                if (code) {
+                    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+
+                    if (exchangeError) {
+                        throw exchangeError
+                    }
+
+                    if (!cancelled) {
+                        setRecoveryReady(true)
+                        setError('')
+                    }
+                    return
+                }
+
+                if (!cancelled) {
+                    setRecoveryReady(false)
+                    setError('El enlace de recuperación es inválido o expiró. Solicita uno nuevo.')
+                }
+            } catch (err) {
+                const message = err instanceof Error ? err.message : 'No se pudo validar la sesión de recuperación'
+
+                if (!cancelled) {
+                    setRecoveryReady(false)
+                    setError(message || 'No se pudo validar la sesión de recuperación')
+                }
+            } finally {
+                if (!cancelled) {
+                    setValidatingRecovery(false)
+                }
+            }
+        }
+
+        void ensureRecoverySession()
+
+        return () => {
+            cancelled = true
+        }
+    }, [])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setError('')
         setSuccess('')
         setSlowRequestNotice(false)
+
+        if (!recoveryReady) {
+            setError('La sesión de recuperación no está activa. Abre nuevamente el enlace del correo.')
+            return
+        }
 
         if (newPassword.length < 6) {
             setError('La nueva contraseña debe tener al menos 6 caracteres')
@@ -115,8 +213,8 @@ export default function RestablecerContrasenaPage() {
                                 </Alert>
                             )}
 
-                            <Button type="submit" className="w-full" disabled={loading || Boolean(success)}>
-                                {loading ? 'Guardando...' : 'Restablecer contraseña'}
+                            <Button type="submit" className="w-full" disabled={loading || validatingRecovery || !recoveryReady || Boolean(success)}>
+                                {validatingRecovery ? 'Validando enlace...' : loading ? 'Guardando...' : 'Restablecer contraseña'}
                             </Button>
                         </form>
 
