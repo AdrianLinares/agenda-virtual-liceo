@@ -68,7 +68,7 @@ export default function RestablecerContrasenaPage() {
                     }
 
                     // Confirm session and sync global store
-                    const { data: { session: confirmedSession }, error: confirmError } = await supabase.auth.getSession()
+                    const { data: { session }, error: confirmError } = await supabase.auth.getSession()
                     if (confirmError) {
                         throw confirmError
                     }
@@ -106,7 +106,7 @@ export default function RestablecerContrasenaPage() {
                     }
 
                     // Confirm session and sync global store
-                    const { data: { session: confirmedSession }, error: confirmError } = await supabase.auth.getSession()
+                    const { data: { session }, error: confirmError } = await supabase.auth.getSession()
                     if (confirmError) {
                         throw confirmError
                     }
