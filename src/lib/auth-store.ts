@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { withRetry, withTimeout } from '@/lib/async-utils'
+import { normalizeEmail } from '@/utils/normalizeEmail'
 import type { Database } from '@/types/database.types'
 
 type Profile = Database['public']['Tables']['profiles']['Row']
@@ -76,7 +77,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signIn: async (email: string, password: string) => {
     try {
       set({ loading: true })
-      const normalizedEmail = email.trim().toLowerCase()
+      const normalizedEmail = normalizeEmail(email)
 
       if (!normalizedEmail) {
         throw new Error('Debes ingresar un correo electrónico válido')
@@ -221,7 +222,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       set({ loading: true })
 
-      const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : ''
+      const normalizedEmail = normalizeEmail(email)
 
       if (!normalizedEmail) {
         throw new Error('Debes ingresar un correo electrónico')

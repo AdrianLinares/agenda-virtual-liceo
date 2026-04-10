@@ -20,6 +20,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import type { Database, UserRole } from '@/types/database.types'
 import { sortByGradeAndGroupName } from '@/utils/grade-order'
+import { normalizeEmail } from '@/utils/normalizeEmail'
 
 type Profile = Database['public']['Tables']['profiles']['Row']
 type Grado = Database['public']['Tables']['grados']['Row']
@@ -136,7 +137,7 @@ function validateBatchRows(
     const seenEmails = new Set<string>()
 
     rows.forEach((row) => {
-        const email = row.email.trim().toLowerCase()
+        const email = normalizeEmail(row.email)
         const nombreCompleto = row.nombre_completo.trim()
         const rol = normalizeRole(row.rol)
         const password = row.password.trim() || defaultPassword.trim()
@@ -294,7 +295,7 @@ export default function AdminPage() {
     const [estudianteSearchTerm, setEstudianteSearchTerm] = useState('')
 
     const isAdmin = profile?.rol === 'administrador'
-    const existingUserEmails = useMemo(() => new Set(usuarios.map((u) => u.email.trim().toLowerCase())), [usuarios])
+    const existingUserEmails = useMemo(() => new Set(usuarios.map((u) => normalizeEmail(u.email))), [usuarios])
 
     const loadUsuarios = useCallback(async () => {
         try {
@@ -765,7 +766,8 @@ export default function AdminPage() {
 
         try {
             setSavingUser(true)
-            await adminUpdateEmail(userModal.user.id, emailForm)
+            // Normalize email before sending to the admin API to keep casing/spacing consistent.
+            await adminUpdateEmail(userModal.user.id, normalizeEmail(emailForm))
             usersMessage.show('success', 'Correo actualizado correctamente')
             closeModal()
         } catch (error) {

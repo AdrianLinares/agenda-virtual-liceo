@@ -65,6 +65,10 @@ const corsHeaders = {
 const ALLOWED_ROLES: UserRole[] = ['administrador', 'administrativo', 'docente', 'estudiante', 'padre']
 const MAX_BATCH_SIZE = 500
 
+function normalizeEmail(s: string) {
+    return s?.trim().toLowerCase() ?? s
+}
+
 function normalizeText(value: string | undefined | null) {
     if (typeof value !== 'string') return null
     const trimmed = value.trim()
@@ -89,7 +93,7 @@ async function createUserWithProfile(
         direccion?: string
     }
 ) {
-    const email = input.email.trim().toLowerCase()
+    const email = normalizeEmail(input.email)
     const nombreCompleto = input.nombre_completo.trim()
     const telefono = normalizeText(input.telefono)
     const direccion = normalizeText(input.direccion)
@@ -269,7 +273,8 @@ Deno.serve(async (req) => {
 
             for (let index = 0; index < users.length; index += 1) {
                 const row = users[index]
-                const email = normalizeText(row?.email)?.toLowerCase() ?? null
+                const normalizedRowEmail = normalizeText(row?.email)
+                const email = normalizedRowEmail ? normalizeEmail(normalizedRowEmail) : null
                 const nombreCompleto = normalizeText(row?.nombre_completo)
                 const rol = normalizeRole(row?.rol)
                 const password = normalizeText(row?.password) ?? normalizedDefaultPassword
@@ -376,21 +381,24 @@ Deno.serve(async (req) => {
                 return jsonResponse({ error: 'Faltan userId o email' }, 400)
             }
 
-            const { error: updateAuthEmailError } = await adminClient.auth.admin.updateUserById(userId, { email })
+            // Normalize email server-side to avoid casing/whitespace inconsistencies
+            const normalizedEmail = normalizeEmail(email)
+
+            const { error: updateAuthEmailError } = await adminClient.auth.admin.updateUserById(userId, { email: normalizedEmail })
             if (updateAuthEmailError) {
                 return jsonResponse({ error: updateAuthEmailError.message }, 400)
             }
 
             const { error: updateProfileEmailError } = await adminClient
                 .from('profiles')
-                .update({ email })
+                .update({ email: normalizedEmail })
                 .eq('id', userId)
 
             if (updateProfileEmailError) {
                 return jsonResponse({ error: updateProfileEmailError.message }, 400)
             }
 
-            return jsonResponse({ message: 'Correo actualizado correctamente', userId, email })
+            return jsonResponse({ message: 'Correo actualizado correctamente', userId, email: normalizedEmail })
         }
 
         if (payload.action === 'reset-password') {
