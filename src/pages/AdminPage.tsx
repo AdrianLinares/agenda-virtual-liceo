@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import Modal from '@/components/ui/modal'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import type { Database, UserRole } from '@/types/database.types'
 import { sortByGradeAndGroupName } from '@/utils/grade-order'
@@ -2500,12 +2501,7 @@ export default function AdminPage() {
             )}
 
             {userModal && (
-                <div
-                    className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-                    onClick={(e) => {
-                        if (e.target === e.currentTarget) closeModal()
-                    }}
-                >
+                <Modal open={!!userModal} onClose={closeModal}>
                     <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
                         <CardHeader>
                             <CardTitle>{currentModalTitle}</CardTitle>
@@ -2727,7 +2723,7 @@ export default function AdminPage() {
                             )}
                         </CardContent>
                     </Card>
-                </div>
+                </Modal>
             )}
         </div>
     )
