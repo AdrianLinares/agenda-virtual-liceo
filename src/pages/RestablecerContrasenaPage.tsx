@@ -20,6 +20,7 @@ export default function RestablecerContrasenaPage() {
 
     const updatePasswordWithRecovery = useAuthStore((state) => state.updatePasswordWithRecovery)
     const loading = useAuthStore((state) => state.loading)
+    const syncSession = useAuthStore((state) => state.syncSession)
     const navigate = useNavigate()
 
     useEffect(() => {
@@ -66,10 +67,34 @@ export default function RestablecerContrasenaPage() {
                         throw setSessionError
                     }
 
+                    // Confirm session and sync global store
+                    const { data: { session: confirmedSession }, error: confirmError } = await supabase.auth.getSession()
+                    if (confirmError) {
+                        throw confirmError
+                    }
+
                     if (!cancelled) {
+                        try {
+                            await syncSession?.('manual')
+                        } catch (e) {
+                            // Non-blocking: continue even if syncSession fails
+                            console.warn('syncSession failed after setSession:', e)
+                        }
+
                         setRecoveryReady(true)
                         setError('')
+
+                        // Clean URL (remove hash and code param)
+                        try {
+                            const url = new URL(window.location.href)
+                            url.hash = ''
+                            url.searchParams.delete('code')
+                            window.history.replaceState({}, '', url.pathname + url.search)
+                        } catch (e) {
+                            // ignore
+                        }
                     }
+
                     return
                 }
 
@@ -80,9 +105,31 @@ export default function RestablecerContrasenaPage() {
                         throw exchangeError
                     }
 
+                    // Confirm session and sync global store
+                    const { data: { session: confirmedSession }, error: confirmError } = await supabase.auth.getSession()
+                    if (confirmError) {
+                        throw confirmError
+                    }
+
                     if (!cancelled) {
+                        try {
+                            await syncSession?.('manual')
+                        } catch (e) {
+                            console.warn('syncSession failed after exchangeCodeForSession:', e)
+                        }
+
                         setRecoveryReady(true)
                         setError('')
+
+                        // Clean URL (remove hash and code param)
+                        try {
+                            const url = new URL(window.location.href)
+                            url.hash = ''
+                            url.searchParams.delete('code')
+                            window.history.replaceState({}, '', url.pathname + url.search)
+                        } catch (e) {
+                            // ignore
+                        }
                     }
                     return
                 }
