@@ -14,6 +14,34 @@ const AUTH_TIMEOUT_MS = 25000
 const AUTH_RETRY_ATTEMPTS = 2
 const AUTH_RETRY_DELAY_MS = 700
 
+// Helper detectors for auth error messages. Keep these conservative and
+// focused on common English/Spanish fragments returned by Supabase.
+function normalizeMessage(input: unknown) {
+  return String(input ?? '').toLowerCase()
+}
+
+function isAuthSessionMissingMessage(msg: unknown) {
+  const m = normalizeMessage(msg)
+  return (
+    m.includes('auth session missing') ||
+    m.includes('session missing') ||
+    m.includes('session expired') ||
+    (m.includes('recovery') && m.includes('session')) ||
+    m.includes('invalid or expired') ||
+    m.includes('invalid link')
+  )
+}
+
+function isTransientNetworkError(msg: unknown) {
+  const m = normalizeMessage(msg)
+  return /timeout|tiempo de espera|network|fetch|temporar/.test(m)
+}
+
+function isSamePasswordMessage(msg: unknown) {
+  const m = normalizeMessage(msg)
+  return /same(\s+as)?|cannot.*same|different.*(old|actual)|igual|mismo/.test(m)
+}
+
 interface AuthState {
   user: User | null
   profile: Profile | null
@@ -120,7 +148,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const {
         data: { user },
         error: userError,
-      } = await withTimeout(supabase.auth.getUser(), 15000, 'Tiempo de espera agotado al validar la sesión')
+      } = await withRetry(
+        () => withTimeout(supabase.auth.getUser(), 15000, 'Tiempo de espera agotado al validar la sesión'),
+        AUTH_RETRY_ATTEMPTS,
+        AUTH_RETRY_DELAY_MS
+      )
 
       if (userError) {
         throw new Error(userError.message || 'No se pudo validar la sesión actual')
@@ -130,45 +162,52 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('No se pudo identificar el usuario autenticado')
       }
 
-      const { data: reauthData, error: reauthError } = await withTimeout(supabase.auth.signInWithPassword({
-        email: user.email,
-        password: currentPassword,
-      }), 15000, 'Tiempo de espera agotado al validar la contraseña actual')
+      const userEmail = user.email
+
+      const { data: reauthData, error: reauthError } = await withRetry(
+        () => withTimeout(
+          supabase.auth.signInWithPassword({
+            email: userEmail,
+            password: currentPassword,
+          }),
+          15000,
+          'Tiempo de espera agotado al validar la contraseña actual'
+        ),
+        AUTH_RETRY_ATTEMPTS,
+        AUTH_RETRY_DELAY_MS
+      )
 
       if (reauthError || !reauthData.user || reauthData.user.id !== user.id) {
         throw new Error('La contraseña actual es incorrecta')
       }
 
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: newPassword,
-      })
+      let updateAttempt = 0
+      await withRetry(
+        async () => {
+          updateAttempt += 1
 
-      if (updateError) {
-        const updateMessage = updateError.message || 'No se pudo actualizar la contraseña'
-        const normalizedMessage = updateMessage.toLowerCase()
-        const shouldRetry =
-          normalizedMessage.includes('timeout') ||
-          normalizedMessage.includes('tiempo de espera') ||
-          normalizedMessage.includes('network') ||
-          normalizedMessage.includes('fetch')
+          const { error: updateError } = await withTimeout(
+            supabase.auth.updateUser({ password: newPassword }),
+            15000,
+            'Tiempo de espera agotado al actualizar la contraseña'
+          )
 
-        if (!shouldRetry) {
-          throw new Error(updateMessage)
-        }
-
-        const { error: retryError } = await supabase.auth.updateUser({
-          password: newPassword,
-        })
-
-        if (retryError) {
-          const retryMessage = retryError.message || 'No se pudo actualizar la contraseña'
-          const samePasswordAfterRetry = /different.*(old|actual)|same as/.test(retryMessage.toLowerCase())
-
-          if (!samePasswordAfterRetry) {
-            throw new Error(retryMessage)
+          if (!updateError) {
+            return
           }
-        }
-      }
+
+          const updateMessage = updateError.message || 'No se pudo actualizar la contraseña'
+
+          if (updateAttempt > 1 && isSamePasswordMessage(updateMessage)) {
+            return
+          }
+
+          throw new Error(updateMessage)
+        },
+        AUTH_RETRY_ATTEMPTS,
+        AUTH_RETRY_DELAY_MS,
+        (retryError) => isTransientNetworkError(retryError instanceof Error ? retryError.message : retryError)
+      )
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Error al cambiar contraseña'
       console.error('Error changing password:', error)
@@ -182,7 +221,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       set({ loading: true })
 
-      if (!email) {
+      const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : ''
+
+      if (!normalizedEmail) {
         throw new Error('Debes ingresar un correo electrónico')
       }
 
@@ -190,10 +231,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('No se configuró la URL de redirección para recuperación')
       }
 
-      const { error } = await withTimeout(
-        supabase.auth.resetPasswordForEmail(email, { redirectTo }),
-        15000,
-        'Tiempo de espera agotado al solicitar recuperación de contraseña'
+      const { error } = await withRetry(
+        () => withTimeout(
+          supabase.auth.resetPasswordForEmail(normalizedEmail, { redirectTo }),
+          15000,
+          'Tiempo de espera agotado al solicitar recuperación de contraseña'
+        ),
+        AUTH_RETRY_ATTEMPTS,
+        AUTH_RETRY_DELAY_MS
       )
 
       if (error) {
@@ -216,47 +261,87 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error('Debes ingresar una nueva contraseña')
       }
 
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
-      })
-
-      if (error) {
-        const updateMessage = error.message || 'No se pudo restablecer la contraseña'
-        const normalizedMessage = updateMessage.toLowerCase()
-
-        if (normalizedMessage.includes('auth session missing')) {
-          throw new Error('La sesión de recuperación expiró. Solicita un nuevo enlace para restablecer la contraseña.')
+      // Defensive check: ensure a recovery session is actually present before attempting update.
+      try {
+        const { data: { session: maybeSession } } = await withRetry(
+          () => withTimeout(supabase.auth.getSession(), AUTH_TIMEOUT_MS, 'Tiempo de espera agotado al validar sesión de recuperación'),
+          AUTH_RETRY_ATTEMPTS,
+          AUTH_RETRY_DELAY_MS
+        )
+        if (!maybeSession?.user) {
+          throw new Error('No se encontró una sesión de recuperación activa. Abre nuevamente el enlace enviado al correo.')
         }
+      } catch (sessionErr) {
+        throw new Error(sessionErr instanceof Error ? sessionErr.message : 'No se pudo validar la sesión de recuperación')
+      }
 
-        const shouldRetry =
-          normalizedMessage.includes('timeout') ||
-          normalizedMessage.includes('tiempo de espera') ||
-          normalizedMessage.includes('network') ||
-          normalizedMessage.includes('fetch')
+      let updateAttempt = 0
 
-        if (!shouldRetry) {
-          throw new Error(updateMessage)
-        }
+      await withRetry(
+        async () => {
+          updateAttempt += 1
 
-        const { error: retryError } = await supabase.auth.updateUser({
-          password: newPassword,
-        })
+          const { error } = await withTimeout(
+            supabase.auth.updateUser({ password: newPassword }),
+            AUTH_TIMEOUT_MS,
+            'Tiempo de espera agotado al restablecer la contraseña'
+          )
 
-        if (retryError) {
-          const retryMessage = retryError.message || 'No se pudo restablecer la contraseña'
-          const samePasswordAfterRetry = /different.*(old|actual)|same as/.test(retryMessage.toLowerCase())
-
-          if (!samePasswordAfterRetry) {
-            throw new Error(retryMessage)
+          if (!error) {
+            return
           }
-        }
-      }
 
-      // End recovery flow with a clean local session before returning to login.
-      const { error: localSignOutError } = await supabase.auth.signOut({ scope: 'local' })
-      if (localSignOutError) {
-        console.warn('Non-blocking local sign-out after recovery:', localSignOutError)
-      }
+          const updateMessage = error.message || 'No se pudo restablecer la contraseña'
+
+          if (isAuthSessionMissingMessage(updateMessage)) {
+            throw new Error('La sesión de recuperación expiró. Solicita un nuevo enlace para restablecer la contraseña.')
+          }
+
+          if (updateAttempt > 1 && isSamePasswordMessage(updateMessage)) {
+            return
+          }
+
+          throw new Error(updateMessage)
+        },
+        AUTH_RETRY_ATTEMPTS,
+        AUTH_RETRY_DELAY_MS,
+        (retryError) => isTransientNetworkError(retryError instanceof Error ? retryError.message : retryError)
+      )
+
+       // End recovery flow with a clean local session before returning to login.
+       try {
+         const { error: localSignOutError } = await withRetry(
+           () => withTimeout(
+             supabase.auth.signOut({ scope: 'local' } as any),
+             12000,
+             'Tiempo de espera agotado al cerrar sesión local tras recuperación'
+           ),
+           AUTH_RETRY_ATTEMPTS,
+           AUTH_RETRY_DELAY_MS
+         )
+         if (localSignOutError) {
+           // Some supabase client versions may not accept 'scope' — fall through to fallback.
+           throw localSignOutError
+         }
+       } catch (signOutErr) {
+         // Fallback: try a standard signOut() which is broadly supported.
+         try {
+           const { error: fallbackError } = await withRetry(
+             () => withTimeout(
+               supabase.auth.signOut(),
+               12000,
+               'Tiempo de espera agotado al cerrar sesión tras recuperación'
+             ),
+             AUTH_RETRY_ATTEMPTS,
+             AUTH_RETRY_DELAY_MS
+           )
+           if (fallbackError) {
+             console.warn('Non-blocking local sign-out fallback after recovery failed:', fallbackError)
+           }
+         } catch (fallbackErr) {
+           console.warn('Non-blocking local sign-out final fallback failed (ignored):', fallbackErr)
+         }
+       }
 
       set({ user: null, profile: null })
     } catch (error) {
@@ -387,15 +472,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ loading: true })
 
       // Step 1: restore a previous session (if it exists) when the app boots.
-      const { data: { session } } = await withTimeout(supabase.auth.getSession(), 15000, 'Tiempo de espera agotado al validar sesión')
+      const { data: { session } } = await withRetry(
+        () => withTimeout(supabase.auth.getSession(), 15000, 'Tiempo de espera agotado al validar sesión'),
+        AUTH_RETRY_ATTEMPTS,
+        AUTH_RETRY_DELAY_MS
+      )
 
       if (session?.user) {
         // Step 2: load profile data tied to the authenticated user id.
-        const { data: profileData, error: profileError } = await withTimeout(supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single(), 15000, 'Tiempo de espera agotado al cargar el perfil')
+        const { data: profileData, error: profileError } = await withRetry(
+          () => withTimeout(
+            supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single(),
+            15000,
+            'Tiempo de espera agotado al cargar el perfil'
+          ),
+          AUTH_RETRY_ATTEMPTS,
+          AUTH_RETRY_DELAY_MS
+        )
 
         if (profileError) {
           console.warn('Error fetching profile:', profileError)
@@ -430,11 +527,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
           if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
             try {
-              const { data: profileData, error: profileError } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', session.user.id)
-                .single()
+              const { data: profileData, error: profileError } = await withRetry(
+                () => withTimeout(
+                  supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', session.user.id)
+                    .single(),
+                  AUTH_TIMEOUT_MS,
+                  'Tiempo de espera agotado al cargar el perfil'
+                ),
+                AUTH_RETRY_ATTEMPTS,
+                AUTH_RETRY_DELAY_MS
+              )
 
               if (profileError) {
                 console.warn('Error fetching profile on auth change:', profileError)
