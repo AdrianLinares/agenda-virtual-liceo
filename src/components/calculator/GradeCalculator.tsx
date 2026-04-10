@@ -80,15 +80,6 @@ export const GradeCalculator = forwardRef<GradeCalculatorRef, GradeCalculatorPro
         }
     );
 
-    // rubrics se mantiene para compatibilidad, pero se usará rubricDescriptions para las descripciones
-    const [rubrics, setRubrics] = useState<RubricsData>(
-        initialRubrics || {
-            A: [],
-            P: [],
-            C: [],
-        }
-    );
-
     // Exponer una API imperativa para que el padre pueda solicitar el estado más reciente
     // en el momento del guardado y evitar condiciones de carrera.
     useImperativeHandle(ref, () => ({
@@ -151,13 +142,6 @@ export const GradeCalculator = forwardRef<GradeCalculatorRef, GradeCalculatorPro
             return prev;
         });
 
-        setRubrics((prev) => {
-            const newRubrics = [...prev[category]];
-            if (count < newRubrics.length) {
-                return { ...prev, [category]: newRubrics.slice(0, count) };
-            }
-            return prev;
-        });
     };
 
     const handleWeightChange = (category: GradeCategory, weight: number) => {
@@ -183,7 +167,7 @@ export const GradeCalculator = forwardRef<GradeCalculatorRef, GradeCalculatorPro
             C: [],
         });
 
-        setRubrics({
+        setRubricDescriptions({
             A: [],
             P: [],
             C: [],
