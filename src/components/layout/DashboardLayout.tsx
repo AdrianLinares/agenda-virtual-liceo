@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import Overlay from '@/components/ui/overlay'
 import {
   Home,
   FileText,
@@ -298,12 +299,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </aside>
 
         {/* Overlay para móviles - optimized with opacity transition */}
-        <div
-          className={`fixed inset-0 bg-black z-20 lg:hidden transition-opacity duration-200 ${sidebarOpen ? 'opacity-50 pointer-events-auto' : 'opacity-0 pointer-events-none'
-            }`}
-          onClick={() => setSidebarOpen(false)}
-          aria-hidden="true"
-        />
+        {/* Portalized overlay to avoid stacking-context issues with layout */}
+        <Overlay open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         {/* Main Content - optimized layout */}
         <main className="flex-1 p-4 lg:p-8 overflow-x-hidden layout-contained">
