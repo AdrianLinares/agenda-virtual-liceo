@@ -251,7 +251,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
             mt-[57px] lg:mt-0 will-change-transform
           `}
-          aria-hidden={!sidebarOpen && 'true'}
+          aria-hidden={!sidebarOpen}
         >
           <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100dvh - 57px)]">
             {filteredMenuItems.map((item) => {
