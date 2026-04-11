@@ -9,6 +9,16 @@ export default defineConfig({
       // Optimizar JSX para mejor rendimiento
       jsxRuntime: 'automatic',
     }),
+    // Plugin compacto para corregir inyecciones de modulepreload inline
+    // que llegan con un media-type incorrecto (application/octet-stream)
+    // en algunas plataformas de despliegue. Reemplaza el prefijo MIME
+    // por application/javascript en el index.html generado.
+    {
+      name: 'fix-inline-module-mime',
+      transformIndexHtml(html) {
+        return html.replace(/data:application\/octet-stream;/g, 'data:application/javascript;')
+      },
+    },
   ],
   resolve: {
     alias: {
