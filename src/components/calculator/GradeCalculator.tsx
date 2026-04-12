@@ -139,7 +139,12 @@ export const GradeCalculator = forwardRef<GradeCalculatorRef, GradeCalculatorPro
     };
 
     const handleWeightChange = (category: GradeCategory, weight: number) => {
-        setWeights((prev) => ({ ...prev, [category]: weight }));
+        const newWeights = { ...weights, [category]: weight };
+        setWeights(newWeights);
+        // Recalculate immediately and notify parent so callers that read synchronously
+        // (like a save handler) receive updated results.
+        const newResults = calculateResults(grades, newWeights);
+        onResultsChange?.(newResults, grades, rubricDescriptions, newWeights);
     };
 
     const handleGradeChange = (
@@ -147,11 +152,15 @@ export const GradeCalculator = forwardRef<GradeCalculatorRef, GradeCalculatorPro
         index: number,
         value: number
     ) => {
-        setGrades((prev) => {
-            const newGrades = [...prev[category]];
-            newGrades[index] = value;
-            return { ...prev, [category]: newGrades };
-        });
+        // Build the new grades object synchronously so we can compute results
+        const newGradesForCategory = [...grades[category]];
+        newGradesForCategory[index] = value;
+        const newGrades = { ...grades, [category]: newGradesForCategory };
+        setGrades(newGrades);
+        // Notify parent immediately with computed results to avoid races when the
+        // parent reads the calculator state right after a user input and save.
+        const newResults = calculateResults(newGrades, weights);
+        onResultsChange?.(newResults, newGrades, rubricDescriptions, weights);
     };
 
     const handleReset = () => {
@@ -173,11 +182,13 @@ export const GradeCalculator = forwardRef<GradeCalculatorRef, GradeCalculatorPro
         index: number,
         description: string
     ) => {
-        setRubricDescriptions((prev) => {
-            const newArr = [...(prev[category] || [])];
-            newArr[index] = description;
-            return { ...prev, [category]: newArr };
-        });
+        const newArr = [...(rubricDescriptions[category] || [])];
+        newArr[index] = description;
+        const newRubrics = { ...rubricDescriptions, [category]: newArr };
+        setRubricDescriptions(newRubrics);
+        // Rubrics don't affect numeric results, but parent expects updated rubrics
+        // along with the latest results object.
+        onResultsChange?.(results, grades, newRubrics, weights);
     };
 
     return (
