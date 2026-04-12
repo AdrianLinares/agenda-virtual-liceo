@@ -517,6 +517,38 @@ describe('NotasPage - guardado inmediato tras edición', () => {
     expect(observaciones.procedimental.rubrica[0]).toBe('Proceso editado')
     expect(observaciones.cognitiva.rubrica[0]).toBe('Concepto editado')
   })
+
+  it('renderiza desglose visual cuando observaciones llega como JSON serializado en string', async () => {
+    const observacionesCalculadora = {
+      actitudinal: { promedio: 75, ponderacion: 7.5, porcentaje: 10, notas: [75], rubrica: ['Actitud observada'] },
+      procedimental: { promedio: 80, ponderacion: 32, porcentaje: 40, notas: [80], rubrica: ['Proceso observado'] },
+      cognitiva: { promedio: 90, ponderacion: 45, porcentaje: 50, notas: [90], rubrica: ['Concepto observado'] },
+    }
+
+    mockNotasStore.push({
+      id: 'nota-serializada',
+      estudiante_id: 'est-1',
+      asignatura_id: 'asig-1',
+      periodo_id: 'periodo-1',
+      grupo_id: 'grupo-1',
+      docente_id: 'docente-1',
+      nota: 84.5,
+      observaciones: JSON.stringify(JSON.stringify(observacionesCalculadora)),
+      created_at: '2026-01-10T00:00:00.000Z',
+    })
+
+    render(<NotasPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Desglose de Evaluación')).toBeInTheDocument()
+    })
+
+    expect(screen.getAllByText(/Actitudinal/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Procedimental/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Cognitiva/i).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/^Observaciones$/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/\{"actitudinal"/i)).not.toBeInTheDocument()
+  })
 })
 
 describe('didObservacionesChange', () => {

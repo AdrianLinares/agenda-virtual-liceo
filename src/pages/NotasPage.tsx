@@ -141,7 +141,23 @@ export const parseObservacionesPayload = (observaciones: string) => {
         }
     }
 
-    const direct = tryParse(observaciones)
+    const parseToObject = (raw: string) => {
+        const firstPass = tryParse(raw)
+        if (firstPass && typeof firstPass === 'object') {
+            return firstPass
+        }
+
+        if (typeof firstPass === 'string') {
+            const secondPass = tryParse(firstPass)
+            if (secondPass && typeof secondPass === 'object') {
+                return secondPass
+            }
+        }
+
+        return null
+    }
+
+    const direct = parseToObject(observaciones)
     if (direct) return direct
 
     // Normaliza errores comunes en datos historicos: comillas faltantes en claves y comas colgantes.
@@ -152,7 +168,7 @@ export const parseObservacionesPayload = (observaciones: string) => {
         .replace(/([{,]\s*)([a-zA-Z_][\w]*)\s*:/g, '$1"$2":')
         .replace(/,\s*([}\]])/g, '$1')
 
-    return tryParse(normalized)
+    return parseToObject(normalized)
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
