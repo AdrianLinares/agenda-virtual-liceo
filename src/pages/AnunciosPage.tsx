@@ -174,15 +174,13 @@ export default function AnunciosPage() {
             let error = null
 
             if (editingId) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const result = await withTimeout((dbClient as any)
+                const result = await withTimeout((dbClient)
                     .from('anuncios')
                     .update(payload)
                     .eq('id', editingId), 15000, 'Tiempo de espera agotado al actualizar el anuncio') as { error: Error | null }
                 error = result.error
             } else {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const result = await withTimeout((dbClient as any)
+                const result = await withTimeout((dbClient)
                     .from('anuncios')
                     .insert({
                         ...payload,
@@ -225,12 +223,11 @@ export default function AnunciosPage() {
         setError(null)
         setSuccess(null)
 
-        try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const result = await withTimeout((dbClient as any)
-                .from('anuncios')
-                .delete()
-                .eq('id', anuncioId), 15000, 'Tiempo de espera agotado al eliminar el anuncio') as { error: Error | null }
+            try {
+                const result = await withTimeout((dbClient)
+                    .from('anuncios')
+                    .delete()
+                    .eq('id', anuncioId), 15000, 'Tiempo de espera agotado al eliminar el anuncio') as { error: Error | null }
             const error = result?.error
 
             if (error) throw error
@@ -240,8 +237,7 @@ export default function AnunciosPage() {
             }
 
             setAnuncios((prev) => prev.filter((item) => item.id !== anuncioId))
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const verification = await withTimeout((dbClient as any)
+            const verification = await withTimeout((dbClient)
                 .from('anuncios')
                 .select('id')
                 .eq('id', anuncioId)

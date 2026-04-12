@@ -837,6 +837,10 @@ export default function NotasPage() {
         _rubrics: RubricsData,
         _weights: CategoryWeights
     ) => {
+        // _grades/_rubrics/_weights are intentionally unused here; kept for future use
+        void _grades
+        void _rubrics
+        void _weights
         setCalculatedResults(results)
     }
 

@@ -1,4 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
+// userEvent imported for future interaction tests; keep to avoid removing until tests use it
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
