@@ -132,7 +132,16 @@ const canonicalizeJsonValue = (value: unknown): JsonComparable => {
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
-export const parseObservacionesPayload = (observaciones: string) => {
+export const parseObservacionesPayload = (observaciones: unknown) => {
+    // Manejar null/undefined rápidamente
+    if (observaciones == null) return null
+
+    // Si ya es un objeto (supabase puede devolver JSON parsed), devolverlo directamente
+    if (typeof observaciones === 'object') return observaciones
+
+    // A partir de aquí, trabajamos con string
+    const rawString = String(observaciones)
+
     const tryParse = (value: string) => {
         try {
             return JSON.parse(value)
@@ -157,11 +166,11 @@ export const parseObservacionesPayload = (observaciones: string) => {
         return null
     }
 
-    const direct = parseToObject(observaciones)
+    const direct = parseToObject(rawString)
     if (direct) return direct
 
     // Normaliza errores comunes en datos historicos: comillas faltantes en claves y comas colgantes.
-    const normalized = observaciones
+    const normalized = rawString
         .replace(/[\u201C\u201D]/g, '"')
         .replace(/[\u2018\u2019]/g, "'")
         .replace(/([{,]\s*)([a-zA-Z_][\w]*)":/g, '$1"$2":')
@@ -1047,6 +1056,10 @@ export default function NotasPage() {
 
     const renderObservaciones = (observaciones: string | null) => {
         if (!observaciones) return null
+
+        // Diagnostic log: inspeccionar el valor que llega para entender por qué cae al fallback
+        // Nota: temporal, será removido después del diagnóstico
+        console.debug('[diag-renderObs] typeof=', typeof observaciones, 'raw=', observaciones)
 
         try {
             const data = parseObservacionesPayload(observaciones)
