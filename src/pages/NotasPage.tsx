@@ -786,6 +786,7 @@ export default function NotasPage() {
 
                 const originalNotaData = originalNotaBeforeUpdate as { nota: number; observaciones: string | null } | null
                 const notaOriginalNum = Number(originalNotaData?.nota)
+                console.log('[diag] originalNotaNum:', notaOriginalNum)
 
                 // TODO: [diag] Logs temporales para diagnosticar por qué no se observa el UPDATE en el flujo de edición.
                 console.log('[diag] originalObservaciones:', originalNotaData?.observaciones)
@@ -803,6 +804,7 @@ export default function NotasPage() {
                     .single()
 
                 // VERIFICAR que el update realmente cambió datos
+                console.log('[diag] updateResult:', result)
                 if (!result.error && originalNotaData) {
                     const notaNuevaNum = Number(notaData.nota)
 
@@ -815,6 +817,7 @@ export default function NotasPage() {
 
                     const verifyNota = verifyData as { nota: number; observaciones: string | null } | null
                     const dbNotaNum = Number(verifyNota?.nota)
+                    console.log('[diag] dbNotaNum:', dbNotaNum)
                     const observacionesActualizadas = verifyNota?.observaciones ?? result.data?.observaciones
                     const observacionesChanged = didObservacionesChange(originalNotaData.observaciones, observacionesActualizadas)
 
