@@ -716,6 +716,13 @@ export default function NotasPage() {
         let latestRubrics: RubricsData | undefined = undefined
         let latestWeights: CategoryWeights | undefined = undefined
 
+        // Dar oportunidad a React de procesar cualquier setState pendiente en la calculadora
+        // cuando el usuario edita y hace click rápidamente. Esto evita leer un estado stale
+        // desde el ref inmediatamente después de un evento de input.
+        // Si la calculadora ya está estable, la espera será mínima.
+        // eslint-disable-next-line no-undef-init
+        await new Promise((resolve) => setTimeout(resolve, 0))
+
         if (calculatorRef.current && typeof (calculatorRef.current as any).getLatestData === 'function') {
             try {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
