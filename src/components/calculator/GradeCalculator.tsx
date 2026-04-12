@@ -207,16 +207,28 @@ export const GradeCalculator = forwardRef<GradeCalculatorRef, GradeCalculatorPro
             <GradeInput
                 gradeCounts={gradeCounts}
                 weights={weights}
-                onCountChange={handleCountChange}
-                onWeightChange={handleWeightChange}
+                onCountChange={(category, count) => {
+                    console.log('[diag-calc] GradeInput onCountChange wrapper', { category, count })
+                    handleCountChange(category, count)
+                }}
+                onWeightChange={(category, weight) => {
+                    console.log('[diag-calc] GradeInput onWeightChange wrapper', { category, weight })
+                    handleWeightChange(category, weight)
+                }}
             />
 
             <GradeTable
                 gradeCounts={gradeCounts}
                 grades={grades}
                 rubrics={rubricDescriptions}
-                onGradeChange={handleGradeChange}
-                onRubricChange={handleRubricDescriptionChange}
+                onGradeChange={(category, index, value) => {
+                    console.log('[diag-calc] GradeTable onGradeChange wrapper', { category, index, value })
+                    handleGradeChange(category, index, value)
+                }}
+                onRubricChange={(category, index, desc) => {
+                    console.log('[diag-calc] GradeTable onRubricChange wrapper', { category, index, desc })
+                    handleRubricDescriptionChange(category, index, desc)
+                }}
             />
 
             <ResultsSection results={results} weights={weights} />
