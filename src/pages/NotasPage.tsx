@@ -201,6 +201,24 @@ export const didObservacionesChange = (
     return originalObservaciones !== updatedObservaciones
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
+export const normalizeObservacionesForSave = (observaciones: unknown): string => {
+    if (typeof observaciones === 'object' && observaciones !== null) {
+        return JSON.stringify(observaciones)
+    }
+
+    if (typeof observaciones === 'string') {
+        const parsed = parseObservacionesPayload(observaciones)
+        if (parsed && typeof parsed === 'object') {
+            return JSON.stringify(parsed)
+        }
+
+        return observaciones
+    }
+
+    return String(observaciones ?? '')
+}
+
 export default function NotasPage() {
     const { profile } = useAuthStore()
     const canViewAllNotas = profile?.rol === 'administrador' || profile?.rol === 'administrativo'
@@ -798,7 +816,7 @@ export default function NotasPage() {
             // Guardar la nota con los detalles de la calculadora en observaciones
             const weights = latestWeights ?? DEFAULT_WEIGHTS
 
-            const observaciones = JSON.stringify({
+            let observaciones: unknown = JSON.stringify({
                 actitudinal: {
                     promedio: effectiveResults.averages.A,
                     ponderacion: effectiveResults.weighted.A,
@@ -821,6 +839,8 @@ export default function NotasPage() {
                     rubrica: latestRubrics?.C || []
                 }
             })
+
+            observaciones = normalizeObservacionesForSave(observaciones)
 
             const notaData: NotaMutationPayload = {
                 estudiante_id: selectedEstudiante,
