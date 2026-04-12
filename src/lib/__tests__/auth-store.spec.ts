@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { User } from '@supabase/supabase-js'
+import type { Database } from '@/types/database.types'
+
+type Profile = Database['public']['Tables']['profiles']['Row']
 
 const getSessionMock = vi.fn()
 const updateUserMock = vi.fn()
@@ -20,8 +24,20 @@ describe('useAuthStore.updatePasswordWithRecovery', () => {
     vi.clearAllMocks()
     const { useAuthStore } = await import('@/lib/auth-store')
     useAuthStore.setState({
-      user: { id: 'user-1', email: 'test@liceo.edu' } as any,
-      profile: { id: 'user-1', email: 'test@liceo.edu', rol: 'estudiante' } as any,
+      user: { id: 'user-1', email: 'test@liceo.edu' } as User,
+      profile: {
+        id: 'user-1',
+        email: 'test@liceo.edu',
+        rol: 'estudiante',
+        nombre_completo: 'Usuario Test',
+        activo: true,
+        telefono: null,
+        direccion: null,
+        fecha_nacimiento: null,
+        numero_documento: null,
+        tipo_documento: null,
+        created_at: null,
+      } as Profile,
       loading: false,
       initialized: true,
       resumeVersion: 0,

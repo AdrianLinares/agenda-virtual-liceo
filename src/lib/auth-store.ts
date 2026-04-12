@@ -312,11 +312,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
        // End recovery flow with a clean local session before returning to login.
        try {
          const { error: localSignOutError } = await withRetry(
-           () => withTimeout(
-             supabase.auth.signOut({ scope: 'local' } as any),
-             12000,
-             'Tiempo de espera agotado al cerrar sesión local tras recuperación'
-           ),
+            () => withTimeout(
+              supabase.auth.signOut({ scope: 'local' }),
+              12000,
+              'Tiempo de espera agotado al cerrar sesión local tras recuperación'
+            ),
            AUTH_RETRY_ATTEMPTS,
            AUTH_RETRY_DELAY_MS
          )

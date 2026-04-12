@@ -96,6 +96,86 @@ interface AsignacionDocente {
     asignatura_id: string
 }
 
+type JsonComparable = null | boolean | number | string | JsonComparable[] | { [key: string]: JsonComparable }
+
+type NotaMutationPayload = {
+    estudiante_id: string
+    asignatura_id: string
+    periodo_id: string
+    grupo_id: string
+    docente_id: string
+    nota: number
+    observaciones: string
+}
+
+const canonicalizeJsonValue = (value: unknown): JsonComparable => {
+    if (value === null || typeof value === 'boolean' || typeof value === 'number' || typeof value === 'string') {
+        return value
+    }
+
+    if (Array.isArray(value)) {
+        return value.map((item) => canonicalizeJsonValue(item))
+    }
+
+    if (typeof value === 'object' && value !== null) {
+        const entries = Object.entries(value as Record<string, unknown>)
+            .filter(([, entryValue]) => entryValue !== undefined)
+            .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
+
+        return entries.reduce<Record<string, JsonComparable>>((acc, [key, entryValue]) => {
+            acc[key] = canonicalizeJsonValue(entryValue)
+            return acc
+        }, {})
+    }
+
+    return String(value)
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export const parseObservacionesPayload = (observaciones: string) => {
+    const tryParse = (value: string) => {
+        try {
+            return JSON.parse(value)
+        } catch {
+            return null
+        }
+    }
+
+    const direct = tryParse(observaciones)
+    if (direct) return direct
+
+    // Normaliza errores comunes en datos historicos: comillas faltantes en claves y comas colgantes.
+    const normalized = observaciones
+        .replace(/[\u201C\u201D]/g, '"')
+        .replace(/[\u2018\u2019]/g, "'")
+        .replace(/([{,]\s*)([a-zA-Z_][\w]*)":/g, '$1"$2":')
+        .replace(/([{,]\s*)([a-zA-Z_][\w]*)\s*:/g, '$1"$2":')
+        .replace(/,\s*([}\]])/g, '$1')
+
+    return tryParse(normalized)
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export const didObservacionesChange = (
+    originalObservaciones: string | null | undefined,
+    updatedObservaciones: string | null | undefined
+) => {
+    if (originalObservaciones == null || updatedObservaciones == null) {
+        return originalObservaciones !== updatedObservaciones
+    }
+
+    const parsedOriginal = parseObservacionesPayload(originalObservaciones)
+    const parsedUpdated = parseObservacionesPayload(updatedObservaciones)
+
+    if (parsedOriginal !== null && parsedUpdated !== null) {
+        const canonicalOriginal = canonicalizeJsonValue(parsedOriginal)
+        const canonicalUpdated = canonicalizeJsonValue(parsedUpdated)
+        return JSON.stringify(canonicalOriginal) !== JSON.stringify(canonicalUpdated)
+    }
+
+    return originalObservaciones !== updatedObservaciones
+}
+
 export default function NotasPage() {
     const { profile } = useAuthStore()
     const canViewAllNotas = profile?.rol === 'administrador' || profile?.rol === 'administrativo'
@@ -683,7 +763,7 @@ export default function NotasPage() {
                 }
             })
 
-            const notaData = {
+            const notaData: NotaMutationPayload = {
                 estudiante_id: selectedEstudiante,
                 asignatura_id: selectedAsignatura,
                 periodo_id: selectedPeriodo,
@@ -693,7 +773,7 @@ export default function NotasPage() {
                 observaciones
             }
 
-            let result: { error: unknown; data: { nota: number; observaciones: string } | null }
+            let result: { error: unknown; data: { nota: number; observaciones: string | null } | null }
             let cambioNotaFinal = false
 
             if (editingNotaId) {
@@ -704,7 +784,7 @@ export default function NotasPage() {
                     .eq('id', editingNotaId)
                     .single()
 
-                const originalNotaData = originalNotaBeforeUpdate as { nota: number; observaciones: string } | null
+                const originalNotaData = originalNotaBeforeUpdate as { nota: number; observaciones: string | null } | null
                 const notaOriginalNum = Number(originalNotaData?.nota)
 
                 // HACER el UPDATE
@@ -728,20 +808,23 @@ export default function NotasPage() {
                         .eq('id', editingNotaId)
                         .single()
 
-                    const verifyNota = verifyData as { nota: number; observaciones: string } | null
+                    const verifyNota = verifyData as { nota: number; observaciones: string | null } | null
                     const dbNotaNum = Number(verifyNota?.nota)
+                    const observacionesActualizadas = verifyNota?.observaciones ?? result.data?.observaciones
 
                     // Verificar contra la BD - comparar con el valor ORIGINAL (antes del update)
                     if (dbNotaNum !== notaOriginalNum) {
                         cambioNotaFinal = true
                     } else if (notaNuevaNum !== notaOriginalNum) {
                         cambioNotaFinal = true
+                    } else if (didObservacionesChange(originalNotaData.observaciones, observacionesActualizadas)) {
+                        cambioNotaFinal = true
                     }
                 }
             } else {
                 result = await supabase
                     .from('notas')
-                    .insert(notaData as any)
+                    .insert(notaData)
                     .select()
                     .single()
             }
@@ -847,29 +930,6 @@ export default function NotasPage() {
     const openNewNotaCalculator = () => {
         resetCalculatorForm()
         setShowCalculator(true) // Mostrar calculadora arriba para nuevo registro
-    }
-
-    const parseObservacionesPayload = (observaciones: string) => {
-        const tryParse = (value: string) => {
-            try {
-                return JSON.parse(value)
-            } catch {
-                return null
-            }
-        }
-
-        const direct = tryParse(observaciones)
-        if (direct) return direct
-
-        // Normaliza errores comunes en datos historicos: comillas faltantes en claves y comas colgantes.
-        const normalized = observaciones
-            .replace(/[\u201C\u201D]/g, '"')
-            .replace(/[\u2018\u2019]/g, "'")
-            .replace(/([{,]\s*)([a-zA-Z_][\w]*)":/g, '$1"$2":')
-            .replace(/([{,]\s*)([a-zA-Z_][\w]*)\s*:/g, '$1"$2":')
-            .replace(/,\s*([}\]])/g, '$1')
-
-        return tryParse(normalized)
     }
 
     const parseStoredCalculatorData = (observaciones: string | null): { grades: GradesData; weights: CategoryWeights; rubrics: RubricsData } => {

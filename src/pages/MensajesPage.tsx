@@ -499,9 +499,9 @@ export default function MensajesPage() {
                 }
 
                 // Motivo: usamos cast por limitaciones del cliente supabase en tipo genérico para insert masivo.
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const insertResponse = await withTimeout<any>(
-                    (supabase as any)
+                const supabaseClient = supabase as unknown as { from: typeof supabase.from }
+                const insertResponse = await withTimeout<{ error: unknown }>(
+                    supabaseClient
                         .from('mensajes')
                         .insert(batch),
                     SEND_MESSAGE_TIMEOUT_MS,

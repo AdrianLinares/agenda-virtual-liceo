@@ -14,6 +14,8 @@ import { GradeTable } from './GradeTable';
 import { ResultsSection } from './ResultsSection';
 import { Button } from '../ui/button';
 
+type SavedCalculatorValue = GradesData | CategoryWeights | GradeCounts | RubricsData
+
 export interface GradeCalculatorProps {
     initialGrades?: GradesData;
     initialWeights?: CategoryWeights;
@@ -43,10 +45,10 @@ export const GradeCalculator = forwardRef<GradeCalculatorRef, GradeCalculatorPro
 }: GradeCalculatorProps, ref) => {
 
     // Función auxiliar: leer y parsear desde localStorage sin romper el flujo si falla
-    const getSavedItem = (key: string, defaultValue: any) => {
+    const getSavedItem = <T extends SavedCalculatorValue>(key: string, defaultValue: T): T => {
         try {
             const saved = localStorage.getItem(key);
-            return saved ? JSON.parse(saved) : defaultValue;
+            return saved ? JSON.parse(saved) as T : defaultValue;
         } catch (e) {
             console.error("Error loading " + key, e);
             return defaultValue;
@@ -121,14 +123,6 @@ export const GradeCalculator = forwardRef<GradeCalculatorRef, GradeCalculatorPro
         // el padre provee `initialRubrics`.
         onResultsChange?.(newResults, grades, rubricDescriptions, weights);
     }, [grades, weights, rubricDescriptions, onResultsChange]);
-
-    // Enviar cálculo inicial al padre apenas se monte el componente
-    // Omitimos dependencias intencionalmente para ejecutar solo en mount.
-     
-    useEffect(() => {
-        const initialResults = calculateResults(grades, weights);
-        onResultsChange?.(initialResults, grades, rubricDescriptions, weights);
-    }, []);
 
     const handleCountChange = (category: GradeCategory, count: number) => {
         setGradeCounts((prev) => ({ ...prev, [category]: count }));

@@ -1,8 +1,32 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { forwardRef, useEffect, useImperativeHandle } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import NotasPage from '@/pages/NotasPage'
+import NotasPage, { didObservacionesChange } from '@/pages/NotasPage'
+
+type MockSelectProps = {
+  value?: string
+  onValueChange?: (value: string) => void
+  children: ReactNode
+}
+
+type MockSelectTriggerProps = {
+  children: ReactNode
+  className?: string
+}
+
+type MockSelectContentProps = {
+  children: ReactNode
+}
+
+type MockSelectItemProps = {
+  value: string
+  children: ReactNode
+}
+
+type MockSelectValueProps = {
+  placeholder?: string
+}
 
 const insertMock = vi.fn()
 const updateMock = vi.fn()
@@ -172,14 +196,14 @@ vi.mock('@/components/ui/select', async () => {
   const SelectContext = React.createContext<SelectContextValue>({})
 
   return {
-    Select: ({ value, onValueChange, children }: { value?: string; onValueChange?: (value: string) => void; children: unknown }) => (
-      <SelectContext.Provider value={{ value, onValueChange }}>{children as any}</SelectContext.Provider>
+    Select: ({ value, onValueChange, children }: MockSelectProps) => (
+      <SelectContext.Provider value={{ value, onValueChange }}>{children}</SelectContext.Provider>
     ),
-    SelectTrigger: ({ children, className }: { children: unknown; className?: string }) => {
-      return <div className={className}>{children as any}</div>
+    SelectTrigger: ({ children, className }: MockSelectTriggerProps) => {
+      return <div className={className}>{children}</div>
     },
-    SelectContent: ({ children }: { children: unknown }) => <div>{children as any}</div>,
-    SelectItem: ({ value, children }: { value: string; children: unknown }) => {
+    SelectContent: ({ children }: MockSelectContentProps) => <div>{children}</div>,
+    SelectItem: ({ value, children }: MockSelectItemProps) => {
       const ctx = React.useContext(SelectContext)
       return (
         <button
@@ -187,11 +211,11 @@ vi.mock('@/components/ui/select', async () => {
           data-testid={`mock-select-item-${value}`}
           onClick={() => ctx.onValueChange?.(value)}
         >
-          {children as any}
+          {children}
         </button>
       )
     },
-    SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder ?? 'Selecciona'}</span>,
+    SelectValue: ({ placeholder }: MockSelectValueProps) => <span>{placeholder ?? 'Selecciona'}</span>,
   }
 })
 
@@ -315,5 +339,39 @@ describe('NotasPage - guardado inmediato tras edición', () => {
     expect(observaciones.cognitiva.ponderacion).toBe(45)
     expect(observaciones.cognitiva.rubrica[0]).toBe('Concepto 90')
     expect(updateMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('didObservacionesChange', () => {
+  it('detecta cambios reales en observaciones aunque el orden de claves sea diferente', () => {
+    const original = JSON.stringify({
+      actitudinal: { notas: [4], porcentaje: 10, rubrica: ['A'] },
+      procedimental: { notas: [3], porcentaje: 40, rubrica: ['P'] },
+      cognitiva: { notas: [5], porcentaje: 50, rubrica: ['C'] },
+    })
+
+    const mismoContenidoDistintoOrden = JSON.stringify({
+      cognitiva: { rubrica: ['C'], porcentaje: 50, notas: [5] },
+      actitudinal: { rubrica: ['A'], notas: [4], porcentaje: 10 },
+      procedimental: { porcentaje: 40, rubrica: ['P'], notas: [3] },
+    })
+
+    expect(didObservacionesChange(original, mismoContenidoDistintoOrden)).toBe(false)
+  })
+
+  it('detecta cambios cuando cambian notas o rubricas en observaciones', () => {
+    const original = JSON.stringify({
+      actitudinal: { notas: [4], porcentaje: 10, rubrica: ['A'] },
+      procedimental: { notas: [3], porcentaje: 40, rubrica: ['P'] },
+      cognitiva: { notas: [5], porcentaje: 50, rubrica: ['C'] },
+    })
+
+    const actualizado = JSON.stringify({
+      actitudinal: { notas: [4], porcentaje: 10, rubrica: ['A actualizado'] },
+      procedimental: { notas: [3], porcentaje: 40, rubrica: ['P'] },
+      cognitiva: { notas: [5], porcentaje: 50, rubrica: ['C'] },
+    })
+
+    expect(didObservacionesChange(original, actualizado)).toBe(true)
   })
 })

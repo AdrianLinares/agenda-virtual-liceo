@@ -1,12 +1,10 @@
-import { test, expect } from '@playwright/test'
+import { test } from '@playwright/test'
 import {
   ensureProfile,
   ensureTestUser,
-  generateRecoveryLink,
   resetPassword,
   type TestUser,
 } from './utils/supabaseAdmin'
-import { normalizeRecoveryUrl } from './utils/recoveryUrl'
 
 const TEST_EMAIL = process.env.E2E_TEST_EMAIL ?? 'e2e.recovery@liceo.test'
 const BASELINE_PASSWORD = process.env.E2E_TEST_PASSWORD ?? 'Baseline123*'
@@ -23,7 +21,7 @@ test.describe('Password recovery hardening smoke', () => {
   )
 
   test('happy path request -> reset -> login', async ({ page, baseURL }) => {
-    const effectiveBaseUrl = baseURL ?? process.env.E2E_BASE_URL ?? 'http://localhost:5173'
+    void baseURL
 
     testUser = await ensureTestUser(TEST_EMAIL, BASELINE_PASSWORD)
     await ensureProfile(testUser.id, testUser.email)

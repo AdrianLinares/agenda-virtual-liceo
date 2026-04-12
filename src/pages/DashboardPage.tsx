@@ -43,6 +43,19 @@ interface Anuncio {
   importante: boolean
 }
 
+type GroupAssignment = {
+  grupo_id: string
+}
+
+type TeacherStudent = {
+  estudiante_id: string
+}
+
+type TeacherAssignment = {
+  grupo_id: string
+  asignatura_id: string
+}
+
 const DASHBOARD_CACHE_TTL_MS = 60_000
 
 type CachedEntry<T> = {
@@ -192,7 +205,7 @@ export default function DashboardPage() {
           'Tiempo de espera agotado al cargar asignaciones del docente'
         )
         if (errorAsign) throw errorAsign
-        const grupos = Array.from(new Set((asignaciones || []).map((a: any) => a.grupo_id)))
+        const grupos = Array.from(new Set(((asignaciones || []) as GroupAssignment[]).map((a) => a.grupo_id)))
         if (grupos.length > 0) {
           // Obtener estudiantes de esos grupos
           const { data: estudiantes, error: errorEst } = await withTimeout(
@@ -204,7 +217,7 @@ export default function DashboardPage() {
             'Tiempo de espera agotado al cargar estudiantes de los grupos del docente'
           )
           if (errorEst) throw errorEst
-          const estudiantesIds = Array.from(new Set((estudiantes || []).map((e: any) => e.estudiante_id)))
+          const estudiantesIds = Array.from(new Set(((estudiantes || []) as TeacherStudent[]).map((e) => e.estudiante_id)))
           if (estudiantesIds.length > 0) {
             query = query.in('estudiante_id', estudiantesIds)
           } else {
@@ -288,8 +301,8 @@ export default function DashboardPage() {
           'Tiempo de espera agotado al cargar asignaciones del docente'
         )
         if (errorAsign) throw errorAsign
-        const grupos = Array.from(new Set((asignaciones || []).map((a: any) => a.grupo_id)))
-        const asignaturas = Array.from(new Set((asignaciones || []).map((a: any) => a.asignatura_id)))
+        const grupos = Array.from(new Set(((asignaciones || []) as TeacherAssignment[]).map((a) => a.grupo_id)))
+        const asignaturas = Array.from(new Set(((asignaciones || []) as TeacherAssignment[]).map((a) => a.asignatura_id)))
         if (grupos.length === 0 || asignaturas.length === 0) {
           setNotasStats({ total: 0, promedio: 0 })
           setLoadingNotas(false)
@@ -388,6 +401,8 @@ export default function DashboardPage() {
       cancelled = true
       window.clearTimeout(deferredLoadId)
     }
+  // Motivo: mantener secuencia de carga controlada sin re-ejecutar por funciones recreadas.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, loadMensajesSinLeer, loadAsistenciaStats, loadNotasStats, loadPermisosStats])
 
   const loadEventos = async () => {

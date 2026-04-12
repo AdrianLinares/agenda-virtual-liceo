@@ -157,7 +157,7 @@ export default function RestablecerContrasenaPage() {
         return () => {
             cancelled = true
         }
-    }, [])
+    }, [syncSession])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
