@@ -30,6 +30,17 @@ type MockSelectValueProps = {
 
 const insertMock = vi.fn()
 const updateMock = vi.fn()
+const mockNotasStore: Array<{
+  id: string
+  estudiante_id: string
+  asignatura_id: string
+  periodo_id: string
+  grupo_id: string
+  docente_id: string | null
+  nota: number
+  observaciones: string | null
+  created_at: string
+}> = []
 const profileMock = {
   id: 'docente-1',
   rol: 'docente',
@@ -61,6 +72,9 @@ const latestCalculatorData = {
 function createBuilder(table: string) {
   let op: 'select' | 'insert' | 'update' | 'delete' = 'select'
   let payload: unknown = null
+  let selectClause = '*'
+  const eqFilters = new Map<string, unknown>()
+  const neqFilters = new Map<string, unknown>()
 
   const buildResult = (single = false) => {
     if (table === 'periodos') {
@@ -119,18 +133,106 @@ function createBuilder(table: string) {
     }
 
     if (table === 'notas') {
+      if (op === 'select') {
+        if (selectClause.includes('asignatura:asignatura_id')) {
+          const data = mockNotasStore.map((nota) => ({
+            ...nota,
+            asignatura: { nombre: 'Matemáticas', codigo: 'MAT' },
+            estudiante: { nombre_completo: 'Estudiante Uno', email: 'est1@liceo.edu' },
+            periodo: { nombre: 'Periodo 1', numero: 1 },
+            grupo: { nombre: 'A', grado: { nombre: '6A' } },
+          }))
+          return { data, error: null }
+        }
+
+        if (selectClause.includes('nota') && selectClause.includes('observaciones') && eqFilters.has('id')) {
+          const id = String(eqFilters.get('id'))
+          const nota = mockNotasStore.find((item) => item.id === id) ?? null
+
+          if (!nota) {
+            return { data: null, error: null }
+          }
+
+          return {
+            data: single
+              ? { nota: nota.nota, observaciones: nota.observaciones }
+              : [{ nota: nota.nota, observaciones: nota.observaciones }],
+            error: null,
+          }
+        }
+
+        if (selectClause === 'id') {
+          const matches = mockNotasStore
+            .filter((nota) => {
+              const estudianteOk = !eqFilters.has('estudiante_id') || nota.estudiante_id === eqFilters.get('estudiante_id')
+              const asignaturaOk = !eqFilters.has('asignatura_id') || nota.asignatura_id === eqFilters.get('asignatura_id')
+              const periodoOk = !eqFilters.has('periodo_id') || nota.periodo_id === eqFilters.get('periodo_id')
+              const neqIdOk = !neqFilters.has('id') || nota.id !== neqFilters.get('id')
+
+              return estudianteOk && asignaturaOk && periodoOk && neqIdOk
+            })
+            .map((nota) => ({ id: nota.id }))
+
+          return {
+            data: single ? matches[0] ?? null : matches,
+            error: null,
+          }
+        }
+
+        return { data: [], error: null }
+      }
+
       if (op === 'insert') {
         const inserted = payload as Record<string, unknown>
+        const record = {
+          id: `nota-${mockNotasStore.length + 1}`,
+          estudiante_id: String(inserted.estudiante_id),
+          asignatura_id: String(inserted.asignatura_id),
+          periodo_id: String(inserted.periodo_id),
+          grupo_id: String(inserted.grupo_id),
+          docente_id: String(inserted.docente_id),
+          nota: Number(inserted.nota),
+          observaciones: String(inserted.observaciones),
+          created_at: '2026-01-10T00:00:00.000Z',
+        }
+        mockNotasStore.push(record)
+
         return {
-          data: single ? { id: 'nota-1', ...inserted } : [{ id: 'nota-1', ...inserted }],
+          data: single ? record : [record],
           error: null,
         }
       }
 
       if (op === 'update') {
         const updated = payload as Record<string, unknown>
+        const id = String(eqFilters.get('id') ?? '')
+        const current = mockNotasStore.find((nota) => nota.id === id)
+
+        if (current) {
+          current.estudiante_id = String(updated.estudiante_id ?? current.estudiante_id)
+          current.asignatura_id = String(updated.asignatura_id ?? current.asignatura_id)
+          current.periodo_id = String(updated.periodo_id ?? current.periodo_id)
+          current.grupo_id = String(updated.grupo_id ?? current.grupo_id)
+          current.docente_id = String(updated.docente_id ?? current.docente_id)
+          current.nota = Number(updated.nota ?? current.nota)
+          current.observaciones = String(updated.observaciones ?? current.observaciones)
+        }
+
+        const responseData = current
+          ? {
+            id: current.id,
+            estudiante_id: current.estudiante_id,
+            asignatura_id: current.asignatura_id,
+            periodo_id: current.periodo_id,
+            grupo_id: current.grupo_id,
+            docente_id: current.docente_id,
+            nota: current.nota,
+            observaciones: current.observaciones,
+          }
+          : null
+
         return {
-          data: single ? { id: 'nota-1', ...updated } : [{ id: 'nota-1', ...updated }],
+          data: single ? responseData : responseData ? [responseData] : [],
           error: null,
         }
       }
@@ -142,10 +244,21 @@ function createBuilder(table: string) {
   }
 
   const builder = {
-    select: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
+    select: vi.fn().mockImplementation((value?: string) => {
+      if (typeof value === 'string') {
+        selectClause = value
+      }
+      return builder
+    }),
+    eq: vi.fn().mockImplementation((column: string, value: unknown) => {
+      eqFilters.set(column, value)
+      return builder
+    }),
     in: vi.fn().mockReturnThis(),
-    neq: vi.fn().mockReturnThis(),
+    neq: vi.fn().mockImplementation((column: string, value: unknown) => {
+      neqFilters.set(column, value)
+      return builder
+    }),
     limit: vi.fn().mockReturnThis(),
     order: vi.fn().mockReturnThis(),
     returns: vi.fn().mockReturnThis(),
@@ -280,6 +393,7 @@ describe('NotasPage - guardado inmediato tras edición', () => {
     }
     vi.stubGlobal('alert', vi.fn())
     vi.stubGlobal('confirm', vi.fn(() => true))
+    mockNotasStore.length = 0
   })
 
   it('usa getLatestData al guardar y persiste observaciones con datos actualizados', async () => {
@@ -339,6 +453,69 @@ describe('NotasPage - guardado inmediato tras edición', () => {
     expect(observaciones.cognitiva.ponderacion).toBe(45)
     expect(observaciones.cognitiva.rubrica[0]).toBe('Concepto 90')
     expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  it('actualiza nota editada usando los valores más recientes de la calculadora inline', async () => {
+    const user = userEvent.setup()
+
+    const observacionesOriginales = JSON.stringify({
+      actitudinal: { promedio: 30, ponderacion: 3, porcentaje: 10, notas: [30], rubrica: ['Original A'] },
+      procedimental: { promedio: 30, ponderacion: 12, porcentaje: 40, notas: [30], rubrica: ['Original P'] },
+      cognitiva: { promedio: 30, ponderacion: 15, porcentaje: 50, notas: [30], rubrica: ['Original C'] },
+    })
+
+    mockNotasStore.push({
+      id: 'nota-1',
+      estudiante_id: 'est-1',
+      asignatura_id: 'asig-1',
+      periodo_id: 'periodo-1',
+      grupo_id: 'grupo-1',
+      docente_id: 'docente-1',
+      nota: 30,
+      observaciones: observacionesOriginales,
+      created_at: '2026-01-10T00:00:00.000Z',
+    })
+
+    render(<NotasPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Editar/i })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /Editar/i }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Actualizar Nota/i })).toBeInTheDocument()
+    })
+
+    await act(async () => {
+      latestCalculatorData.results = {
+        averages: { A: 38, P: 38, C: 38 },
+        weighted: { A: 3.8, P: 15.2, C: 19 },
+        final: 38,
+        total: 38,
+      }
+      latestCalculatorData.grades = { A: [38], P: [38], C: [38] }
+      latestCalculatorData.rubrics = {
+        A: ['Actitud editada'],
+        P: ['Proceso editado'],
+        C: ['Concepto editado'],
+      }
+    })
+
+    await user.click(screen.getByRole('button', { name: /Actualizar Nota/i }))
+
+    await waitFor(() => {
+      expect(updateMock).toHaveBeenCalledTimes(1)
+    })
+
+    const payload = updateMock.mock.calls[0][0] as { nota: number; observaciones: string }
+    const observaciones = JSON.parse(payload.observaciones)
+
+    expect(payload.nota).toBe(38)
+    expect(observaciones.actitudinal.rubrica[0]).toBe('Actitud editada')
+    expect(observaciones.procedimental.rubrica[0]).toBe('Proceso editado')
+    expect(observaciones.cognitiva.rubrica[0]).toBe('Concepto editado')
   })
 })
 

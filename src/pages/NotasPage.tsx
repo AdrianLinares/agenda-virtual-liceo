@@ -211,8 +211,10 @@ export default function NotasPage() {
     const [editingNotaId, setEditingNotaId] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
     const [deletingNotaId, setDeletingNotaId] = useState<string | null>(null)
-    const calculatorRef = useRef<GradeCalculatorRef | null>(null)
-    const lastResultsRef = useRef<GradeResults | null>(null)
+    const calculatorRefNew = useRef<GradeCalculatorRef | null>(null)
+    const calculatorRefEdit = useRef<GradeCalculatorRef | null>(null)
+    const lastResultsRefNew = useRef<GradeResults | null>(null)
+    const lastResultsRefEdit = useRef<GradeResults | null>(null)
 
     useEffect(() => {
         loadPeriodos()
@@ -701,19 +703,18 @@ export default function NotasPage() {
 
 
     const handleSaveNota = async () => {
-        if (!calculatorRef.current) {
+        const isEditingFlow = Boolean(editingNotaId)
+        const activeCalculatorRef = isEditingFlow ? calculatorRefEdit : calculatorRefNew
+        const activeLastResultsRef = isEditingFlow ? lastResultsRefEdit : lastResultsRefNew
+
+        if (!activeCalculatorRef.current && !activeLastResultsRef.current && !calculatedResults) {
             setError('La calculadora no está lista. Intenta de nuevo.');
             return;
         }
 
         // Obtener datos más recientes de la calculadora.
-        // Preferimos el estado `calculatedResults` (provisto por onResultsChange) porque
-        // en algunos casos el ref de la calculadora puede devolver datos desactualizados.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let latestResults: GradeResults | null = null
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let latestGrades: GradesData | undefined = undefined
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let latestRubrics: RubricsData | undefined = undefined
         let latestWeights: CategoryWeights | undefined = undefined
 
@@ -721,13 +722,11 @@ export default function NotasPage() {
         // cuando el usuario edita y hace click rápidamente. Esto evita leer un estado stale
         // desde el ref inmediatamente después de un evento de input.
         // Si la calculadora ya está estable, la espera será mínima.
-        // eslint-disable-next-line no-undef-init
         await new Promise((resolve) => setTimeout(resolve, 0))
 
-        if (calculatorRef.current && typeof (calculatorRef.current as any).getLatestData === 'function') {
+        if (activeCalculatorRef.current) {
             try {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const latest = (calculatorRef.current as any).getLatestData()
+                const latest = activeCalculatorRef.current.getLatestData()
                 latestResults = latest?.results ?? null
                 latestGrades = latest?.grades
                 latestRubrics = latest?.rubrics
@@ -738,9 +737,9 @@ export default function NotasPage() {
             }
         }
 
-        // Si la suscripción onResultsChange ya nos pasó resultados, preferirlos (más fiables)
-        // También preferimos la referencia lastResultsRef (sincrónica) si está presente.
-        const effectiveResults = lastResultsRef.current ?? calculatedResults ?? latestResults
+        // Priorizar el snapshot del ref activo (getLatestData). Si no está disponible,
+        // usar referencias locales de onResultsChange y finalmente el estado renderizado.
+        const effectiveResults = latestResults ?? activeLastResultsRef.current ?? calculatedResults
 
         if (!selectedPeriodo || !selectedGrupo || !selectedAsignatura || !selectedEstudiante || !effectiveResults || !profile) {
             setError('Debes completar todos los campos y calcular la nota')
@@ -821,16 +820,6 @@ export default function NotasPage() {
 
                 const originalNotaData = originalNotaBeforeUpdate as { nota: number; observaciones: string | null } | null
                 const notaOriginalNum = Number(originalNotaData?.nota)
-                console.log('[diag] originalNotaNum:', notaOriginalNum)
-
-                // TODO: [diag] Logs temporales para diagnosticar por qué no se observa el UPDATE en el flujo de edición.
-                console.log('[diag] originalObservaciones:', originalNotaData?.observaciones)
-                console.log('[diag] notaData:', notaData)
-                console.log('[diag] lastResultsRef.current:', lastResultsRef.current)
-                console.log('[diag] calculatedResults:', calculatedResults)
-                console.log('[diag] refLatest:', latestResults)
-                console.log('[diag] effectiveResults:', effectiveResults)
-                console.log('[diag] effective final:', effectiveResults?.final, 'isFinite:', Number.isFinite(Number(effectiveResults?.final)))
 
                 // HACER el UPDATE
                 // Motivo: datos de la consulta contienen campos anidados con tipos dinámicos.
@@ -842,8 +831,6 @@ export default function NotasPage() {
                     .select()
                     .single()
 
-                // VERIFICAR que el update realmente cambió datos
-                console.log('[diag] updateResult:', result)
                 if (!result.error && originalNotaData) {
                     const notaNuevaNum = Number(notaData.nota)
 
@@ -856,44 +843,8 @@ export default function NotasPage() {
 
                     const verifyNota = verifyData as { nota: number; observaciones: string | null } | null
                     const dbNotaNum = Number(verifyNota?.nota)
-                    console.log('[diag] dbNotaNum:', dbNotaNum)
                     const observacionesActualizadas = verifyNota?.observaciones ?? result.data?.observaciones
                     const observacionesChanged = didObservacionesChange(originalNotaData.observaciones, observacionesActualizadas)
-
-                    console.log('[diag] verifyObservaciones:', verifyNota?.observaciones)
-
-                    const parsedOriginalObservaciones =
-                        originalNotaData.observaciones !== null
-                            ? parseObservacionesPayload(originalNotaData.observaciones)
-                            : null
-                    const parsedUpdatedObservaciones =
-                        observacionesActualizadas !== null && observacionesActualizadas !== undefined
-                            ? parseObservacionesPayload(observacionesActualizadas)
-                            : null
-
-                    if (originalNotaData.observaciones !== null && parsedOriginalObservaciones === null) {
-                        console.log('[diag] parseObservacionesPayload original returned null')
-                    }
-
-                    if (observacionesActualizadas !== null && observacionesActualizadas !== undefined && parsedUpdatedObservaciones === null) {
-                        console.log('[diag] parseObservacionesPayload updated returned null')
-                    }
-
-                    const canonicalOriginal = parsedOriginalObservaciones !== null
-                        ? canonicalizeJsonValue(parsedOriginalObservaciones)
-                        : null
-                    const canonicalUpdated = parsedUpdatedObservaciones !== null
-                        ? canonicalizeJsonValue(parsedUpdatedObservaciones)
-                        : null
-
-                    console.log(
-                        '[diag] canonicalOriginal:',
-                        canonicalOriginal,
-                        'canonicalUpdated:',
-                        canonicalUpdated,
-                        'didChange:',
-                        observacionesChanged
-                    )
 
                     // Verificar contra la BD - comparar con el valor ORIGINAL (antes del update)
                     if (dbNotaNum !== notaOriginalNum) {
@@ -991,6 +942,8 @@ export default function NotasPage() {
     const resetCalculatorForm = () => {
         setSelectedEstudiante('')
         setCalculatedResults(null)
+        lastResultsRefNew.current = null
+        lastResultsRefEdit.current = null
         setCalculatorInitialGrades(undefined)
         setCalculatorInitialWeights(undefined)
         setEditingNotaId(null)
@@ -998,6 +951,7 @@ export default function NotasPage() {
     }
 
     const handleResultsChange = (
+        source: 'new' | 'edit',
         results: GradeResults,
         _grades: GradesData,
         _rubrics: RubricsData,
@@ -1008,10 +962,13 @@ export default function NotasPage() {
         void _rubrics
         void _weights
         setCalculatedResults(results)
-        // Guardar una referencia síncrona al último resultado recibido para que
-        // handlers que lean inmediatamente (p. ej. al pulsar Guardar) puedan
-        // obtener el valor sin esperar al re-render.
-        lastResultsRef.current = results
+
+        if (source === 'edit') {
+            lastResultsRefEdit.current = results
+            return
+        }
+
+        lastResultsRefNew.current = results
     }
 
     const openNewNotaCalculator = () => {
@@ -1206,7 +1163,7 @@ export default function NotasPage() {
                 )}
             </div>
 
-            {showCalculator && profile?.rol === 'docente' && (
+            {showCalculator === true && profile?.rol === 'docente' && (
                 <Card className="border-2 border-primary">
                     <CardHeader>
                         <CardTitle>{editingNotaId ? 'Editar nota' : 'Registrar nueva nota'}</CardTitle>
@@ -1285,11 +1242,13 @@ export default function NotasPage() {
                             <div className="border-t pt-6">
                                 <GradeCalculator
                                     key={calculatorRenderKey}
-                                    ref={calculatorRef}
+                                    ref={calculatorRefNew}
                                     initialGrades={calculatorInitialGrades}
                                     initialWeights={calculatorInitialWeights}
                                     initialRubrics={calculatorInitialRubrics}
-                                    onResultsChange={handleResultsChange}
+                                    onResultsChange={(results, grades, rubrics, weights) =>
+                                        handleResultsChange('new', results, grades, rubrics, weights)
+                                    }
                                 />
                             </div>
                         )}
@@ -1559,11 +1518,13 @@ export default function NotasPage() {
                                                         <div className="border-t pt-6">
                                                             <GradeCalculator
                                                                 key={calculatorRenderKey}
-                                                                ref={calculatorRef}
+                                                                ref={calculatorRefEdit}
                                                                 initialGrades={calculatorInitialGrades}
                                                                 initialWeights={calculatorInitialWeights}
                                                                 initialRubrics={calculatorInitialRubrics}
-                                                                onResultsChange={handleResultsChange}
+                                                                onResultsChange={(results, grades, rubrics, weights) =>
+                                                                    handleResultsChange('edit', results, grades, rubrics, weights)
+                                                                }
                                                             />
                                                         </div>
                                                     )}
