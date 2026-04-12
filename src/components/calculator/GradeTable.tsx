@@ -42,6 +42,7 @@ export function GradeTable({
         if (!/^\d*\.?\d*$/.test(value)) return;
 
         const numValue = parseFloat(value);
+        console.log('[diag-calc] GradeTable input change:', { category, index, value, numValue });
         onGradeChange(category, index, numValue);
     };
 
