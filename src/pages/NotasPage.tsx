@@ -1106,21 +1106,21 @@ export default function NotasPage() {
                                             </td>
                                             <td className="py-2 px-3 text-center">
                                                 <div className="flex flex-wrap gap-1 justify-center">
-                                                    {data.notas && data.notas.map((nota: number, idx: number) => (
+                                                    {data.notas && data.notas.map((nota: unknown, idx: number) => (
                                                         <span
                                                             key={idx}
                                                             className="inline-block px-2 py-0.5 bg-secondary text-primary rounded text-xs font-medium"
                                                         >
-                                                            {nota.toFixed(1)}
+                                                            {Number.isFinite(Number(nota)) ? Number(nota).toFixed(1) : '-'}
                                                         </span>
                                                     ))}
                                                 </div>
                                             </td>
                                             <td className="py-2 px-3 text-center font-semibold text-foreground">
-                                                {data.promedio?.toFixed(2) || '0.00'}
+                                                {Number.isFinite(Number(data?.promedio)) ? Number(data.promedio).toFixed(2) : '0.00'}
                                             </td>
                                             <td className="py-2 px-3 text-center font-bold text-primary">
-                                                {data.ponderacion?.toFixed(2) || '0.00'}
+                                                {Number.isFinite(Number(data?.ponderacion)) ? Number(data.ponderacion).toFixed(2) : '0.00'}
                                             </td>
                                         </tr>
                                     ))}
