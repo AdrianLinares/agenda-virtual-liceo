@@ -2,7 +2,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { forwardRef, useEffect, useImperativeHandle, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import NotasPage, { didObservacionesChange } from '@/pages/NotasPage'
+import NotasPage, { didObservacionesChange, normalizeObservacionesForSave } from '@/pages/NotasPage'
 
 type MockSelectProps = {
   value?: string
@@ -565,7 +565,7 @@ describe('NotasPage - guardado inmediato tras edición', () => {
       grupo_id: 'grupo-1',
       docente_id: 'docente-1',
       nota: 78,
-      observaciones: JSON.stringify(observacionesConNulls),
+      observaciones: JSON.stringify(JSON.stringify(observacionesConNulls)),
       created_at: '2026-01-10T00:00:00.000Z',
     })
 
@@ -596,6 +596,47 @@ describe('NotasPage - guardado inmediato tras edición', () => {
     const texts = Array.from(badges).map((s) => s.textContent?.trim())
     const dashCount = texts.filter((t) => t === '-').length
     expect(dashCount).toBeGreaterThanOrEqual(2)
+  })
+
+  it('maneja observaciones históricas malformadas sin romper el render', async () => {
+    const observacionesMalformadas = '"actitudinal": {"promedio": 80, "notas": [null, 80]}'
+
+    mockNotasStore.push({
+      id: 'nota-malformada',
+      estudiante_id: 'est-1',
+      asignatura_id: 'asig-1',
+      periodo_id: 'periodo-1',
+      grupo_id: 'grupo-1',
+      docente_id: 'docente-1',
+      nota: 80,
+      observaciones: observacionesMalformadas,
+      created_at: '2026-01-10T00:00:00.000Z',
+    })
+
+    render(<NotasPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Matemáticas')).toBeInTheDocument()
+    })
+
+    expect(screen.queryByText('Desglose de Evaluación')).not.toBeInTheDocument()
+    expect(screen.getByText('Observaciones')).toBeInTheDocument()
+    expect(screen.getByText(observacionesMalformadas)).toBeInTheDocument()
+  })
+})
+
+describe('normalizeObservacionesForSave', () => {
+  it('normaliza observaciones cuando llega como objeto', () => {
+    const result = normalizeObservacionesForSave({ actitudinal: { notas: [80] } })
+
+    expect(result).toBe('{"actitudinal":{"notas":[80]}}')
+  })
+
+  it('normaliza string JSON a formato canónico y deja texto plano intacto', () => {
+    const wrapped = JSON.stringify('{"actitudinal":{"notas":[80]}}')
+
+    expect(normalizeObservacionesForSave(wrapped)).toBe('{"actitudinal":{"notas":[80]}}')
+    expect(normalizeObservacionesForSave('texto sin formato json')).toBe('texto sin formato json')
   })
 })
 
