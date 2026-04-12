@@ -117,7 +117,7 @@ export const GradeCalculator = forwardRef<GradeCalculatorRef, GradeCalculatorPro
     // Recalcular cuando cambien las notas, pesos o las descripciones de la rúbrica
     useEffect(() => {
         const newResults = calculateResults(grades, weights);
-        console.log('[diag-calc] useEffect recalculated results', newResults)
+        // Diagnostic log removed in production
         setResults(newResults);
         // Exportar las descripciones activas (rubricDescriptions) en lugar de la
         // variable de compatibilidad `rubrics` para evitar inconsistencias cuando
@@ -153,7 +153,7 @@ export const GradeCalculator = forwardRef<GradeCalculatorRef, GradeCalculatorPro
         index: number,
         value: number
     ) => {
-        console.log('[diag-calc] GradeCalculator.handleGradeChange', { category, index, value })
+        // Diagnostic log removed in production
         // Build the new grades object synchronously so we can compute results
         const newGradesForCategory = [...grades[category]];
         newGradesForCategory[index] = value;
@@ -162,7 +162,7 @@ export const GradeCalculator = forwardRef<GradeCalculatorRef, GradeCalculatorPro
         // Notify parent immediately with computed results to avoid races when the
         // parent reads the calculator state right after a user input and save.
         const newResults = calculateResults(newGrades, weights);
-        console.log('[diag-calc] GradeCalculator computed newResults', newResults)
+        // Diagnostic log removed in production
         onResultsChange?.(newResults, newGrades, rubricDescriptions, weights);
     };
 
@@ -208,11 +208,11 @@ export const GradeCalculator = forwardRef<GradeCalculatorRef, GradeCalculatorPro
                 gradeCounts={gradeCounts}
                 weights={weights}
                 onCountChange={(category, count) => {
-                    console.log('[diag-calc] GradeInput onCountChange wrapper', { category, count })
+                    // Diagnostic log removed in production
                     handleCountChange(category, count)
                 }}
                 onWeightChange={(category, weight) => {
-                    console.log('[diag-calc] GradeInput onWeightChange wrapper', { category, weight })
+                    // Diagnostic log removed in production
                     handleWeightChange(category, weight)
                 }}
             />
@@ -222,11 +222,11 @@ export const GradeCalculator = forwardRef<GradeCalculatorRef, GradeCalculatorPro
                 grades={grades}
                 rubrics={rubricDescriptions}
                 onGradeChange={(category, index, value) => {
-                    console.log('[diag-calc] GradeTable onGradeChange wrapper', { category, index, value })
+                    // Diagnostic log removed in production
                     handleGradeChange(category, index, value)
                 }}
                 onRubricChange={(category, index, desc) => {
-                    console.log('[diag-calc] GradeTable onRubricChange wrapper', { category, index, desc })
+                    // Diagnostic log removed in production
                     handleRubricDescriptionChange(category, index, desc)
                 }}
             />

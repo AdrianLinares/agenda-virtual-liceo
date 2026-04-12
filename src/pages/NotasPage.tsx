@@ -1057,9 +1057,7 @@ export default function NotasPage() {
     const renderObservaciones = (observaciones: string | null) => {
         if (!observaciones) return null
 
-        // Diagnostic log: inspeccionar el valor que llega para entender por qué cae al fallback
-        // Nota: temporal, será removido después del diagnóstico
-        console.debug('[diag-renderObs] typeof=', typeof observaciones, 'raw=', observaciones)
+        // Removed diagnostic logs after fix
 
         try {
             const data = parseObservacionesPayload(observaciones)
