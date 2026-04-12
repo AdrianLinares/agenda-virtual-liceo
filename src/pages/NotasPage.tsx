@@ -787,6 +787,11 @@ export default function NotasPage() {
                 const originalNotaData = originalNotaBeforeUpdate as { nota: number; observaciones: string | null } | null
                 const notaOriginalNum = Number(originalNotaData?.nota)
 
+                // TODO: [diag] Logs temporales para diagnosticar por qué no se observa el UPDATE en el flujo de edición.
+                console.log('[diag] originalObservaciones:', originalNotaData?.observaciones)
+                console.log('[diag] notaData:', notaData)
+                console.log('[diag] latestResults.final:', latestResults.final, 'isFinite:', Number.isFinite(Number(latestResults.final)))
+
                 // HACER el UPDATE
                 // Motivo: datos de la consulta contienen campos anidados con tipos dinámicos.
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -811,13 +816,49 @@ export default function NotasPage() {
                     const verifyNota = verifyData as { nota: number; observaciones: string | null } | null
                     const dbNotaNum = Number(verifyNota?.nota)
                     const observacionesActualizadas = verifyNota?.observaciones ?? result.data?.observaciones
+                    const observacionesChanged = didObservacionesChange(originalNotaData.observaciones, observacionesActualizadas)
+
+                    console.log('[diag] verifyObservaciones:', verifyNota?.observaciones)
+
+                    const parsedOriginalObservaciones =
+                        originalNotaData.observaciones !== null
+                            ? parseObservacionesPayload(originalNotaData.observaciones)
+                            : null
+                    const parsedUpdatedObservaciones =
+                        observacionesActualizadas !== null && observacionesActualizadas !== undefined
+                            ? parseObservacionesPayload(observacionesActualizadas)
+                            : null
+
+                    if (originalNotaData.observaciones !== null && parsedOriginalObservaciones === null) {
+                        console.log('[diag] parseObservacionesPayload original returned null')
+                    }
+
+                    if (observacionesActualizadas !== null && observacionesActualizadas !== undefined && parsedUpdatedObservaciones === null) {
+                        console.log('[diag] parseObservacionesPayload updated returned null')
+                    }
+
+                    const canonicalOriginal = parsedOriginalObservaciones !== null
+                        ? canonicalizeJsonValue(parsedOriginalObservaciones)
+                        : null
+                    const canonicalUpdated = parsedUpdatedObservaciones !== null
+                        ? canonicalizeJsonValue(parsedUpdatedObservaciones)
+                        : null
+
+                    console.log(
+                        '[diag] canonicalOriginal:',
+                        canonicalOriginal,
+                        'canonicalUpdated:',
+                        canonicalUpdated,
+                        'didChange:',
+                        observacionesChanged
+                    )
 
                     // Verificar contra la BD - comparar con el valor ORIGINAL (antes del update)
                     if (dbNotaNum !== notaOriginalNum) {
                         cambioNotaFinal = true
                     } else if (notaNuevaNum !== notaOriginalNum) {
                         cambioNotaFinal = true
-                    } else if (didObservacionesChange(originalNotaData.observaciones, observacionesActualizadas)) {
+                    } else if (observacionesChanged) {
                         cambioNotaFinal = true
                     }
                 }
