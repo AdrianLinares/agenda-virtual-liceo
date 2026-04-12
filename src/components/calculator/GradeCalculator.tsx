@@ -124,7 +124,7 @@ export const GradeCalculator = forwardRef<GradeCalculatorRef, GradeCalculatorPro
 
     // Enviar cálculo inicial al padre apenas se monte el componente
     // Omitimos dependencias intencionalmente para ejecutar solo en mount.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     useEffect(() => {
         const initialResults = calculateResults(grades, weights);
         onResultsChange?.(initialResults, grades, rubricDescriptions, weights);
