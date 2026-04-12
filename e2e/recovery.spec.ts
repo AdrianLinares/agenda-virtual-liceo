@@ -43,9 +43,10 @@ test.describe('Password recovery hardening smoke', () => {
 
     await page.goto(localRecoveryUrl)
 
-    await expect.poll(() => page.url()).toSatisfy((url) => {
-      return !url.includes('code=') && !url.includes('access_token=') && !url.includes('refresh_token=')
-    })
+    // Ensure the recovery redirect landed on the client page (not a token/callback URL)
+    await expect.poll(() =>
+      page.url().then((url) => !url.includes('code=') && !url.includes('access_token=') && !url.includes('refresh_token='))
+    ).toBeTruthy()
 
     await page.getByLabel(/^nueva contraseña$/i).fill(NEW_PASSWORD)
     await page.getByLabel(/confirmar nueva contraseña/i).fill(NEW_PASSWORD)
