@@ -212,6 +212,7 @@ export default function NotasPage() {
     const [saving, setSaving] = useState(false)
     const [deletingNotaId, setDeletingNotaId] = useState<string | null>(null)
     const calculatorRef = useRef<GradeCalculatorRef | null>(null)
+    const lastResultsRef = useRef<GradeResults | null>(null)
 
     useEffect(() => {
         loadPeriodos()
@@ -738,7 +739,8 @@ export default function NotasPage() {
         }
 
         // Si la suscripción onResultsChange ya nos pasó resultados, preferirlos (más fiables)
-        const effectiveResults = calculatedResults ?? latestResults
+        // También preferimos la referencia lastResultsRef (sincrónica) si está presente.
+        const effectiveResults = lastResultsRef.current ?? calculatedResults ?? latestResults
 
         if (!selectedPeriodo || !selectedGrupo || !selectedAsignatura || !selectedEstudiante || !effectiveResults || !profile) {
             setError('Debes completar todos los campos y calcular la nota')
@@ -1002,6 +1004,10 @@ export default function NotasPage() {
         void _rubrics
         void _weights
         setCalculatedResults(results)
+        // Guardar una referencia síncrona al último resultado recibido para que
+        // handlers que lean inmediatamente (p. ej. al pulsar Guardar) puedan
+        // obtener el valor sin esperar al re-render.
+        lastResultsRef.current = results
     }
 
     const openNewNotaCalculator = () => {
