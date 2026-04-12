@@ -117,6 +117,7 @@ export const GradeCalculator = forwardRef<GradeCalculatorRef, GradeCalculatorPro
     // Recalcular cuando cambien las notas, pesos o las descripciones de la rúbrica
     useEffect(() => {
         const newResults = calculateResults(grades, weights);
+        console.log('[diag-calc] useEffect recalculated results', newResults)
         setResults(newResults);
         // Exportar las descripciones activas (rubricDescriptions) en lugar de la
         // variable de compatibilidad `rubrics` para evitar inconsistencias cuando
@@ -152,6 +153,7 @@ export const GradeCalculator = forwardRef<GradeCalculatorRef, GradeCalculatorPro
         index: number,
         value: number
     ) => {
+        console.log('[diag-calc] GradeCalculator.handleGradeChange', { category, index, value })
         // Build the new grades object synchronously so we can compute results
         const newGradesForCategory = [...grades[category]];
         newGradesForCategory[index] = value;
@@ -160,6 +162,7 @@ export const GradeCalculator = forwardRef<GradeCalculatorRef, GradeCalculatorPro
         // Notify parent immediately with computed results to avoid races when the
         // parent reads the calculator state right after a user input and save.
         const newResults = calculateResults(newGrades, weights);
+        console.log('[diag-calc] GradeCalculator computed newResults', newResults)
         onResultsChange?.(newResults, newGrades, rubricDescriptions, weights);
     };
 
