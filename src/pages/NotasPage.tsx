@@ -705,9 +705,35 @@ export default function NotasPage() {
             return;
         }
 
-        const { results: latestResults, grades: latestGrades, rubrics: latestRubrics, weights: latestWeights } = calculatorRef.current.getLatestData();
+        // Obtener datos más recientes de la calculadora.
+        // Preferimos el estado `calculatedResults` (provisto por onResultsChange) porque
+        // en algunos casos el ref de la calculadora puede devolver datos desactualizados.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let latestResults: GradeResults | null = null
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let latestGrades: GradesData | undefined = undefined
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let latestRubrics: RubricsData | undefined = undefined
+        let latestWeights: CategoryWeights | undefined = undefined
 
-        if (!selectedPeriodo || !selectedGrupo || !selectedAsignatura || !selectedEstudiante || !latestResults || !profile) {
+        if (calculatorRef.current && typeof (calculatorRef.current as any).getLatestData === 'function') {
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const latest = (calculatorRef.current as any).getLatestData()
+                latestResults = latest?.results ?? null
+                latestGrades = latest?.grades
+                latestRubrics = latest?.rubrics
+                latestWeights = latest?.weights
+            } catch (e) {
+                // Ignorar: si falla el ref, fallback a calculatedResults
+                latestResults = null
+            }
+        }
+
+        // Si la suscripción onResultsChange ya nos pasó resultados, preferirlos (más fiables)
+        const effectiveResults = calculatedResults ?? latestResults
+
+        if (!selectedPeriodo || !selectedGrupo || !selectedAsignatura || !selectedEstudiante || !effectiveResults || !profile) {
             setError('Debes completar todos los campos y calcular la nota')
             return
         }
@@ -741,22 +767,22 @@ export default function NotasPage() {
 
             const observaciones = JSON.stringify({
                 actitudinal: {
-                    promedio: latestResults.averages.A,
-                    ponderacion: latestResults.weighted.A,
+                    promedio: effectiveResults.averages.A,
+                    ponderacion: effectiveResults.weighted.A,
                     porcentaje: weights.A,
                     notas: latestGrades?.A || [],
                     rubrica: latestRubrics?.A || []
                 },
                 procedimental: {
-                    promedio: latestResults.averages.P,
-                    ponderacion: latestResults.weighted.P,
+                    promedio: effectiveResults.averages.P,
+                    ponderacion: effectiveResults.weighted.P,
                     porcentaje: weights.P,
                     notas: latestGrades?.P || [],
                     rubrica: latestRubrics?.P || []
                 },
                 cognitiva: {
-                    promedio: latestResults.averages.C,
-                    ponderacion: latestResults.weighted.C,
+                    promedio: effectiveResults.averages.C,
+                    ponderacion: effectiveResults.weighted.C,
                     porcentaje: weights.C,
                     notas: latestGrades?.C || [],
                     rubrica: latestRubrics?.C || []
@@ -769,7 +795,7 @@ export default function NotasPage() {
                 periodo_id: selectedPeriodo,
                 grupo_id: selectedGrupo,
                 docente_id: profile.id,
-                nota: latestResults.final,
+                nota: effectiveResults.final,
                 observaciones
             }
 
