@@ -826,7 +826,11 @@ export default function NotasPage() {
                 // TODO: [diag] Logs temporales para diagnosticar por qué no se observa el UPDATE en el flujo de edición.
                 console.log('[diag] originalObservaciones:', originalNotaData?.observaciones)
                 console.log('[diag] notaData:', notaData)
-                console.log('[diag] latestResults.final:', latestResults.final, 'isFinite:', Number.isFinite(Number(latestResults.final)))
+                console.log('[diag] lastResultsRef.current:', lastResultsRef.current)
+                console.log('[diag] calculatedResults:', calculatedResults)
+                console.log('[diag] refLatest:', latestResults)
+                console.log('[diag] effectiveResults:', effectiveResults)
+                console.log('[diag] effective final:', effectiveResults?.final, 'isFinite:', Number.isFinite(Number(effectiveResults?.final)))
 
                 // HACER el UPDATE
                 // Motivo: datos de la consulta contienen campos anidados con tipos dinámicos.
