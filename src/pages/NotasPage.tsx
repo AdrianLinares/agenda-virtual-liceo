@@ -1109,7 +1109,11 @@ export default function NotasPage() {
                                                             key={idx}
                                                             className="inline-block px-2 py-0.5 bg-secondary text-primary rounded text-xs font-medium"
                                                         >
-                                                            {Number.isFinite(Number(nota)) ? Number(nota).toFixed(1) : '-'}
+                                                            {nota === null || nota === undefined || nota === ''
+                                                                ? '-'
+                                                                : Number.isFinite(Number(nota))
+                                                                    ? Number(nota).toFixed(1)
+                                                                    : '-'}
                                                         </span>
                                                     ))}
                                                 </div>

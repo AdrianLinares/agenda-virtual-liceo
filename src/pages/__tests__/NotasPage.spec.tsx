@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { forwardRef, useEffect, useImperativeHandle, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -548,6 +548,54 @@ describe('NotasPage - guardado inmediato tras edición', () => {
     expect(screen.getAllByText(/Cognitiva/i).length).toBeGreaterThan(0)
     expect(screen.queryByText(/^Observaciones$/)).not.toBeInTheDocument()
     expect(screen.queryByText(/\{"actitudinal"/i)).not.toBeInTheDocument()
+  })
+
+  it('muestra "-" para valores null en notas dentro de observaciones', async () => {
+    const observacionesConNulls = {
+      actitudinal: { promedio: 80, ponderacion: 8, porcentaje: 10, notas: [null, null, 80], rubrica: [] },
+      procedimental: { promedio: 76, ponderacion: 30.4, porcentaje: 40, notas: [70, 70, 70, 70, 100], rubrica: [] },
+      cognitiva: { promedio: 0, ponderacion: 0, porcentaje: 50, notas: [], rubrica: [] },
+    }
+
+    mockNotasStore.push({
+      id: 'nota-null-notas',
+      estudiante_id: 'est-1',
+      asignatura_id: 'asig-1',
+      periodo_id: 'periodo-1',
+      grupo_id: 'grupo-1',
+      docente_id: 'docente-1',
+      nota: 78,
+      observaciones: JSON.stringify(observacionesConNulls),
+      created_at: '2026-01-10T00:00:00.000Z',
+    })
+
+    render(<NotasPage />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Desglose de Evaluación')).toBeInTheDocument()
+    })
+
+    const container = screen.getByText('Desglose de Evaluación').closest('div')
+    expect(container).toBeTruthy()
+    const table = within(container as HTMLElement).getByRole('table')
+
+    // Dentro de la tabla, debería mostrar '-' para cada nota null
+    // Buscar los badges dentro de la fila de Actitudinal y comprobar que al menos dos son '-' o muestran 0.0 cuando se normalizan
+    const rows = within(table).getAllByRole('row')
+    let actitudRow: HTMLElement | null = null
+    for (const r of rows) {
+      const cells = r.querySelectorAll('td')
+      if (cells && cells.length > 0 && /Actitudinal/i.test(cells[0].textContent || '')) {
+        actitudRow = r as HTMLElement
+        break
+      }
+    }
+    expect(actitudRow).toBeTruthy()
+    const badges = (actitudRow as HTMLElement).querySelectorAll('td')[1].querySelectorAll('span')
+    // Convertir textos a array y contar '-'
+    const texts = Array.from(badges).map((s) => s.textContent?.trim())
+    const dashCount = texts.filter((t) => t === '-').length
+    expect(dashCount).toBeGreaterThanOrEqual(2)
   })
 })
 
