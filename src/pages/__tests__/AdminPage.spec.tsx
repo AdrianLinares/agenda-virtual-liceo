@@ -125,4 +125,28 @@ describe('AdminPage - filtros de Usuarios (rol, grupo, búsqueda)', () => {
     expect(row).toBeTruthy()
     expect(within(row as HTMLElement).getByText(/Activo/i)).toBeInTheDocument()
   })
+
+  it('filtra por nombre o email usando el input de búsqueda', async () => {
+    const user = userEvent.setup()
+    const { container } = render(<AdminPage />)
+
+    // El input de búsqueda está presente y por defecto el rol es 'todos'
+    const searchInput = await screen.findByPlaceholderText('Buscar por nombre o email')
+    await user.type(searchInput, 'Padre')
+
+    // Debe mostrar sólo al padre
+    await waitFor(() => expect(screen.getByText('Padre Uno')).toBeTruthy())
+    expect(screen.queryByText('Estudiante Uno')).toBeNull()
+  })
+
+  it('muestra placeholder/aviso cuando rol estudiante/padre y no se selecciona grupo', async () => {
+    const user = userEvent.setup()
+    render(<AdminPage />)
+
+    const roleSelect = await screen.findByLabelText(/Filtrar por rol/i)
+    await user.selectOptions(roleSelect, 'estudiante')
+
+    // No seleccionamos grupo, la tabla debe indicar que no hay usuarios para el rol seleccionado
+    await waitFor(() => expect(screen.getByText(/No hay usuarios para el rol seleccionado\./i)).toBeTruthy())
+  })
 })
