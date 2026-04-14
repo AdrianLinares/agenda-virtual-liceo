@@ -3,40 +3,49 @@
 Only include facts an agent would likely miss. Read README.md, package.json, tsconfig*, CI and openspec/ first.
 
 Commands (exact)
-- Install deps (preferred): pnpm install
+- Install (preferred): pnpm install
+  - CI: pnpm install --frozen-lockfile
 - Dev server: pnpm dev
 - Build (typecheck + bundle): pnpm build
   - runs: tsc --project tsconfig.node.json && vite build
+  - fast typecheck-only: pnpm exec tsc --project tsconfig.node.json --noEmit
 - Lint (CI-strict): pnpm lint
-- Unit tests (dev): pnpm test
-- Unit tests (CI, authoritative): pnpm run test:ci  (runs: vitest run)
-- E2E: pnpm run test:e2e  (playwright — requires a real Supabase + env)
+  - runs: eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0
+  - ESLint warnings fail CI
+- Unit tests (Vitest): pnpm test
+  - CI (authoritative): pnpm run test:ci  (runs: vitest run)
+  - Run a single unit test file: pnpm test -- path/to/file.test.ts
+  - Run tests by name: pnpm test -- -t "pattern"
+- E2E (Playwright): pnpm run test:e2e
+  - Run a single spec: pnpm run test:e2e -- tests/path/to.spec.ts
+  - Must run: npx playwright install --with-deps (CI and local when browsers missing)
 
 Local setup gotchas
 - Copy .env.example -> .env and set at minimum: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
-- Never commit .env or server secrets. Server/cron secrets: SUPABASE_SERVICE_ROLE_KEY, CRON_SECRET (store in CI/hosting)
-- Apply supabase-schema.sql (root) to your Supabase project before running protected flows or E2E tests.
+- Vite-only envs MUST be prefixed with VITE_ (only these are safe to expose in the frontend)
+- Never commit .env or server/cron secrets. Server/cron secrets: SUPABASE_SERVICE_ROLE_KEY, CRON_SECRET — store in CI/hosting or secret manager
+- Apply supabase-schema.sql (root) to your Supabase project before running protected flows or Playwright E2E
 
-Verification order (use before committing/PR review)
-1) pnpm lint  (eslint --max-warnings 0 — warnings fail)
-2) pnpm build (ensures tsc typecheck)
-3) pnpm run test:ci (tests are authoritative)
+Verification order (pre-merge / CI equivalence)
+1) pnpm lint  (ESLint warnings fail CI)
+2) pnpm build (includes tsc typecheck)
+3) pnpm run test:ci (Vitest — authoritative)
 
 SDD / artifacts
-- openspec/ is for ephemeral change drafts and is excluded from commits. Do NOT use it as persistent storage unless instructed.
-- Engram is the project memory store (present in .engram). Use engram sync/import to share memories across machines.
+- openspec/ is for ephemeral change drafts. Do NOT rely on it as persistent storage for implementation work.
+- Project memory: engram (.engram) is available for cross-session artifacts — use it for SDD state when present.
 
 Strict TDD
-- This repo expects STRICT TDD for sdd-apply / sdd-verify: sub-agents MUST run pnpm run test:ci and must NOT skip tests.
+- sdd-apply and sdd-verify workflows MUST run pnpm run test:ci and MUST NOT skip tests (this repo enforces strict TDD).
 
 Deploy notes
-- Cloudflare Pages: build with pnpm build, publish directory = dist. DO NOT use wrangler to deploy the frontend.
-- Ensure public/_redirects contains: /* /index.html 200
-- Edge functions / cron (supabase/functions and wrangler.toml) are deployed separately and require server secrets (wrangler deploy or supabase functions deploy).
+- Cloudflare Pages (frontend): build with pnpm build, publish directory = dist. DO NOT use wrangler to deploy the frontend.
+- Ensure public/_redirects contains: /* /index.html 200 (SPA routing)
+- Edge code (supabase/functions/, cloudflare/workers/) is deployed separately using `supabase functions deploy` or `wrangler deploy --config <file>` and requires server secrets (SUPABASE_SERVICE_ROLE_KEY, CRON_SECRET, Google creds, etc.).
 
-Testing gotchas
-- Playwright E2E requires a real Supabase instance seeded with supabase-schema.sql and appropriate env vars — don't run them without configuring Supabase.
-- Lint warnings fail CI — fix ESLint warnings (not just errors) before pushing.
+Testing / E2E gotchas
+- Playwright E2E requires a real Supabase instance seeded with supabase-schema.sql and proper env vars. Do not run E2E without provisioning a seeded Supabase.
+- GitHub Actions Playwright job expects these repo secrets set: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, APP_BASE_URL (see .github/workflows/playwright-e2e.yml).
 
 Agent Git policy (strict for automated agents)
 - Agents MAY create commits but MUST NOT create branches. Any push to origin/main requires explicit human confirmation (ask: "confirm to push?").
@@ -44,9 +53,11 @@ Agent Git policy (strict for automated agents)
 
 Where to look first (high signal)
 - README.md (setup, env, deploy checklist)
-- package.json, tsconfig.node.json (scripts and typecheck)
-- supabase-schema.sql and supabase/functions/ (DB + edge function entry points)
+- package.json, tsconfig.node.json (scripts and typecheck behaviour)
+- supabase-schema.sql and supabase/functions/ (DB schema + server/cron logic)
+- cloudflare/ and wrangler*.toml (edge worker config)
 - openspec/changes/ (active SDD artifacts)
-- .agents/skills/ and .atl/skill-registry.md (project agent/skill rules)
+- .agents/skills/ and .atl/skill-registry.md (agent/skill compact rules)
+- .github/workflows/ (CI expectations, required secrets)
 
 If docs conflict with scripts, trust the executable (package.json, tsconfig, CI). When unsure: run the exact repo command and trust its output.

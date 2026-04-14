@@ -290,6 +290,9 @@ export default function AdminPage() {
     const [selectedGrupoId, setSelectedGrupoId] = useState<string | null>(null)
     const [estudiantesEnGrupo, setEstudiantesEnGrupo] = useState<Profile[]>([])
     const [loadingEstudiantes, setLoadingEstudiantes] = useState(false)
+    // New filters for the Usuarios tab
+    const [nameSearchTerm, setNameSearchTerm] = useState('')
+    const [usuariosSelectedGroupId, setUsuariosSelectedGroupId] = useState<string | null>(null)
     const [asignandoEstudiante, setAsignandoEstudiante] = useState(false)
     const [eliminandoEstudianteId, setEliminandoEstudianteId] = useState<string | null>(null)
     const [estudianteSeleccionado, setEstudianteSeleccionado] = useState('')
@@ -427,21 +430,37 @@ export default function AdminPage() {
                 .eq('estado', 'activo')
 
             if (error) throw error
-            const estudiantes = ((data ?? []) as EstudianteAsignadoRow[])
+            const estudiantesRaw = ((data ?? []) as EstudianteAsignadoRow[])
                 .map((item) => item.estudiante)
                 .filter((item): item is NonNullable<EstudianteAsignadoRow['estudiante']> => Boolean(item))
-            setEstudiantesEnGrupo(estudiantes as Profile[])
+
+            // Merge lightweight estudiante rows with full profiles (if available) so the UI shows correct "activo" state
+            const merged = estudiantesRaw.map((e) => {
+                const full = usuarios.find((u) => u.id === e.id)
+                if (full) return full
+                // fallback minimal profile to avoid showing undefined/false activo
+                return ({
+                    id: e.id,
+                    nombre_completo: e.nombre_completo ?? '',
+                    email: e.email ?? '',
+                    rol: 'estudiante',
+                    activo: true
+                } as unknown) as Profile
+            })
+
+            setEstudiantesEnGrupo(merged)
         } catch (error) {
             showGruposMessage('error', error instanceof Error ? error.message : 'Error cargando estudiantes del grupo')
         } finally {
             setLoadingEstudiantes(false)
         }
-    }, [showGruposMessage])
+    }, [showGruposMessage, usuarios])
 
     useEffect(() => {
         if (!isAdmin) return
-        void Promise.all([loadUsuarios(), loadPadresEstudiantes()])
-    }, [isAdmin, loadPadresEstudiantes, loadUsuarios])
+        // Ensure grupos are available for the Usuarios tab group filter
+        void Promise.all([loadUsuarios(), loadPadresEstudiantes(), loadGrupos()])
+    }, [isAdmin, loadPadresEstudiantes, loadUsuarios, loadGrupos])
 
     useEffect(() => {
         if (!isAdmin) return
@@ -504,10 +523,7 @@ export default function AdminPage() {
 
     const currentUserId = profile?.id ?? null
 
-    const usuariosFiltrados = useMemo(
-        () => (userRoleFilter === 'todos' ? usuarios : usuarios.filter((usuario) => usuario.rol === userRoleFilter)),
-        [usuarios, userRoleFilter]
-    )
+    // (previous usuariosFiltrados removed — usamos usuariosDisplay para la tabla)
 
     const padresDisponibles = useMemo(
         () => usuarios.filter((usuario) => usuario.rol === 'padre' && usuario.activo),
@@ -518,6 +534,42 @@ export default function AdminPage() {
         () => usuarios.filter((usuario) => usuario.rol === 'estudiante' && usuario.activo),
         [usuarios]
     )
+
+    // When the usuarios tab group filter changes, load estudiantes for that group
+    useEffect(() => {
+        if (!usuariosSelectedGroupId) {
+            setEstudiantesEnGrupo([])
+            return
+        }
+
+        void loadEstudiantesEnGrupo(usuariosSelectedGroupId)
+    }, [usuariosSelectedGroupId, loadEstudiantesEnGrupo])
+
+    const usuariosDisplay = useMemo(() => {
+        const term = nameSearchTerm.trim().toLowerCase()
+        const matchesName = (u: { nombre_completo?: string | null; email?: string | null }) => {
+            if (!term) return true
+            const nombre = (u.nombre_completo ?? '').toLowerCase()
+            const email = (u.email ?? '').toLowerCase()
+            return nombre.includes(term) || email.includes(term)
+        }
+
+        if (userRoleFilter === 'estudiante') {
+            if (!usuariosSelectedGroupId) return []
+            return estudiantesEnGrupo.filter(matchesName)
+        }
+
+        if (userRoleFilter === 'padre') {
+            if (!usuariosSelectedGroupId) return []
+            const estudianteIds = new Set(estudiantesEnGrupo.map((e) => e.id))
+            const padreIds = new Set(padresEstudiantes.filter((pe) => estudianteIds.has(pe.estudiante_id)).map((pe) => pe.padre_id))
+            const padres = usuarios.filter((u) => padreIds.has(u.id))
+            return padres.filter(matchesName)
+        }
+
+        const base = userRoleFilter === 'todos' ? usuarios : usuarios.filter((u) => u.rol === userRoleFilter)
+        return base.filter(matchesName)
+    }, [nameSearchTerm, userRoleFilter, usuariosSelectedGroupId, usuarios, estudiantesEnGrupo, padresEstudiantes])
 
     const estudiantesAsignadosAlPadre = useMemo(
         () => new Set(padresEstudiantes.filter((item) => item.padre_id === padreSeleccionadoId).map((item) => item.estudiante_id)),
@@ -1480,19 +1532,48 @@ export default function AdminPage() {
                                     <Label htmlFor="role-filter" className="text-xs text-muted-foreground">
                                         Filtrar por rol
                                     </Label>
-                                    <select
-                                        id="role-filter"
-                                        className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                                        value={userRoleFilter}
-                                        onChange={(e) => setUserRoleFilter(e.target.value as UserRoleFilter)}
-                                    >
-                                        <option value="todos">Todos</option>
-                                        {ROLE_OPTIONS.map((rol) => (
-                                            <option key={rol} value={rol}>
-                                                {rol}
-                                            </option>
-                                        ))}
-                                    </select>
+                                    <div className="flex items-center gap-2">
+                                        <select
+                                            id="role-filter"
+                                            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                                            value={userRoleFilter}
+                                            onChange={(e) => setUserRoleFilter(e.target.value as UserRoleFilter)}
+                                        >
+                                            <option value="todos">Todos</option>
+                                            {ROLE_OPTIONS.map((rol) => (
+                                                <option key={rol} value={rol}>
+                                                    {rol}
+                                                </option>
+                                            ))}
+                                        </select>
+
+                                        {/* Name search input for Usuarios tab */}
+                                        <div className="hidden md:block">
+                                            <Input
+                                                id="usuarios-name-search"
+                                                placeholder="Buscar por nombre o email"
+                                                value={nameSearchTerm}
+                                                onChange={(e) => setNameSearchTerm(e.target.value)}
+                                                className="h-9"
+                                            />
+                                        </div>
+                                        {/* Group select for estudiante/padre roles */}
+                                        {(userRoleFilter === 'estudiante' || userRoleFilter === 'padre') && (
+                                            <select
+                                                id="usuarios-group-filter"
+                                                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                                                value={usuariosSelectedGroupId ?? ''}
+                                                onChange={(e) => setUsuariosSelectedGroupId(e.target.value || null)}
+                                            >
+                                                <option value="">Seleccionar grupo</option>
+                                                {gruposFiltradosOrdenados.map((g) => (
+                                                    <option key={g.id} value={g.id}>
+                                                        {g.grado?.nombre ?? 'Sin grado'} - Grupo {g.nombre}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        )}
+                                    </div>
                                     <span className="text-xs text-muted-foreground">Realtime</span>
                                     <span
                                         className={`h-3 w-3 rounded-full ${realtimeConnected ? 'bg-primary animate-pulse' : 'bg-muted-foreground'
@@ -1514,13 +1595,13 @@ export default function AdminPage() {
                             </div>
                         </CardHeader>
                         <CardContent>
-                            {loadingUsuarios ? (
-                                <div className="flex justify-center py-8">
-                                    <Loader2 className="h-6 w-6 animate-spin" />
-                                </div>
-                            ) : (
-                                <div className="overflow-x-auto">
-                                    <table className="w-full">
+                                    {loadingUsuarios ? (
+                                        <div className="flex justify-center py-8">
+                                            <Loader2 className="h-6 w-6 animate-spin" />
+                                        </div>
+                                    ) : (
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full">
                                         <thead className="bg-muted/50">
                                             <tr>
                                                 <th className="px-4 py-3 text-left text-sm font-medium">Nombre</th>
@@ -1531,7 +1612,7 @@ export default function AdminPage() {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y">
-                                            {usuariosFiltrados.map((usuario) => {
+                                            {usuariosDisplay.map((usuario) => {
                                                 const isSelf = usuario.id === currentUserId
                                                 const rowDeleting = deletingUserId === usuario.id
                                                 const rowToggling = togglingUserId === usuario.id
@@ -1603,13 +1684,13 @@ export default function AdminPage() {
                                                     </tr>
                                                 )
                                             })}
-                                            {usuariosFiltrados.length === 0 && (
-                                                <tr>
-                                                    <td colSpan={5} className="px-4 py-6 text-center text-sm text-muted-foreground">
-                                                        No hay usuarios para el rol seleccionado.
-                                                    </td>
-                                                </tr>
-                                            )}
+                                    {usuariosDisplay.length === 0 && (
+                                        <tr>
+                                            <td colSpan={5} className="px-4 py-6 text-center text-sm text-muted-foreground">
+                                                No hay usuarios para el rol seleccionado.
+                                            </td>
+                                        </tr>
+                                    )}
                                         </tbody>
                                     </table>
                                 </div>
