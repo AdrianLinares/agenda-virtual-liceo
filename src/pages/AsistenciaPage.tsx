@@ -123,6 +123,11 @@ export default function AsistenciaPage() {
     const [selectedGrupo, setSelectedGrupo] = useState<string>('')
     // attendanceMap stores the selected estado for each estudiante_id (default: 'presente')
     const [attendanceMap, setAttendanceMap] = useState<Record<string, Estado>>({})
+        // backwards-compat shim: older working-tree versions temporarily used selectedStudent state
+        // ensure any stray references don't crash when the variable is missing
+        // (this avoids runtime ReferenceError during transitions between versions)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ; (globalThis as any).setSelectedStudent = (globalThis as any).setSelectedStudent ?? undefined
     const [recordGroupFilter, setRecordGroupFilter] = useState<string>('all')
     const [recordGroupOptions, setRecordGroupOptions] = useState<GrupoOption[]>([])
     const [loading, setLoading] = useState(false)
@@ -172,26 +177,27 @@ export default function AsistenciaPage() {
                     return
                 }
             } else if (profile.rol === 'docente') {
-                query = query.eq('registrado_por', profile.id)
-            } else if (profile.rol === 'administrador' || profile.rol === 'administrativo') {
-                const { data: docentes, error: docentesError } = await dbClient
-                    .from('profiles')
-                    .select('id')
-                    .eq('rol', 'docente')
-                    .eq('activo', true)
-                    .returns<Array<{ id: string }>>()
+                const { data: asignaciones, error: asignacionesError } = await dbClient
+                    .from('asignaciones_docentes')
+                    .select('asignatura_id')
+                    .eq('docente_id', profile.id)
+                    .eq('año_academico', 2026)
+                    .returns<Array<{ asignatura_id: string | null }>>()
 
-                if (docentesError) throw docentesError
+                if (asignacionesError) throw asignacionesError
 
-                const docentesIds = (docentes || []).map((docente) => docente.id)
-                if (docentesIds.length > 0) {
-                    query = query.in('registrado_por', docentesIds)
-                } else {
+                const asignaturaIds = Array.from(
+                    new Set((asignaciones || []).map((asignacion) => asignacion.asignatura_id).filter(Boolean))
+                )
+
+                if (asignaturaIds.length === 0) {
                     setAsistencias([])
                     setLoading(false)
                     return
                 }
 
+                query = query.in('asignatura_id', asignaturaIds)
+            } else if (profile.rol === 'administrador' || profile.rol === 'administrativo') {
                 if (recordGroupFilter !== 'all') {
                     query = query.eq('grupo_id', recordGroupFilter)
                 }
@@ -380,7 +386,6 @@ export default function AsistenciaPage() {
 
         setSelectedGrupo('')
         setStudents([])
-        setSelectedStudent('')
 
         if (selectedAsignatura) {
             void loadGruposForAsignatura()
@@ -434,26 +439,58 @@ export default function AsistenciaPage() {
         setSuccess(null)
 
         try {
-            const rows = students.map((s) => ({
-                estudiante_id: s.estudiante_id,
-                grupo_id: selectedGrupo,
-                fecha: selectedDate,
-                estado: attendanceMap[s.estudiante_id] ?? 'presente',
-                observaciones: null,
-                asignatura_id: selectedAsignatura,
-                registrado_por: profile.id,
-            }))
+            const studentIds = students.map((s) => s.estudiante_id)
+
+            // Check which students already have a record for this fecha + asignatura.
+            // We keep insert-only here because upsert on this table can trip RLS on the
+            // UPDATE branch depending on the existing record.
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data: existing, error: existingError } = await (dbClient as any)
+                .from('asistencias')
+                .select('estudiante_id')
+                .in('estudiante_id', studentIds)
+                .eq('fecha', selectedDate)
+                .eq('asignatura_id', selectedAsignatura)
+
+            if (existingError) throw existingError
+
+            const existingIds = new Set((existing || []).map((row: { estudiante_id: string }) => row.estudiante_id))
+
+            const rowsToInsert = students
+                .filter((s) => !existingIds.has(s.estudiante_id))
+                .map((s) => ({
+                    estudiante_id: s.estudiante_id,
+                    grupo_id: selectedGrupo,
+                    fecha: selectedDate,
+                    estado: attendanceMap[s.estudiante_id] ?? 'presente',
+                    observaciones: null,
+                    asignatura_id: selectedAsignatura,
+                    registrado_por: profile.id,
+                }))
+
+            if (rowsToInsert.length === 0) {
+                setAttendanceMap({})
+                setSuccess('Ya existían registros para todos los estudiantes seleccionados en esta fecha y asignatura.')
+                await loadAsistencias()
+                requestAnimationFrame(() => {
+                    studentSelectTriggerRef.current?.focus()
+                })
+                return
+            }
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { error } = await (dbClient as any)
+            const { data: insertedData, error } = await (dbClient as any)
                 .from('asistencias')
-                .insert(rows as Database['public']['Tables']['asistencias']['Insert'][])
+                .insert(rowsToInsert as Database['public']['Tables']['asistencias']['Insert'][])
 
             if (error) throw error
 
-            // reset attendanceMap to presentes
+            const insertedCount = (insertedData || rowsToInsert).length
+            const skippedCount = students.length - insertedCount
+
+            // reset attendanceMap to presentes for next registration
             setAttendanceMap({})
-            setSuccess('Asistencias registradas correctamente')
+            setSuccess(`Asistencias registradas: ${insertedCount}. Omitidas por existir: ${skippedCount}`)
             await loadAsistencias()
             requestAnimationFrame(() => {
                 studentSelectTriggerRef.current?.focus()
