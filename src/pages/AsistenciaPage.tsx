@@ -470,6 +470,7 @@ export default function AsistenciaPage() {
 
             if (rowsToInsert.length === 0) {
                 setAttendanceMap({})
+                setFormOpen(false)
                 setSuccess('Ya existían registros para todos los estudiantes seleccionados en esta fecha y asignatura.')
                 await loadAsistencias()
                 requestAnimationFrame(() => {
@@ -490,6 +491,7 @@ export default function AsistenciaPage() {
 
             // reset attendanceMap to presentes for next registration
             setAttendanceMap({})
+            setFormOpen(false)
             setSuccess(`Asistencias registradas: ${insertedCount}. Omitidas por existir: ${skippedCount}`)
             await loadAsistencias()
             requestAnimationFrame(() => {
