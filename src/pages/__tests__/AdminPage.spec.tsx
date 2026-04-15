@@ -48,7 +48,7 @@ function createBuilder(table: string) {
     return { data: [], error: null }
   }
 
-  const builder: any = {
+  const builder = {
     select: vi.fn().mockImplementation(() => builder),
     eq: vi.fn().mockImplementation((col: string, val: unknown) => {
       eqFilters.set(col, val)
@@ -56,7 +56,7 @@ function createBuilder(table: string) {
     }),
     order: vi.fn().mockReturnThis(),
     single: vi.fn().mockImplementation(async () => buildResult()),
-    then: (resolve: any) => Promise.resolve(buildResult()).then(resolve),
+    then: (resolve: (value: unknown) => void) => Promise.resolve(buildResult()).then(resolve),
   }
 
   return builder
@@ -68,7 +68,7 @@ vi.mock('@/lib/supabase', () => ({
     channel: vi.fn(() => {
       const channelObj = {
         on: vi.fn().mockReturnThis(),
-        subscribe: vi.fn((cb: any) => {
+    subscribe: vi.fn((cb: (arg: string) => void) => {
           // emulate subscription callback
           if (typeof cb === 'function') cb('SUBSCRIBED')
           return channelObj
@@ -126,9 +126,9 @@ describe('AdminPage - filtros de Usuarios (rol, grupo, búsqueda)', () => {
     expect(within(row as HTMLElement).getByText(/Activo/i)).toBeInTheDocument()
   })
 
-  it('filtra por nombre o email usando el input de búsqueda', async () => {
+    it('filtra por nombre o email usando el input de búsqueda', async () => {
     const user = userEvent.setup()
-    const { container } = render(<AdminPage />)
+    render(<AdminPage />)
 
     // El input de búsqueda está presente y por defecto el rol es 'todos'
     const searchInput = await screen.findByPlaceholderText('Buscar por nombre o email')
