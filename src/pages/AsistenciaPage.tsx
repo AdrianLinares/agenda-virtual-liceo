@@ -121,9 +121,8 @@ export default function AsistenciaPage() {
     const [students, setStudents] = useState<StudentOption[]>([])
     const [selectedAsignatura, setSelectedAsignatura] = useState<string>('')
     const [selectedGrupo, setSelectedGrupo] = useState<string>('')
-    const [selectedStudent, setSelectedStudent] = useState<string>('')
-    const [selectedEstado, setSelectedEstado] = useState<Estado>('presente')
-    const [observaciones, setObservaciones] = useState('')
+    // attendanceMap stores the selected estado for each estudiante_id (default: 'presente')
+    const [attendanceMap, setAttendanceMap] = useState<Record<string, Estado>>({})
     const [recordGroupFilter, setRecordGroupFilter] = useState<string>('all')
     const [recordGroupOptions, setRecordGroupOptions] = useState<GrupoOption[]>([])
     const [loading, setLoading] = useState(false)
@@ -393,7 +392,8 @@ export default function AsistenciaPage() {
     useEffect(() => {
         if (!isStaff) return
 
-        setSelectedStudent('')
+        // reset attendance map when group changes
+        setAttendanceMap({})
 
         if (selectedGrupo) {
             void loadStudentsForGrupo()
@@ -402,18 +402,30 @@ export default function AsistenciaPage() {
         }
     }, [isStaff, loadStudentsForGrupo, selectedGrupo])
 
+    // initialize attendanceMap to 'presente' for each loaded student
+    useEffect(() => {
+        if (students.length === 0) return
+        setAttendanceMap((prev) => {
+            const next = { ...prev }
+            students.forEach((s) => {
+                if (!next[s.estudiante_id]) {
+                    next[s.estudiante_id] = 'presente'
+                }
+            })
+            return next
+        })
+    }, [students])
+
     const handleCreateAsistencia = async () => {
         if (!profile) return
-        if (!selectedAsignatura || !selectedGrupo || !selectedStudent) {
+        if (!selectedAsignatura || !selectedGrupo) {
             setFormOpen(true)
-            setError('Selecciona asignatura, grupo y estudiante')
+            setError('Selecciona asignatura y grupo')
             return
         }
 
-        const student = students.find((s) => s.estudiante_id === selectedStudent)
-        if (!student) {
-            setFormOpen(true)
-            setError('Estudiante inválido')
+        if (students.length === 0) {
+            setError('No hay estudiantes en el grupo seleccionado')
             return
         }
 
@@ -422,25 +434,26 @@ export default function AsistenciaPage() {
         setSuccess(null)
 
         try {
+            const rows = students.map((s) => ({
+                estudiante_id: s.estudiante_id,
+                grupo_id: selectedGrupo,
+                fecha: selectedDate,
+                estado: attendanceMap[s.estudiante_id] ?? 'presente',
+                observaciones: null,
+                asignatura_id: selectedAsignatura,
+                registrado_por: profile.id,
+            }))
+
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (dbClient as any)
                 .from('asistencias')
-                .insert({
-                    estudiante_id: student.estudiante_id,
-                    grupo_id: selectedGrupo,
-                    fecha: selectedDate,
-                    estado: selectedEstado,
-                    observaciones: observaciones.trim() ? observaciones.trim() : null,
-                    asignatura_id: selectedAsignatura,
-                    registrado_por: profile.id,
-                } as Database['public']['Tables']['asistencias']['Insert'])
+                .insert(rows as Database['public']['Tables']['asistencias']['Insert'][])
 
             if (error) throw error
 
-            setSelectedStudent('')
-            setSelectedEstado('presente')
-            setObservaciones('')
-            setSuccess('Asistencia registrada correctamente')
+            // reset attendanceMap to presentes
+            setAttendanceMap({})
+            setSuccess('Asistencias registradas correctamente')
             await loadAsistencias()
             requestAnimationFrame(() => {
                 studentSelectTriggerRef.current?.focus()
@@ -611,7 +624,7 @@ export default function AsistenciaPage() {
                                 <CardDescription>Selecciona asignatura, grupo, estudiante y estado</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <div className="grid gap-4 md:grid-cols-4">
+                                <div className="grid gap-4 md:grid-cols-2">
                                     <div className="space-y-2">
                                         <Label>Asignatura</Label>
                                         <Select value={selectedAsignatura} onValueChange={setSelectedAsignatura}>
@@ -647,63 +660,77 @@ export default function AsistenciaPage() {
                                             </SelectContent>
                                         </Select>
                                     </div>
-
-                                    <div className="space-y-2">
-                                        <Label>Estudiante</Label>
-                                        <Select
-                                            value={selectedStudent}
-                                            onValueChange={setSelectedStudent}
-                                            disabled={!selectedGrupo}
-                                        >
-                                            <SelectTrigger ref={studentSelectTriggerRef}>
-                                                <SelectValue placeholder="Selecciona un estudiante" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {students.map((student) => (
-                                                    <SelectItem key={student.estudiante_id} value={student.estudiante_id}>
-                                                        {student.nombre_completo}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label>Estado</Label>
-                                        <Select value={selectedEstado} onValueChange={(value) => setSelectedEstado(value as Estado)}>
-                                            <SelectTrigger>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {ESTADOS.map((estado) => (
-                                                    <SelectItem key={estado} value={estado}>
-                                                        {estado.charAt(0).toUpperCase() + estado.slice(1)}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
                                 </div>
 
-                                <div className="space-y-2">
-                                    <Label>Observaciones</Label>
-                                    <Input
-                                        value={observaciones}
-                                        onChange={(event) => setObservaciones(event.target.value)}
-                                        placeholder="Opcional"
-                                    />
-                                </div>
-
+                                {/* Students list with radio buttons (default: Presente) */}
                                 <div>
-                                    <Button onClick={handleCreateAsistencia} disabled={saving}>
+                                    <Label>Estudiantes</Label>
+                                    <div className="space-y-2 mt-2">
+                                        {students.length === 0 && (
+                                            <p className="text-sm text-muted-foreground">Selecciona un grupo para ver sus estudiantes</p>
+                                        )}
+
+                                        {students.map((s) => {
+                                            const estado = attendanceMap[s.estudiante_id] ?? 'presente'
+                                            return (
+                                                <div
+                                                    key={s.estudiante_id}
+                                                    className="flex flex-col items-start gap-2 rounded-lg border border-border p-3 md:flex-row md:items-center md:justify-between"
+                                                >
+                                                    <div>
+                                                        <p className="text-sm font-semibold text-foreground">{s.nombre_completo}</p>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-2 mt-2 md:mt-0">
+                                                        {(['presente', 'ausente', 'tarde', 'excusa'] as Estado[]).map((e) => {
+                                                            const initial = e.charAt(0).toUpperCase()
+                                                            const isActive = estado === e
+                                                            const base = "inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-medium"
+                                                            const color = e === 'presente' ? (isActive ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700')
+                                                                : e === 'ausente' ? (isActive ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-700')
+                                                                    : e === 'tarde' ? (isActive ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-700')
+                                                                        : (isActive ? 'bg-sky-600 text-white' : 'bg-sky-50 text-sky-700')
+
+                                                            return (
+                                                                <button
+                                                                    key={e}
+                                                                    type="button"
+                                                                    aria-pressed={isActive}
+                                                                    aria-label={`${s.nombre_completo} - ${e}`}
+                                                                    onClick={() => setAttendanceMap((prev) => ({ ...prev, [s.estudiante_id]: e }))}
+                                                                    className={`${base} ${color}`}
+                                                                >
+                                                                    {initial}
+                                                                </button>
+                                                            )
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-3">
+                                    <Button onClick={handleCreateAsistencia} disabled={saving || students.length === 0}>
                                         {saving ? (
                                             <>
                                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                                 Guardando...
                                             </>
                                         ) : (
-                                            'Registrar'
+                                            'Registrar asistencias'
                                         )}
+                                    </Button>
+
+                                    <Button variant="ghost" onClick={() => {
+                                        // reset selections
+                                        setSelectedAsignatura('')
+                                        setSelectedGrupo('')
+                                        setStudents([])
+                                        setAttendanceMap({})
+                                    }}>
+                                        Cancelar
                                     </Button>
                                 </div>
                             </CardContent>
