@@ -234,6 +234,24 @@ export default function HorariosPage() {
                 return
             }
 
+            if (profile?.rol === 'docente') {
+                const { data: asignaciones, error: asignacionesError } = await supabase
+                    .from('asignaciones_docentes')
+                    .select('grupo_id')
+                    .eq('docente_id', profile.id)
+                    .eq('año_academico', 2026)
+                    .returns<Array<{ grupo_id: string }>>()
+
+                if (asignacionesError) throw asignacionesError
+
+                const gruposAsignados = new Set((asignaciones || []).map((item) => item.grupo_id))
+                const gruposFiltrados = gruposOrdenados.filter((grupo) => gruposAsignados.has(grupo.id))
+
+                setGrupos(gruposFiltrados)
+                setSelectedGrupo(gruposFiltrados[0]?.id || '')
+                return
+            }
+
             setGrupos(gruposOrdenados)
             setSelectedGrupo(gruposOrdenados[0]?.id || '')
         } catch (err) {
