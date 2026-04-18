@@ -96,6 +96,12 @@ interface AsignacionDocente {
     asignatura_id: string
 }
 
+const cloneRubricsData = (rubrics: RubricsData): RubricsData => ({
+    A: [...rubrics.A],
+    P: [...rubrics.P],
+    C: [...rubrics.C],
+})
+
 type JsonComparable = null | boolean | number | string | JsonComparable[] | { [key: string]: JsonComparable }
 
 type NotaMutationPayload = {
@@ -250,6 +256,7 @@ export default function NotasPage() {
     const [calculatorInitialGrades, setCalculatorInitialGrades] = useState<GradesData | undefined>(undefined)
     const [calculatorInitialWeights, setCalculatorInitialWeights] = useState<CategoryWeights | undefined>(undefined)
     const [calculatorInitialRubrics, setCalculatorInitialRubrics] = useState<RubricsData | undefined>(undefined)
+    const [lastRubricsByGrupo, setLastRubricsByGrupo] = useState<Record<string, RubricsData>>({})
     const [calculatorRenderKey, setCalculatorRenderKey] = useState(0)
     const [editingNotaId, setEditingNotaId] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
@@ -1002,6 +1009,7 @@ export default function NotasPage() {
         lastResultsRefEdit.current = null
         setCalculatorInitialGrades(undefined)
         setCalculatorInitialWeights(undefined)
+        setCalculatorInitialRubrics(undefined)
         setEditingNotaId(null)
         setCalculatorRenderKey((prev) => prev + 1)
     }
@@ -1010,16 +1018,21 @@ export default function NotasPage() {
         source: 'new' | 'edit',
         results: GradeResults,
         _grades: GradesData,
-        _rubrics: RubricsData,
+        rubrics: RubricsData,
         _weights: CategoryWeights
     ) => {
-        // _grades/_rubrics/_weights are intentionally unused here; kept for future use
+        // _grades/_weights are intentionally unused here; kept for future use
         void _grades
-        void _rubrics
         void _weights
         setCalculatedResults(results)
 
         if (source === 'edit') {
+            if (selectedGrupo) {
+                setLastRubricsByGrupo((prev) => ({
+                    ...prev,
+                    [selectedGrupo]: cloneRubricsData(rubrics),
+                }))
+            }
             lastResultsRefEdit.current = results
             return
         }
@@ -1072,6 +1085,7 @@ export default function NotasPage() {
 
     const openEditNotaCalculator = (nota: Nota) => {
         const parsedData = parseStoredCalculatorData(nota.observaciones)
+        const cachedRubrics = lastRubricsByGrupo[nota.grupo_id]
 
         setEditingNotaId(nota.id)
         setSelectedGrupo(nota.grupo_id)
@@ -1080,7 +1094,7 @@ export default function NotasPage() {
         setCalculatedResults(null)
         setCalculatorInitialGrades(parsedData.grades)
         setCalculatorInitialWeights(parsedData.weights)
-        setCalculatorInitialRubrics(parsedData.rubrics)
+        setCalculatorInitialRubrics(cachedRubrics ? cloneRubricsData(cachedRubrics) : parsedData.rubrics)
         setCalculatorRenderKey((prev) => prev + 1)
         setShowCalculator(nota.id)
     }
