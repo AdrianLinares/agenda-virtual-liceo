@@ -267,10 +267,9 @@ export default function NotasPage() {
         if (selectedPeriodo && profile) {
             loadNotas()
         }
-        // Motivo: loadNotas depende de selectedPeriodo y filtros; omitimos otras dependencias intencionalmente
-        // para controlar cuándo se ejecuta. Revisar si se necesita incluir más dependencias antes de eliminar esta línea.
+        // Motivo: la consulta base depende del periodo y del perfil; los filtros de vista se aplican localmente.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedPeriodo, profile, viewGrupo, viewAsignatura, viewEstudiante])
+    }, [selectedPeriodo, profile])
 
     // Cargar opciones de filtros y calculadora para docente
     useEffect(() => {
@@ -373,18 +372,6 @@ export default function NotasPage() {
                 query = query.in('grupo_id', gruposAsignados).in('asignatura_id', asignaturasAsignadas)
             }
 
-            if (canUseViewFilters) {
-                if (viewGrupo !== 'all') {
-                    query = query.eq('grupo_id', viewGrupo)
-                }
-                if (viewAsignatura !== 'all') {
-                    query = query.eq('asignatura_id', viewAsignatura)
-                }
-                if (viewEstudiante !== 'all') {
-                    query = query.eq('estudiante_id', viewEstudiante)
-                }
-            }
-
             const { data, error } = await query
 
             if (error) throw error
@@ -484,10 +471,32 @@ export default function NotasPage() {
         }
     }
 
+    const filteredNotas = useMemo(() => {
+        if (!canUseViewFilters) {
+            return notas
+        }
+
+        return notas.filter((nota) => {
+            if (viewGrupo !== 'all' && nota.grupo_id !== viewGrupo) {
+                return false
+            }
+
+            if (viewAsignatura !== 'all' && nota.asignatura_id !== viewAsignatura) {
+                return false
+            }
+
+            if (viewEstudiante !== 'all' && nota.estudiante_id !== viewEstudiante) {
+                return false
+            }
+
+            return true
+        })
+    }, [canUseViewFilters, notas, viewAsignatura, viewEstudiante, viewGrupo])
+
     const resumenAsignaturas = useMemo<ResumenAsignatura[]>(() => {
         const map = new Map<string, ResumenAsignatura>()
 
-        notas.forEach((nota) => {
+        filteredNotas.forEach((nota) => {
             const key = nota.asignatura?.nombre || 'Sin asignatura'
             const current = map.get(key)
             if (!current) {
@@ -509,13 +518,13 @@ export default function NotasPage() {
         })
 
         return Array.from(map.values()).sort((a, b) => a.nombre.localeCompare(b.nombre))
-    }, [notas])
+    }, [filteredNotas])
 
     const promedioGeneral = useMemo(() => {
-        if (notas.length === 0) return null
-        const total = notas.reduce((acc, nota) => acc + nota.nota, 0)
-        return total / notas.length
-    }, [notas])
+        if (filteredNotas.length === 0) return null
+        const total = filteredNotas.reduce((acc, nota) => acc + nota.nota, 0)
+        return total / filteredNotas.length
+    }, [filteredNotas])
 
     const viewAsignaturasDisponibles = useMemo(() => {
         if (!canUseViewFilters || viewGrupo === 'all') {
@@ -816,7 +825,7 @@ export default function NotasPage() {
             // Guardar la nota con los detalles de la calculadora en observaciones
             const weights = latestWeights ?? DEFAULT_WEIGHTS
 
-            let observaciones: unknown = JSON.stringify({
+            const observacionesBase = JSON.stringify({
                 actitudinal: {
                     promedio: effectiveResults.averages.A,
                     ponderacion: effectiveResults.weighted.A,
@@ -840,7 +849,7 @@ export default function NotasPage() {
                 }
             })
 
-            observaciones = normalizeObservacionesForSave(observaciones)
+            const observaciones = normalizeObservacionesForSave(observacionesBase)
 
             const notaData: NotaMutationPayload = {
                 estudiante_id: selectedEstudiante,
@@ -901,7 +910,9 @@ export default function NotasPage() {
                     }
                 }
             } else {
-                result = await supabase
+                // Motivo: el cliente generado de Supabase no está tipado para esta tabla en este repo.
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                result = await (supabase as any)
                     .from('notas')
                     .insert(notaData)
                     .select()
@@ -1439,7 +1450,16 @@ export default function NotasPage() {
                 </Alert>
             )}
 
-            {!loading && notas.length > 0 && (
+            {!loading && notas.length > 0 && filteredNotas.length === 0 && (
+                <Alert>
+                    <BookOpen className="h-4 w-4" />
+                    <AlertDescription>
+                        No hay notas que coincidan con los filtros seleccionados.
+                    </AlertDescription>
+                </Alert>
+            )}
+
+            {!loading && filteredNotas.length > 0 && (
                 <div className="grid gap-6 lg:grid-cols-3">
                     <Card className="lg:col-span-1">
                         <CardHeader>
@@ -1487,7 +1507,7 @@ export default function NotasPage() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-3">
-                            {notas.map((nota) => {
+                            {filteredNotas.map((nota) => {
                                 const isEditing = showCalculator === nota.id && editingNotaId === nota.id;
                                 return (
                                     <div
