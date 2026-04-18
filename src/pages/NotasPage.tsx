@@ -24,6 +24,8 @@ const DEFAULT_WEIGHTS: CategoryWeights = {
     C: 50,
 }
 
+const GRADE_CATEGORIES: GradeCategory[] = ['A', 'P', 'C']
+
 interface Periodo {
     id: string
     nombre: string
@@ -101,6 +103,39 @@ const cloneRubricsData = (rubrics: RubricsData): RubricsData => ({
     P: [...rubrics.P],
     C: [...rubrics.C],
 })
+
+const normalizeRubricsLength = (values: string[] | undefined, expectedLength: number): string[] =>
+    Array.from({ length: expectedLength }, (_, index) => String(values?.[index] ?? ''))
+
+const isRubricsCompleteForGrades = (grades: GradesData, rubrics: RubricsData): boolean =>
+    GRADE_CATEGORIES.every((category) => {
+        const expectedLength = grades[category].length
+        if (expectedLength === 0) {
+            return true
+        }
+
+        return normalizeRubricsLength(rubrics[category], expectedLength).every((value) => value.trim().length > 0)
+    })
+
+const mergeMissingRubricsFromSource = (
+    grades: GradesData,
+    targetRubrics: RubricsData,
+    sourceRubrics: RubricsData
+): RubricsData => {
+    const merged: RubricsData = { A: [], P: [], C: [] }
+
+    GRADE_CATEGORIES.forEach((category) => {
+        const expectedLength = grades[category].length
+        const targetValues = normalizeRubricsLength(targetRubrics[category], expectedLength)
+        const sourceValues = normalizeRubricsLength(sourceRubrics[category], expectedLength)
+
+        merged[category] = targetValues.map((value, index) =>
+            value.trim().length > 0 ? value : sourceValues[index]
+        )
+    })
+
+    return merged
+}
 
 type JsonComparable = null | boolean | number | string | JsonComparable[] | { [key: string]: JsonComparable }
 
@@ -831,28 +866,42 @@ export default function NotasPage() {
 
             // Guardar la nota con los detalles de la calculadora en observaciones
             const weights = latestWeights ?? DEFAULT_WEIGHTS
+            const resolvedGrades: GradesData = latestGrades ?? calculatorInitialGrades ?? { A: [], P: [], C: [] }
+            let resolvedRubrics: RubricsData = latestRubrics ?? calculatorInitialRubrics ?? { A: [], P: [], C: [] }
+
+            if (!isRubricsCompleteForGrades(resolvedGrades, resolvedRubrics)) {
+                const sourceRubrics = findCompleteRubricsForGrupo(
+                    selectedGrupo,
+                    selectedAsignatura,
+                    editingNotaId ?? undefined
+                )
+
+                if (sourceRubrics) {
+                    resolvedRubrics = mergeMissingRubricsFromSource(resolvedGrades, resolvedRubrics, sourceRubrics)
+                }
+            }
 
             const observacionesBase = JSON.stringify({
                 actitudinal: {
                     promedio: effectiveResults.averages.A,
                     ponderacion: effectiveResults.weighted.A,
                     porcentaje: weights.A,
-                    notas: latestGrades?.A || [],
-                    rubrica: latestRubrics?.A || []
+                    notas: resolvedGrades.A,
+                    rubrica: resolvedRubrics.A
                 },
                 procedimental: {
                     promedio: effectiveResults.averages.P,
                     ponderacion: effectiveResults.weighted.P,
                     porcentaje: weights.P,
-                    notas: latestGrades?.P || [],
-                    rubrica: latestRubrics?.P || []
+                    notas: resolvedGrades.P,
+                    rubrica: resolvedRubrics.P
                 },
                 cognitiva: {
                     promedio: effectiveResults.averages.C,
                     ponderacion: effectiveResults.weighted.C,
                     porcentaje: weights.C,
-                    notas: latestGrades?.C || [],
-                    rubrica: latestRubrics?.C || []
+                    notas: resolvedGrades.C,
+                    rubrica: resolvedRubrics.C
                 }
             })
 
@@ -1021,13 +1070,12 @@ export default function NotasPage() {
         rubrics: RubricsData,
         _weights: CategoryWeights
     ) => {
-        // _grades/_weights are intentionally unused here; kept for future use
-        void _grades
+        // _weights is intentionally unused here; kept for future use
         void _weights
         setCalculatedResults(results)
 
         if (source === 'edit') {
-            if (selectedGrupo) {
+            if (selectedGrupo && isRubricsCompleteForGrades(_grades, rubrics)) {
                 setLastRubricsByGrupo((prev) => ({
                     ...prev,
                     [selectedGrupo]: cloneRubricsData(rubrics),
@@ -1083,9 +1131,38 @@ export default function NotasPage() {
         }
     }
 
+    const findCompleteRubricsForGrupo = (
+        grupoId: string,
+        asignaturaId: string,
+        excludeNotaId?: string
+    ): RubricsData | null => {
+        const cachedRubrics = lastRubricsByGrupo[grupoId]
+        if (cachedRubrics) {
+            return cloneRubricsData(cachedRubrics)
+        }
+
+        const sameAsignaturaCandidates = notas.filter(
+            (nota) => nota.grupo_id === grupoId && nota.asignatura_id === asignaturaId && nota.id !== excludeNotaId
+        )
+        const sameGrupoCandidates = notas.filter((nota) => nota.grupo_id === grupoId && nota.id !== excludeNotaId)
+        const candidates = sameAsignaturaCandidates.length > 0 ? sameAsignaturaCandidates : sameGrupoCandidates
+
+        for (const candidate of candidates) {
+            const parsedCandidate = parseStoredCalculatorData(candidate.observaciones)
+            if (isRubricsCompleteForGrades(parsedCandidate.grades, parsedCandidate.rubrics)) {
+                return cloneRubricsData(parsedCandidate.rubrics)
+            }
+        }
+
+        return null
+    }
+
     const openEditNotaCalculator = (nota: Nota) => {
         const parsedData = parseStoredCalculatorData(nota.observaciones)
-        const cachedRubrics = lastRubricsByGrupo[nota.grupo_id]
+        const sourceRubrics = findCompleteRubricsForGrupo(nota.grupo_id, nota.asignatura_id, nota.id)
+        const syncedRubrics = sourceRubrics
+            ? mergeMissingRubricsFromSource(parsedData.grades, parsedData.rubrics, sourceRubrics)
+            : parsedData.rubrics
 
         setEditingNotaId(nota.id)
         setSelectedGrupo(nota.grupo_id)
@@ -1094,7 +1171,7 @@ export default function NotasPage() {
         setCalculatedResults(null)
         setCalculatorInitialGrades(parsedData.grades)
         setCalculatorInitialWeights(parsedData.weights)
-        setCalculatorInitialRubrics(cachedRubrics ? cloneRubricsData(cachedRubrics) : parsedData.rubrics)
+        setCalculatorInitialRubrics(cloneRubricsData(syncedRubrics))
         setCalculatorRenderKey((prev) => prev + 1)
         setShowCalculator(nota.id)
     }
