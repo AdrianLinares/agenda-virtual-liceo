@@ -101,6 +101,50 @@ export default function HorariosPage() {
     const [editAula, setEditAula] = useState('')
 
     const canManageHorarios = profile?.rol === 'administrador' || profile?.rol === 'administrativo'
+    const isStudentOrParent = profile?.rol === 'estudiante' || profile?.rol === 'padre'
+
+    const loadGruposRelacionados = useCallback(async () => {
+        if (!profile) return [] as string[]
+
+        if (profile.rol === 'estudiante') {
+            const { data, error } = await supabase
+                .from('estudiantes_grupos')
+                .select('grupo_id')
+                .eq('estudiante_id', profile.id)
+                .eq('año_academico', 2026)
+                .returns<Array<{ grupo_id: string }>>()
+
+            if (error) throw error
+
+            return Array.from(new Set((data || []).map((item) => item.grupo_id)))
+        }
+
+        if (profile.rol === 'padre') {
+            const { data: hijos, error: hijosError } = await supabase
+                .from('padres_estudiantes')
+                .select('estudiante_id')
+                .eq('padre_id', profile.id)
+                .returns<Array<{ estudiante_id: string }>>()
+
+            if (hijosError) throw hijosError
+
+            const hijosIds = (hijos || []).map((item) => item.estudiante_id)
+            if (hijosIds.length === 0) return []
+
+            const { data: grupos, error: gruposError } = await supabase
+                .from('estudiantes_grupos')
+                .select('grupo_id')
+                .eq('año_academico', 2026)
+                .in('estudiante_id', hijosIds)
+                .returns<Array<{ grupo_id: string }>>()
+
+            if (gruposError) throw gruposError
+
+            return Array.from(new Set((grupos || []).map((item) => item.grupo_id)))
+        }
+
+        return []
+    }, [profile])
 
     const loadAsignacionesGrupo = useCallback(async (grupoId: string) => {
         if (!grupoId || !profile) return []
@@ -129,20 +173,12 @@ export default function HorariosPage() {
     }, [profile])
 
     useEffect(() => {
-        if (profile) {
-            loadGrupos()
-            loadAsignaturas()
-            loadDocentes()
-        }
-    }, [profile])
-
-    useEffect(() => {
-        if (profile && selectedGrupo) {
+        if (profile && (isStudentOrParent || selectedGrupo)) {
             loadHorarios()
         }
-        // Motivo: loadHorarios depende de selectedGrupo y profile; omitimos otras dependencias intencionalmente.
+        // Motivo: loadHorarios depende de selectedGrupo, role y profile; omitimos otras dependencias intencionalmente.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [profile, selectedGrupo])
+    }, [profile, selectedGrupo, isStudentOrParent])
 
     useEffect(() => {
         if (profile && selectedGrupo) {
@@ -167,7 +203,7 @@ export default function HorariosPage() {
         setEditAsignacionesGrupo([])
     }, [profile, editingHorarioId, editGrupoId, loadAsignacionesGrupo])
 
-    const loadGrupos = async () => {
+    const loadGrupos = useCallback(async () => {
         try {
             const { data, error } = await supabase
                 .from('grupos')
@@ -190,17 +226,23 @@ export default function HorariosPage() {
                 (grupo) => grupo.nombre
             )
 
-            setGrupos(gruposOrdenados)
-            if (gruposOrdenados.length > 0) {
-                setSelectedGrupo(gruposOrdenados[0].id)
+            if (profile && (profile.rol === 'estudiante' || profile.rol === 'padre')) {
+                const gruposRelacionados = await loadGruposRelacionados()
+                const gruposFiltrados = gruposOrdenados.filter((grupo) => gruposRelacionados.includes(grupo.id))
+                setGrupos(gruposFiltrados)
+                setSelectedGrupo(gruposFiltrados[0]?.id || '')
+                return
             }
+
+            setGrupos(gruposOrdenados)
+            setSelectedGrupo(gruposOrdenados[0]?.id || '')
         } catch (err) {
             console.error('Error loading grupos:', err)
             setError('Error al cargar los grupos')
         }
-    }
+    }, [loadGruposRelacionados, profile])
 
-    const loadAsignaturas = async () => {
+    const loadAsignaturas = useCallback(async () => {
         try {
             const { data, error } = await supabase
                 .from('asignaturas')
@@ -213,9 +255,9 @@ export default function HorariosPage() {
         } catch (err) {
             console.error('Error loading asignaturas:', err)
         }
-    }
+    }, [])
 
-    const loadDocentes = async () => {
+    const loadDocentes = useCallback(async () => {
         try {
             const { data, error } = await supabase
                 .from('profiles')
@@ -230,10 +272,20 @@ export default function HorariosPage() {
         } catch (err) {
             console.error('Error loading docentes:', err)
         }
-    }
+    }, [])
+
+    useEffect(() => {
+        if (profile) {
+            loadGrupos()
+            loadAsignaturas()
+            loadDocentes()
+        }
+    }, [loadAsignaturas, loadDocentes, loadGrupos, profile])
 
     const loadHorarios = async () => {
-        if (!selectedGrupo) return
+        if (!profile) return
+
+        if (!isStudentOrParent && !selectedGrupo) return
 
         setLoading(true)
         setError(null)
@@ -247,9 +299,19 @@ export default function HorariosPage() {
           grupo:grupo_id (nombre, grado:grado_id (nombre)),
           docente:docente_id (nombre_completo)
         `)
-                .eq('grupo_id', selectedGrupo)
                 .order('dia_semana', { ascending: true })
                 .order('hora_inicio', { ascending: true })
+
+            if (isStudentOrParent) {
+                const gruposRelacionados = await loadGruposRelacionados()
+                if (gruposRelacionados.length === 0) {
+                    setHorarios([])
+                    return
+                }
+                query = query.in('grupo_id', gruposRelacionados)
+            } else {
+                query = query.eq('grupo_id', selectedGrupo)
+            }
 
             if (profile?.rol === 'docente') {
                 query = query.eq('docente_id', profile.id)
@@ -559,27 +621,29 @@ export default function HorariosPage() {
                 </Alert>
             )}
 
-            <Card>
-                <CardContent className="pt-6">
-                    <div className="grid gap-4 md:grid-cols-3">
-                        <div className="space-y-2">
-                            <Label>Grupo</Label>
-                            <Select value={selectedGrupo} onValueChange={setSelectedGrupo}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Selecciona un grupo" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {grupos.map((grupo) => (
-                                        <SelectItem key={grupo.id} value={grupo.id}>
-                                            {grupo.grado} - {grupo.nombre}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+            {!isStudentOrParent && (
+                <Card>
+                    <CardContent className="pt-6">
+                        <div className="grid gap-4 md:grid-cols-3">
+                            <div className="space-y-2">
+                                <Label>Grupo</Label>
+                                <Select value={selectedGrupo} onValueChange={setSelectedGrupo}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Selecciona un grupo" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {grupos.map((grupo) => (
+                                            <SelectItem key={grupo.id} value={grupo.id}>
+                                                {grupo.grado} - {grupo.nombre}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </div>
-                    </div>
-                </CardContent>
-            </Card>
+                    </CardContent>
+                </Card>
+            )}
 
             {canManageHorarios && (
                 <Card>
@@ -677,7 +741,11 @@ export default function HorariosPage() {
             {!loading && horarios.length === 0 && (
                 <Alert>
                     <CalendarClock className="h-4 w-4" />
-                    <AlertDescription>No hay horarios registrados para este grupo.</AlertDescription>
+                    <AlertDescription>
+                        {isStudentOrParent
+                            ? 'No hay horarios registrados para tu grupo.'
+                            : 'No hay horarios registrados para este grupo.'}
+                    </AlertDescription>
                 </Alert>
             )}
 

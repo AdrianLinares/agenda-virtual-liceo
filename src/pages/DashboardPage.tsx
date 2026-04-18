@@ -401,8 +401,8 @@ export default function DashboardPage() {
       cancelled = true
       window.clearTimeout(deferredLoadId)
     }
-  // Motivo: mantener secuencia de carga controlada sin re-ejecutar por funciones recreadas.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Motivo: mantener secuencia de carga controlada sin re-ejecutar por funciones recreadas.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, loadMensajesSinLeer, loadAsistenciaStats, loadNotasStats, loadPermisosStats])
 
   const loadEventos = async () => {
@@ -513,6 +513,58 @@ export default function DashboardPage() {
     }
   }
 
+  const loadGruposRelacionadosParaHorarios = useCallback(async (): Promise<string[]> => {
+    if (!profile?.id) return []
+
+    if (profile.rol === 'estudiante') {
+      const { data, error } = await withTimeout(
+        supabase
+          .from('estudiantes_grupos')
+          .select('grupo_id')
+          .eq('estudiante_id', profile.id)
+          .eq('año_academico', 2026),
+        8000,
+        'Tiempo de espera agotado al cargar grupos del estudiante'
+      )
+
+      if (error) throw error
+
+      return Array.from(new Set(((data || []) as GroupAssignment[]).map((item) => item.grupo_id)))
+    }
+
+    if (profile.rol === 'padre') {
+      const { data: hijos, error: hijosError } = await withTimeout(
+        supabase
+          .from('padres_estudiantes')
+          .select('estudiante_id')
+          .eq('padre_id', profile.id),
+        8000,
+        'Tiempo de espera agotado al cargar hijos del acudiente'
+      )
+
+      if (hijosError) throw hijosError
+
+      const hijosIds = Array.from(new Set(((hijos || []) as TeacherStudent[]).map((item) => item.estudiante_id)))
+      if (hijosIds.length === 0) return []
+
+      const { data: grupos, error: gruposError } = await withTimeout(
+        supabase
+          .from('estudiantes_grupos')
+          .select('grupo_id')
+          .in('estudiante_id', hijosIds)
+          .eq('año_academico', 2026),
+        8000,
+        'Tiempo de espera agotado al cargar grupos de los hijos'
+      )
+
+      if (gruposError) throw gruposError
+
+      return Array.from(new Set(((grupos || []) as GroupAssignment[]).map((item) => item.grupo_id)))
+    }
+
+    return []
+  }, [profile?.id, profile?.rol])
+
   const loadHorariosCount = async () => {
     if (!userId) {
       setHorariosCount(0)
@@ -521,6 +573,7 @@ export default function DashboardPage() {
     }
 
     const isDocente = profile?.rol === 'docente'
+    const isStudentOrParent = profile?.rol === 'estudiante' || profile?.rol === 'padre'
     const cacheKeyH = isDocente ? (profile?.id || '') : userId
     const cachedCountH = getFreshCache(dashboardCache.horariosByUser, cacheKeyH)
     if (cachedCountH !== null) {
@@ -535,9 +588,20 @@ export default function DashboardPage() {
       let query = supabase
         .from('horarios')
         .select('id', { count: 'exact', head: true })
-      if (isDocente && profile?.id) {
+
+      if (isStudentOrParent) {
+        const gruposRelacionados = await loadGruposRelacionadosParaHorarios()
+        if (gruposRelacionados.length === 0) {
+          setHorariosCount(0)
+          setCache(dashboardCache.horariosByUser, cacheKeyH, 0)
+          return
+        }
+
+        query = query.in('grupo_id', gruposRelacionados)
+      } else if (isDocente && profile?.id) {
         query = query.eq('docente_id', profile.id)
       }
+
       const { count, error } = await withTimeout(query, 8000, 'Tiempo de espera agotado al cargar horarios')
       if (error) throw error
       const resolvedCount = count ?? 0
