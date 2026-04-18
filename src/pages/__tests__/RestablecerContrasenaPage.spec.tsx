@@ -10,12 +10,14 @@ const {
   getSessionMock,
   setSessionMock,
   exchangeCodeForSessionMock,
+  verifyOtpMock,
   updatePasswordWithRecoveryMock,
   syncSessionMock,
 } = vi.hoisted(() => ({
   getSessionMock: vi.fn(),
   setSessionMock: vi.fn(),
   exchangeCodeForSessionMock: vi.fn(),
+  verifyOtpMock: vi.fn(),
   updatePasswordWithRecoveryMock: vi.fn(),
   syncSessionMock: vi.fn(),
 }))
@@ -32,6 +34,7 @@ vi.mock('@/lib/supabase', () => ({
       getSession: getSessionMock,
       setSession: setSessionMock,
       exchangeCodeForSession: exchangeCodeForSessionMock,
+      verifyOtp: verifyOtpMock,
     },
   },
 }))
@@ -104,6 +107,31 @@ describe('RestablecerContrasenaPage', () => {
     expect(String(lastCall?.[2])).toBe('/restablecer-contrasena')
   })
 
+  it('hydrates recovery session from token_hash + type=recovery and cleans URL', async () => {
+    window.history.replaceState({}, '', '/restablecer-contrasena?token_hash=th123&type=recovery')
+    const replaceStateSpy = vi.spyOn(window.history, 'replaceState')
+
+    getSessionMock
+      .mockResolvedValueOnce({ data: { session: null }, error: null })
+      .mockResolvedValueOnce({ data: { session: { user: { id: 'u1' } } }, error: null })
+    verifyOtpMock.mockResolvedValue({ error: null })
+
+    render(
+      <MemoryRouter>
+        <RestablecerContrasenaPage />
+      </MemoryRouter>
+    )
+
+    await waitFor(() => {
+      expect(verifyOtpMock).toHaveBeenCalledWith({ type: 'recovery', token_hash: 'th123' })
+    })
+
+    expect(syncSessionMock).toHaveBeenCalledWith('manual')
+    const lastCall = replaceStateSpy.mock.calls.at(-1)
+    expect(String(lastCall?.[2])).toBe('/restablecer-contrasena')
+    expect(screen.queryByText(/enlace de recuperación es inválido o expiró/i)).not.toBeInTheDocument()
+  })
+
   it('shows friendly invalid link error and keeps submit disabled when no tokens or code', async () => {
     getSessionMock.mockResolvedValue({ data: { session: null }, error: null })
 
@@ -114,6 +142,7 @@ describe('RestablecerContrasenaPage', () => {
     )
 
     expect(await screen.findByText('El enlace de recuperación es inválido o expiró. Solicita uno nuevo.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /solicitar nuevo enlace de recuperación/i })).toHaveAttribute('href', '/recuperar-contrasena')
     const submit = screen.getByRole('button', { name: /restablecer contraseña/i })
     expect(submit).toBeDisabled()
   })

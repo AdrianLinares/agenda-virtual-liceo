@@ -9,6 +9,19 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertCircle, CheckCircle2, Clock3 } from 'lucide-react'
 
+function shouldShowRecoveryRequestCta(errorMessage: string) {
+    const normalized = errorMessage.toLowerCase()
+
+    return (
+        normalized.includes('inválido') ||
+        normalized.includes('invalido') ||
+        normalized.includes('expir') ||
+        normalized.includes('recovery') ||
+        normalized.includes('sesión de recuperación') ||
+        normalized.includes('sesion de recuperacion')
+    )
+}
+
 export default function RestablecerContrasenaPage() {
     const [newPassword, setNewPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
@@ -22,6 +35,7 @@ export default function RestablecerContrasenaPage() {
     const loading = useAuthStore((state) => state.loading)
     const syncSession = useAuthStore((state) => state.syncSession)
     const navigate = useNavigate()
+    const showRecoveryRequestCta = !success && !validatingRecovery && shouldShowRecoveryRequestCta(error)
 
     useEffect(() => {
         let cancelled = false
@@ -56,6 +70,8 @@ export default function RestablecerContrasenaPage() {
                 const accessToken = hashParams.get('access_token')
                 const refreshToken = hashParams.get('refresh_token')
                 const code = searchParams.get('code')
+                const tokenHash = searchParams.get('token_hash')
+                const recoveryType = searchParams.get('type') || hashParams.get('type')
 
                 if (accessToken && refreshToken) {
                     const { error: setSessionError } = await supabase.auth.setSession({
@@ -131,6 +147,46 @@ export default function RestablecerContrasenaPage() {
                             // ignore
                         }
                     }
+                    return
+                }
+
+                if (tokenHash && recoveryType === 'recovery') {
+                    const { error: verifyOtpError } = await supabase.auth.verifyOtp({
+                        type: 'recovery',
+                        token_hash: tokenHash,
+                    })
+
+                    if (verifyOtpError) {
+                        throw verifyOtpError
+                    }
+
+                    const { error: confirmError } = await supabase.auth.getSession()
+                    if (confirmError) {
+                        throw confirmError
+                    }
+
+                    if (!cancelled) {
+                        try {
+                            await syncSession?.('manual')
+                        } catch (e) {
+                            console.warn('syncSession failed after verifyOtp:', e)
+                        }
+
+                        setRecoveryReady(true)
+                        setError('')
+
+                        try {
+                            const url = new URL(window.location.href)
+                            url.hash = ''
+                            url.searchParams.delete('code')
+                            url.searchParams.delete('token_hash')
+                            url.searchParams.delete('type')
+                            window.history.replaceState({}, '', url.pathname + url.search)
+                        } catch (e) {
+                            // ignore
+                        }
+                    }
+
                     return
                 }
 
@@ -242,6 +298,14 @@ export default function RestablecerContrasenaPage() {
                                     <AlertCircle className="h-4 w-4" />
                                     <AlertDescription>{error}</AlertDescription>
                                 </Alert>
+                            )}
+
+                            {showRecoveryRequestCta && (
+                                <Button asChild variant="outline" className="w-full" type="button" disabled={loading}>
+                                    <Link to="/recuperar-contrasena">
+                                        Solicitar nuevo enlace de recuperación
+                                    </Link>
+                                </Button>
                             )}
 
                             {success && (

@@ -7,6 +7,8 @@ type Profile = Database['public']['Tables']['profiles']['Row']
 const getSessionMock = vi.fn()
 const updateUserMock = vi.fn()
 const signOutMock = vi.fn()
+const signInWithPasswordMock = vi.fn()
+const fromMock = vi.fn()
 
 vi.mock('@/lib/supabase', () => ({
   supabase: {
@@ -14,10 +16,23 @@ vi.mock('@/lib/supabase', () => ({
       getSession: getSessionMock,
       updateUser: updateUserMock,
       signOut: signOutMock,
+      signInWithPassword: signInWithPasswordMock,
     },
-    from: vi.fn(),
+    from: fromMock,
   },
 }))
+
+function createProfilesQueryMock(result: { data: Profile | null; error: unknown }) {
+  const maybeSingle = vi.fn().mockResolvedValue(result)
+  const eq = vi.fn().mockReturnValue({ maybeSingle })
+  const select = vi.fn().mockReturnValue({ eq })
+
+  return {
+    select,
+    eq,
+    maybeSingle,
+  }
+}
 
 describe('useAuthStore.updatePasswordWithRecovery', () => {
   beforeEach(async () => {
@@ -112,5 +127,53 @@ describe('useAuthStore.updatePasswordWithRecovery', () => {
 
     expect(signOutMock).toHaveBeenNthCalledWith(1, { scope: 'local' })
     expect(signOutMock).toHaveBeenNthCalledWith(2)
+  })
+})
+
+describe('useAuthStore.signIn', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    const { useAuthStore } = await import('@/lib/auth-store')
+    useAuthStore.setState({
+      user: null,
+      profile: null,
+      loading: false,
+      initialized: true,
+      resumeVersion: 0,
+    })
+  })
+
+  it('does not fail sign-in when profile query returns an error', async () => {
+    const { useAuthStore } = await import('@/lib/auth-store')
+    const query = createProfilesQueryMock({ data: null, error: { message: 'permission denied' } })
+
+    signInWithPasswordMock.mockResolvedValue({
+      data: { user: { id: 'user-1', email: 'test@liceo.edu' } },
+      error: null,
+    })
+    fromMock.mockReturnValue(query)
+
+    await expect(useAuthStore.getState().signIn('test@liceo.edu', 'secret')).resolves.toBeUndefined()
+
+    expect(useAuthStore.getState().user?.id).toBe('user-1')
+    expect(useAuthStore.getState().profile).toBeNull()
+    expect(query.maybeSingle).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps sign-in successful when profile row does not exist', async () => {
+    const { useAuthStore } = await import('@/lib/auth-store')
+    const query = createProfilesQueryMock({ data: null, error: null })
+
+    signInWithPasswordMock.mockResolvedValue({
+      data: { user: { id: 'user-2', email: 'missing-profile@liceo.edu' } },
+      error: null,
+    })
+    fromMock.mockReturnValue(query)
+
+    await expect(useAuthStore.getState().signIn('missing-profile@liceo.edu', 'secret')).resolves.toBeUndefined()
+
+    expect(useAuthStore.getState().user?.id).toBe('user-2')
+    expect(useAuthStore.getState().profile).toBeNull()
+    expect(query.maybeSingle).toHaveBeenCalledTimes(1)
   })
 })

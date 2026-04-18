@@ -110,7 +110,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               .from('profiles')
               .select('*')
               .eq('id', data.user.id)
-              .single(),
+              .maybeSingle(),
             AUTH_TIMEOUT_MS,
             'Tiempo de espera agotado al cargar el perfil'
           ),
@@ -119,11 +119,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         )
 
         if (profileError) {
-          console.error('Error fetching profile:', profileError)
-          throw new Error('No se pudo obtener el perfil del usuario')
+          console.warn('Error fetching profile during sign-in (non-blocking):', profileError)
+          set({ user: data.user, profile: null })
+          return
         }
 
-        set({ user: data.user, profile: profileData })
+        set({ user: data.user, profile: profileData || null })
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Error al iniciar sesión'
@@ -309,40 +310,40 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         (retryError) => isTransientNetworkError(retryError instanceof Error ? retryError.message : retryError)
       )
 
-       // End recovery flow with a clean local session before returning to login.
-       try {
-         const { error: localSignOutError } = await withRetry(
+      // End recovery flow with a clean local session before returning to login.
+      try {
+        const { error: localSignOutError } = await withRetry(
+          () => withTimeout(
+            supabase.auth.signOut({ scope: 'local' }),
+            12000,
+            'Tiempo de espera agotado al cerrar sesión local tras recuperación'
+          ),
+          AUTH_RETRY_ATTEMPTS,
+          AUTH_RETRY_DELAY_MS
+        )
+        if (localSignOutError) {
+          // Some supabase client versions may not accept 'scope' — fall through to fallback.
+          throw localSignOutError
+        }
+      } catch (signOutErr) {
+        // Fallback: try a standard signOut() which is broadly supported.
+        try {
+          const { error: fallbackError } = await withRetry(
             () => withTimeout(
-              supabase.auth.signOut({ scope: 'local' }),
+              supabase.auth.signOut(),
               12000,
-              'Tiempo de espera agotado al cerrar sesión local tras recuperación'
+              'Tiempo de espera agotado al cerrar sesión tras recuperación'
             ),
-           AUTH_RETRY_ATTEMPTS,
-           AUTH_RETRY_DELAY_MS
-         )
-         if (localSignOutError) {
-           // Some supabase client versions may not accept 'scope' — fall through to fallback.
-           throw localSignOutError
-         }
-       } catch (signOutErr) {
-         // Fallback: try a standard signOut() which is broadly supported.
-         try {
-           const { error: fallbackError } = await withRetry(
-             () => withTimeout(
-               supabase.auth.signOut(),
-               12000,
-               'Tiempo de espera agotado al cerrar sesión tras recuperación'
-             ),
-             AUTH_RETRY_ATTEMPTS,
-             AUTH_RETRY_DELAY_MS
-           )
-           if (fallbackError) {
-             console.warn('Non-blocking local sign-out fallback after recovery failed:', fallbackError)
-           }
-         } catch (fallbackErr) {
-           console.warn('Non-blocking local sign-out final fallback failed (ignored):', fallbackErr)
-         }
-       }
+            AUTH_RETRY_ATTEMPTS,
+            AUTH_RETRY_DELAY_MS
+          )
+          if (fallbackError) {
+            console.warn('Non-blocking local sign-out fallback after recovery failed:', fallbackError)
+          }
+        } catch (fallbackErr) {
+          console.warn('Non-blocking local sign-out final fallback failed (ignored):', fallbackErr)
+        }
+      }
 
       set({ user: null, profile: null })
     } catch (error) {
