@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '@/lib/auth-store'
 import { supabase } from '@/lib/supabase'
@@ -115,6 +115,10 @@ export default function MensajesPage() {
     const [selectedMessage, setSelectedMessage] = useState<Mensaje | null>(null)
     const [markingRead, setMarkingRead] = useState<string | null>(null)
     const [refreshing, setRefreshing] = useState(false)
+    const [replyingMessageId, setReplyingMessageId] = useState<string | null>(null)
+    const composeCardRef = useRef<HTMLDivElement | null>(null)
+    const detailCardRef = useRef<HTMLDivElement | null>(null)
+    const composeMessageRef = useRef<HTMLTextAreaElement | null>(null)
 
     useEffect(() => {
         const tabParam = searchParams.get('tab')
@@ -498,12 +502,11 @@ export default function MensajesPage() {
                     await new Promise((resolve) => setTimeout(resolve, INTER_BATCH_DELAY))
                 }
 
-                // Motivo: usamos cast por limitaciones del cliente supabase en tipo genérico para insert masivo.
-                const supabaseClient = supabase as unknown as { from: typeof supabase.from }
-                const insertResponse = await withTimeout<{ error: unknown }>(
-                    supabaseClient
-                        .from('mensajes')
-                        .insert(batch),
+                // Motivo: mantenemos cast a any por limitaciones del cliente Supabase con tipado genérico en inserts masivos.
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const insertResponse = await withTimeout<{ error: unknown }>((supabase as any)
+                    .from('mensajes')
+                    .insert(batch),
                     SEND_MESSAGE_TIMEOUT_MS,
                     'El envío tardó demasiado. Intenta nuevamente.'
                 )
@@ -515,6 +518,7 @@ export default function MensajesPage() {
             setDestinatarioId('')
             setAsunto('')
             setContenido('')
+            setReplyingMessageId(null)
             if (isGroupMassMode || isCategoryMassMode) {
                 setSuccess(`Mensaje enviado a ${targetRecipientIds.length} destinatario(s)`)
             } else {
@@ -562,6 +566,10 @@ export default function MensajesPage() {
     const handleOpenMessage = async (mensaje: Mensaje) => {
         setSelectedMessage(mensaje)
 
+        window.requestAnimationFrame(() => {
+            detailCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        })
+
         if (tab === 'recibidos' && mensaje.estado !== 'leido' && !markingRead) {
             setMarkingRead(mensaje.id)
             try {
@@ -587,6 +595,83 @@ export default function MensajesPage() {
                 setMarkingRead(null)
             }
         }
+    }
+
+    const handleReplyMessage = (mensaje: Mensaje) => {
+        if (!profile) return
+
+        const hasDraft = asunto.trim().length > 0 || contenido.trim().length > 0
+        if (hasDraft) {
+            const shouldReplaceDraft = window.confirm('Ya tienes un borrador. ¿Deseas reemplazarlo para responder este mensaje?')
+            if (!shouldReplaceDraft) return
+        }
+
+        const targetRecipientId = tab === 'recibidos' ? mensaje.remitente_id : mensaje.destinatario_id
+        const targetRecipient = recipients.find((recipient) => recipient.id === targetRecipientId)
+
+        if (!targetRecipient) {
+            setError('No se pudo preparar la respuesta porque el destinatario no está disponible.')
+            return
+        }
+
+        if (allowedRecipientRoles && !allowedRecipientRoles.includes(targetRecipient.rol)) {
+            setError('No tienes permiso para responder a este usuario.')
+            return
+        }
+
+        const normalizedSubject = mensaje.asunto.trim().toLowerCase().startsWith('re:')
+            ? mensaje.asunto.trim()
+            : `Re: ${mensaje.asunto.trim()}`
+
+        const originalDate = new Date(mensaje.created_at).toLocaleString()
+        const originalFrom = mensaje.remitente?.nombre_completo || mensaje.remitente_id
+        const originalTo = mensaje.destinatario?.nombre_completo || mensaje.destinatario_id
+        const quotedOriginalBody = mensaje.contenido
+            .split('\n')
+            .map((line) => `> ${line}`)
+            .join('\n')
+
+        const replyTemplate = [
+            '',
+            '',
+            '----- Mensaje original -----',
+            `Fecha: ${originalDate}`,
+            `De: ${originalFrom}`,
+            `Para: ${originalTo}`,
+            `Asunto: ${mensaje.asunto}`,
+            '',
+            quotedOriginalBody,
+        ].join('\n')
+
+        setError(null)
+        setSuccess(null)
+        setCategoriaUsuario('todos')
+        setGrupoFiltro('')
+        setSendToAllStudentsInGroup(false)
+        setSendToAllParentsInGroup(false)
+        setSelectedCategoriasUsuarios(new Set())
+        setDestinatarioId(targetRecipient.id)
+        setAsunto(normalizedSubject)
+        setContenido(replyTemplate)
+        setReplyingMessageId(mensaje.id)
+
+        window.requestAnimationFrame(() => {
+            composeCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            composeMessageRef.current?.focus()
+        })
+    }
+
+    const handleCancelReply = () => {
+        setCategoriaUsuario('')
+        setGrupoFiltro('')
+        setSendToAllStudentsInGroup(false)
+        setSendToAllParentsInGroup(false)
+        setSelectedCategoriasUsuarios(new Set())
+        setDestinatarioId('')
+        setAsunto('')
+        setContenido('')
+        setReplyingMessageId(null)
+        setError(null)
     }
 
     const filteredRecipients = useMemo(() => {
@@ -730,7 +815,7 @@ export default function MensajesPage() {
                 </Button>
             </div>
 
-            <Card>
+            <Card ref={composeCardRef}>
                 <CardHeader>
                     <CardTitle>Enviar mensaje</CardTitle>
                     <CardDescription>
@@ -932,6 +1017,7 @@ export default function MensajesPage() {
                     <div className="space-y-2">
                         <Label>Mensaje</Label>
                         <textarea
+                            ref={composeMessageRef}
                             value={contenido}
                             onChange={(e) => setContenido(e.target.value)}
                             className="w-full rounded-md border border-input bg-background px-3 py-2 text-base placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-none min-h-32"
@@ -949,6 +1035,17 @@ export default function MensajesPage() {
                             'Enviar'
                         )}
                     </Button>
+                    {replyingMessageId && (
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleCancelReply}
+                            disabled={saving}
+                            className="ml-2"
+                        >
+                            Cancelar respuesta
+                        </Button>
+                    )}
                 </CardContent>
             </Card>
 
@@ -1001,7 +1098,7 @@ export default function MensajesPage() {
                         </CardContent>
                     </Card>
 
-                    <Card className="lg:col-span-2">
+                    <Card ref={detailCardRef} className="lg:col-span-2">
                         <CardHeader>
                             <CardTitle>Detalle del mensaje</CardTitle>
                             <CardDescription>
@@ -1033,6 +1130,17 @@ export default function MensajesPage() {
                                         <p className="text-xs text-muted-foreground">
                                             {new Date(selectedMessage.created_at).toLocaleString()}
                                         </p>
+                                        <div className="mt-3">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => handleReplyMessage(selectedMessage)}
+                                                disabled={saving}
+                                            >
+                                                Responder
+                                            </Button>
+                                        </div>
                                         {markingRead === selectedMessage.id && (
                                             <p className="text-xs text-primary">Marcando como leído...</p>
                                         )}
