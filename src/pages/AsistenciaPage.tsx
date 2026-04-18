@@ -130,6 +130,10 @@ export default function AsistenciaPage() {
         ; (globalThis as any).setSelectedStudent = (globalThis as any).setSelectedStudent ?? undefined
     const [recordGroupFilter, setRecordGroupFilter] = useState<string>('all')
     const [recordGroupOptions, setRecordGroupOptions] = useState<GrupoOption[]>([])
+    const [pageAsignaturaFilter, setPageAsignaturaFilter] = useState<string>('all')
+    const [pageAsignaturaOptions, setPageAsignaturaOptions] = useState<AsignaturaOption[]>([])
+    const [pageEstudianteFilter, setPageEstudianteFilter] = useState<string>('all')
+    const [pageEstudianteOptions, setPageEstudianteOptions] = useState<StudentOption[]>([])
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
     const [updatingId, setUpdatingId] = useState<string | null>(null)
@@ -201,6 +205,13 @@ export default function AsistenciaPage() {
                 if (recordGroupFilter !== 'all') {
                     query = query.eq('grupo_id', recordGroupFilter)
                 }
+                // Apply page filters
+                if (pageAsignaturaFilter !== 'all') {
+                    query = query.eq('asignatura_id', pageAsignaturaFilter)
+                }
+                if (pageEstudianteFilter !== 'all') {
+                    query = query.eq('estudiante_id', pageEstudianteFilter)
+                }
             }
 
             const { data, error } = await query
@@ -213,7 +224,7 @@ export default function AsistenciaPage() {
         } finally {
             setLoading(false)
         }
-    }, [profile, recordGroupFilter, selectedDate])
+    }, [profile, recordGroupFilter, selectedDate, pageAsignaturaFilter, pageEstudianteFilter])
 
     useEffect(() => {
         if (profile) {
@@ -365,6 +376,78 @@ export default function AsistenciaPage() {
         }
     }, [selectedGrupo])
 
+    // Load asignaturas for selected grupo in page filter (cascada: Grupo → Asignatura)
+    const loadPageAsignaturas = useCallback(async () => {
+        if (recordGroupFilter === 'all') {
+            setPageAsignaturaOptions([])
+            setPageEstudianteFilter('all')
+            setPageEstudianteOptions([])
+            return
+        }
+
+        try {
+            const { data, error } = await dbClient
+                .from('asignaciones_docentes')
+                .select('asignatura:asignatura_id (id, nombre)')
+                .eq('grupo_id', recordGroupFilter)
+                .eq('año_academico', 2026)
+                .order('asignatura(nombre)', { ascending: true })
+
+            if (error) throw error
+
+            // Deduplicate asignaturas
+            const asignaturasMap = new Map<string, AsignaturaOption>()
+                ; (data as AsignacionAsignaturaRow[] | null || []).forEach((row) => {
+                    if (row.asignatura?.id) {
+                        asignaturasMap.set(row.asignatura.id, {
+                            id: row.asignatura.id,
+                            nombre: row.asignatura.nombre,
+                            codigo: row.asignatura.codigo,
+                        })
+                    }
+                })
+
+            setPageAsignaturaOptions(Array.from(asignaturasMap.values()))
+            // Reset estudiante filter when group changes
+            setPageEstudianteFilter('all')
+            setPageEstudianteOptions([])
+        } catch (err) {
+            console.error('Error loading page asignaturas:', err)
+            setError('Error al cargar asignaturas para filtrar')
+        }
+    }, [recordGroupFilter])
+
+    // Load estudiantes for selected grupo + asignatura in page filter (cascada: Asignatura → Estudiante)
+    const loadPageEstudiantes = useCallback(async () => {
+        if (recordGroupFilter === 'all' || pageAsignaturaFilter === 'all') {
+            setPageEstudianteOptions([])
+            return
+        }
+
+        try {
+            const { data, error } = await dbClient
+                .from('estudiantes_grupos')
+                .select('estudiante:estudiante_id (id, nombre_completo)')
+                .eq('grupo_id', recordGroupFilter)
+                .eq('año_academico', 2026)
+                .order('estudiante(nombre_completo)', { ascending: true })
+
+            if (error) throw error
+
+            const mapped = ((data as EstudianteGrupoRow[] | null) || [])
+                .map((row) => ({
+                    estudiante_id: row.estudiante?.id ?? '',
+                    nombre_completo: row.estudiante?.nombre_completo ?? '',
+                }))
+                .filter((row) => row.estudiante_id)
+
+            setPageEstudianteOptions(mapped)
+        } catch (err) {
+            console.error('Error loading page estudiantes:', err)
+            setError('Error al cargar estudiantes para filtrar')
+        }
+    }, [recordGroupFilter, pageAsignaturaFilter])
+
     useEffect(() => {
         if (canFilterRecordsByGrupo) {
             void loadRecordGroupOptions()
@@ -384,8 +467,10 @@ export default function AsistenciaPage() {
     useEffect(() => {
         if (!isStaff) return
 
+        // Reset dependent selections when subject changes
         setSelectedGrupo('')
         setStudents([])
+        setAttendanceMap({})
 
         if (selectedAsignatura) {
             void loadGruposForAsignatura()
@@ -397,7 +482,7 @@ export default function AsistenciaPage() {
     useEffect(() => {
         if (!isStaff) return
 
-        // reset attendance map when group changes
+        // Reset attendance map and students when group changes
         setAttendanceMap({})
 
         if (selectedGrupo) {
@@ -420,6 +505,31 @@ export default function AsistenciaPage() {
             return next
         })
     }, [students])
+
+    // Load asignaturas when grupo filter changes (cascada: Grupo → Asignatura)
+    useEffect(() => {
+        void loadPageAsignaturas()
+    }, [recordGroupFilter, loadPageAsignaturas])
+
+    // Load estudiantes when asignatura filter changes (cascada: Asignatura → Estudiante)
+    useEffect(() => {
+        void loadPageEstudiantes()
+    }, [pageAsignaturaFilter, loadPageEstudiantes])
+
+    // Validate page filters when available options change
+    useEffect(() => {
+        if (!canFilterRecordsByGrupo) return
+
+        // Reset asignatura if it's no longer available
+        if (pageAsignaturaFilter !== 'all' && !pageAsignaturaOptions.some((a) => a.id === pageAsignaturaFilter)) {
+            setPageAsignaturaFilter('all')
+        }
+
+        // Reset estudiante if it's no longer available
+        if (pageEstudianteFilter !== 'all' && !pageEstudianteOptions.some((e) => e.estudiante_id === pageEstudianteFilter)) {
+            setPageEstudianteFilter('all')
+        }
+    }, [canFilterRecordsByGrupo, pageAsignaturaFilter, pageAsignaturaOptions, pageEstudianteFilter, pageEstudianteOptions])
 
     const handleCreateAsistencia = async () => {
         if (!profile) return
@@ -569,22 +679,64 @@ export default function AsistenciaPage() {
                         </div>
 
                         {canFilterRecordsByGrupo && (
-                            <div className="space-y-2 min-w-[240px]">
-                                <Label>Grupo</Label>
-                                <Select value={recordGroupFilter} onValueChange={setRecordGroupFilter}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Todos los grupos" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">Todos los grupos</SelectItem>
-                                        {recordGroupOptions.map((grupo) => (
-                                            <SelectItem key={grupo.id} value={grupo.id}>
-                                                {grupo.grado_nombre} • {grupo.nombre}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                            <>
+                                <div className="space-y-2 min-w-[240px]">
+                                    <Label>Grupo</Label>
+                                    <Select value={recordGroupFilter} onValueChange={setRecordGroupFilter}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Todos los grupos" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Todos los grupos</SelectItem>
+                                            {recordGroupOptions.map((grupo) => (
+                                                <SelectItem key={grupo.id} value={grupo.id}>
+                                                    {grupo.grado_nombre} • {grupo.nombre}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {recordGroupFilter !== 'all' && (
+                                    <>
+                                        <div className="space-y-2 min-w-[240px]">
+                                            <Label>Asignatura</Label>
+                                            <Select value={pageAsignaturaFilter} onValueChange={setPageAsignaturaFilter}>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Todas las asignaturas" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">Todas las asignaturas</SelectItem>
+                                                    {pageAsignaturaOptions.map((asignatura) => (
+                                                        <SelectItem key={asignatura.id} value={asignatura.id}>
+                                                            {asignatura.nombre}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        {pageAsignaturaFilter !== 'all' && (
+                                            <div className="space-y-2 min-w-[240px]">
+                                                <Label>Estudiante</Label>
+                                                <Select value={pageEstudianteFilter} onValueChange={setPageEstudianteFilter}>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Todos los estudiantes" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="all">Todos los estudiantes</SelectItem>
+                                                        {pageEstudianteOptions.map((estudiante) => (
+                                                            <SelectItem key={estudiante.estudiante_id} value={estudiante.estudiante_id}>
+                                                                {estudiante.nombre_completo}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </>
                         )}
                     </div>
                 </CardContent>
@@ -660,14 +812,17 @@ export default function AsistenciaPage() {
                         <Card>
                             <CardHeader>
                                 <CardTitle>Registrar asistencia</CardTitle>
-                                <CardDescription>Selecciona asignatura, grupo, estudiante y estado</CardDescription>
+                                <CardDescription>
+                                    Selecciona asignatura, grupo y estudiantes. Los estados son: P (Presente), A (Ausente),
+                                    T (Tarde), E (Excusa)
+                                </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div className="grid gap-4 md:grid-cols-2">
                                     <div className="space-y-2">
-                                        <Label>Asignatura</Label>
+                                        <Label htmlFor="asignatura-select">Asignatura</Label>
                                         <Select value={selectedAsignatura} onValueChange={setSelectedAsignatura}>
-                                            <SelectTrigger>
+                                            <SelectTrigger id="asignatura-select">
                                                 <SelectValue placeholder="Selecciona una asignatura" />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -681,13 +836,9 @@ export default function AsistenciaPage() {
                                     </div>
 
                                     <div className="space-y-2">
-                                        <Label>Grupo</Label>
-                                        <Select
-                                            value={selectedGrupo}
-                                            onValueChange={setSelectedGrupo}
-                                            disabled={!selectedAsignatura}
-                                        >
-                                            <SelectTrigger>
+                                        <Label htmlFor="grupo-select">Grupo</Label>
+                                        <Select value={selectedGrupo} onValueChange={setSelectedGrupo}>
+                                            <SelectTrigger id="grupo-select">
                                                 <SelectValue placeholder="Selecciona un grupo" />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -703,10 +854,14 @@ export default function AsistenciaPage() {
 
                                 {/* Students list with radio buttons (default: Presente) */}
                                 <div>
-                                    <Label>Estudiantes</Label>
-                                    <div className="space-y-2 mt-2">
-                                        {students.length === 0 && (
+                                    <Label htmlFor="estudiantes-list">Estudiantes</Label>
+                                    <div className="space-y-2 mt-2" id="estudiantes-list">
+                                        {students.length === 0 && selectedAsignatura && !selectedGrupo && (
                                             <p className="text-sm text-muted-foreground">Selecciona un grupo para ver sus estudiantes</p>
+                                        )}
+
+                                        {students.length === 0 && selectedGrupo && (
+                                            <p className="text-sm text-amber-600">No hay estudiantes en el grupo seleccionado</p>
                                         )}
 
                                         {students.map((s) => {
@@ -751,25 +906,33 @@ export default function AsistenciaPage() {
                                 </div>
 
                                 <div className="flex items-center gap-3">
-                                    <Button onClick={handleCreateAsistencia} disabled={saving || students.length === 0}>
+                                    <Button
+                                        onClick={handleCreateAsistencia}
+                                        disabled={saving || students.length === 0}
+                                    >
                                         {saving ? (
                                             <>
                                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                                 Guardando...
                                             </>
                                         ) : (
-                                            'Registrar asistencias'
+                                            `Registrar asistencias (${students.length})`
                                         )}
                                     </Button>
 
-                                    <Button variant="ghost" onClick={() => {
-                                        // reset selections
-                                        setSelectedAsignatura('')
-                                        setSelectedGrupo('')
-                                        setStudents([])
-                                        setAttendanceMap({})
-                                    }}>
-                                        Cancelar
+                                    <Button
+                                        variant="ghost"
+                                        onClick={() => {
+                                            // reset selections
+                                            setSelectedAsignatura('')
+                                            setSelectedGrupo('')
+                                            setStudents([])
+                                            setAttendanceMap({})
+                                            setError(null)
+                                            setSuccess(null)
+                                        }}
+                                    >
+                                        Limpiar
                                     </Button>
                                 </div>
                             </CardContent>
