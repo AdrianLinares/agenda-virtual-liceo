@@ -10,6 +10,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertCircle, Bell, CheckCircle2, Loader2, Megaphone } from 'lucide-react'
+import { transformGoogleDriveUrlToEmbed } from '@/utils/transformGoogleDriveUrlToEmbed'
+import { DriveEmbed } from '@/components/anuncios/DriveEmbed'
 
 interface Anuncio {
     id: string
@@ -20,6 +22,7 @@ interface Anuncio {
     importante: boolean
     fecha_publicacion: string
     fecha_expiracion: string | null
+    drive_public_url: string | null
     created_at: string
     autor?: {
         nombre_completo: string
@@ -48,6 +51,7 @@ type WritableDatabase = {
 }
 
 const dbClient = supabase as unknown as SupabaseClient<WritableDatabase>
+const isGoogleDriveEmbedEnabled = import.meta.env.VITE_ENABLE_GOOGLE_DRIVE_EMBED !== 'false'
 
 export default function AnunciosPage() {
     const { profile } = useAuthStore()
@@ -61,6 +65,7 @@ export default function AnunciosPage() {
     const [contenido, setContenido] = useState('')
     const [destinatarios, setDestinatarios] = useState<string[]>(['todos'])
     const [fechaExpiracion, setFechaExpiracion] = useState('')
+    const [drivePublicUrl, setDrivePublicUrl] = useState('')
     const [importante, setImportante] = useState(false)
     const [formOpen, setFormOpen] = useState(false)
     const [editingId, setEditingId] = useState<string | null>(null)
@@ -118,6 +123,7 @@ export default function AnunciosPage() {
         setContenido('')
         setDestinatarios(['todos'])
         setFechaExpiracion('')
+        setDrivePublicUrl('')
         setImportante(false)
         setEditingId(null)
         setFormOpen(false)
@@ -154,6 +160,17 @@ export default function AnunciosPage() {
             return
         }
 
+        const normalizedDrivePublicUrl = drivePublicUrl.trim()
+        if (
+            isGoogleDriveEmbedEnabled
+            && normalizedDrivePublicUrl.length > 0
+            && !transformGoogleDriveUrlToEmbed(normalizedDrivePublicUrl)
+        ) {
+            setFormOpen(true)
+            setError('URL inválida. Asegúrate de pegar un enlace público de Google Drive.')
+            return
+        }
+
         setSaving(true)
         setError(null)
         setSuccess(null)
@@ -163,12 +180,15 @@ export default function AnunciosPage() {
                 ? ['todos']
                 : Array.from(new Set(destinatarios))
 
-            const payload = {
+            const payload: Database['public']['Tables']['anuncios']['Update'] = {
                 titulo: titulo.trim(),
                 contenido: contenido.trim(),
                 destinatarios: normalizedDestinatarios,
                 importante,
                 fecha_expiracion: fechaExpiracion ? new Date(fechaExpiracion).toISOString() : null,
+                drive_public_url: isGoogleDriveEmbedEnabled
+                    ? (normalizedDrivePublicUrl.length > 0 ? normalizedDrivePublicUrl : null)
+                    : null,
             }
 
             let error = null
@@ -176,17 +196,26 @@ export default function AnunciosPage() {
             if (editingId) {
                 const result = await withTimeout((dbClient)
                     .from('anuncios')
-                    .update(payload)
+                    .update(payload as never)
                     .eq('id', editingId), 15000, 'Tiempo de espera agotado al actualizar el anuncio') as { error: Error | null }
                 error = result.error
             } else {
+                const insertPayload: Database['public']['Tables']['anuncios']['Insert'] = {
+                    titulo: titulo.trim(),
+                    contenido: contenido.trim(),
+                    autor_id: profile.id,
+                    destinatarios: normalizedDestinatarios,
+                    importante,
+                    fecha_publicacion: new Date().toISOString(),
+                    fecha_expiracion: fechaExpiracion ? new Date(fechaExpiracion).toISOString() : null,
+                    drive_public_url: isGoogleDriveEmbedEnabled
+                        ? (normalizedDrivePublicUrl.length > 0 ? normalizedDrivePublicUrl : null)
+                        : null,
+                }
+
                 const result = await withTimeout((dbClient)
                     .from('anuncios')
-                    .insert({
-                        ...payload,
-                        autor_id: profile.id,
-                        fecha_publicacion: new Date().toISOString(),
-                    }), 15000, 'Tiempo de espera agotado al publicar el anuncio') as { error: Error | null }
+                    .insert(insertPayload as never), 15000, 'Tiempo de espera agotado al publicar el anuncio') as { error: Error | null }
                 error = result.error
             }
 
@@ -211,6 +240,7 @@ export default function AnunciosPage() {
         setContenido(anuncio.contenido)
         setDestinatarios(anuncio.destinatarios.length > 0 ? anuncio.destinatarios : ['todos'])
         setFechaExpiracion(anuncio.fecha_expiracion ? anuncio.fecha_expiracion.slice(0, 10) : '')
+        setDrivePublicUrl(anuncio.drive_public_url ?? '')
         setImportante(anuncio.importante)
         setError(null)
         setSuccess(null)
@@ -325,8 +355,12 @@ export default function AnunciosPage() {
                             <CardContent className="space-y-4">
                                 <div className="grid gap-4 md:grid-cols-2">
                                     <div className="space-y-2">
-                                        <Label>Título</Label>
-                                        <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+                                        <Label htmlFor="anuncio-titulo">Título</Label>
+                                        <Input
+                                            id="anuncio-titulo"
+                                            value={titulo}
+                                            onChange={(e) => setTitulo(e.target.value)}
+                                        />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Destinatarios</Label>
@@ -350,9 +384,30 @@ export default function AnunciosPage() {
                                 </div>
 
                                 <div className="space-y-2">
-                                    <Label>Contenido</Label>
-                                    <Input value={contenido} onChange={(e) => setContenido(e.target.value)} />
+                                    <Label htmlFor="anuncio-contenido">Contenido</Label>
+                                    <Input
+                                        id="anuncio-contenido"
+                                        value={contenido}
+                                        onChange={(e) => setContenido(e.target.value)}
+                                    />
                                 </div>
+
+                                {isGoogleDriveEmbedEnabled && (
+                                    <div className="space-y-2">
+                                        <Label htmlFor="drive-public-url">Enlace público de Google Drive (opcional)</Label>
+                                        <Input
+                                            id="drive-public-url"
+                                            value={drivePublicUrl}
+                                            onChange={(e) => setDrivePublicUrl(e.target.value)}
+                                            placeholder="https://drive.google.com/file/d/FILE_ID/view?usp=sharing"
+                                            aria-describedby="drive-public-url-helper"
+                                        />
+                                        <p id="drive-public-url-helper" className="text-sm text-muted-foreground">
+                                            El documento debe ser público: "Cualquier persona con el enlace". Si no es
+                                            público se mostrará un enlace en lugar del preview.
+                                        </p>
+                                    </div>
+                                )}
 
                                 <div className="grid gap-4 md:grid-cols-2">
                                     <div className="space-y-2">
@@ -459,6 +514,11 @@ export default function AnunciosPage() {
                             </CardHeader>
                             <CardContent>
                                 <p className="text-sm text-foreground whitespace-pre-line">{anuncio.contenido}</p>
+                                {isGoogleDriveEmbedEnabled && anuncio.drive_public_url && (
+                                    <div className="mt-4">
+                                        <DriveEmbed drivePublicUrl={anuncio.drive_public_url} />
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
                     ))}

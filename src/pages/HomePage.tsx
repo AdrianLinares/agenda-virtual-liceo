@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { withRetry, withTimeout } from '@/lib/async-utils'
+import { DriveEmbed } from '@/components/anuncios/DriveEmbed'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Calendar, Megaphone, MapPin, Clock, AlertCircle, ChevronDown } from 'lucide-react'
@@ -23,6 +24,8 @@ interface Anuncio {
     contenido: string
     importante: boolean
     fecha_publicacion: string
+    drive_public_url?: string | null
+    destinatarios?: string[] | null
 }
 
 interface PublicEventoRow extends Evento {
@@ -62,7 +65,7 @@ export default function HomePage() {
                     .limit(30), 15000, 'Tiempo de espera agotado al cargar eventos públicos')),
                 withRetry(async () => withTimeout(supabase
                     .from('anuncios')
-                    .select('id, titulo, contenido, importante, fecha_publicacion, destinatarios')
+                    .select('id, titulo, contenido, importante, fecha_publicacion, destinatarios, drive_public_url')
                     .or(`fecha_expiracion.is.null,fecha_expiracion.gte.${nowIso}`)
                     .order('fecha_publicacion', { ascending: false })
                     .limit(30), 15000, 'Tiempo de espera agotado al cargar anuncios públicos')),
@@ -95,6 +98,8 @@ export default function HomePage() {
                     contenido: anuncio.contenido,
                     importante: anuncio.importante,
                     fecha_publicacion: anuncio.fecha_publicacion,
+                    drive_public_url: anuncio.drive_public_url,
+                    destinatarios: anuncio.destinatarios,
                 }))
 
             setEventos(finalEventos)
@@ -384,7 +389,11 @@ export default function HomePage() {
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <p className="text-foreground mb-2 whitespace-pre-wrap">{anuncio.contenido}</p>
+                                                        {anuncio.drive_public_url && anuncio.destinatarios?.some((item) => (item || '').toLowerCase() === 'todos') ? (
+                                                            <DriveEmbed drivePublicUrl={anuncio.drive_public_url} />
+                                                        ) : (
+                                                            <p className="text-foreground mb-2 whitespace-pre-wrap">{anuncio.contenido}</p>
+                                                        )}
                                                         <p className="text-xs text-muted-foreground">
                                                             Publicado el {formatDate(anuncio.fecha_publicacion, true)}
                                                         </p>

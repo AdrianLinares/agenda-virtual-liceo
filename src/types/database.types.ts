@@ -387,6 +387,7 @@ export interface Database {
           importante: boolean
           fecha_publicacion: string
           fecha_expiracion: string | null
+          drive_public_url: string | null
           created_at: string
         }
         Insert: {
@@ -398,6 +399,7 @@ export interface Database {
           importante?: boolean
           fecha_publicacion?: string
           fecha_expiracion?: string | null
+          drive_public_url?: string | null
           created_at?: string
         }
         Update: {
@@ -409,6 +411,7 @@ export interface Database {
           importante?: boolean
           fecha_publicacion?: string
           fecha_expiracion?: string | null
+          drive_public_url?: string | null
           created_at?: string
         }
       }

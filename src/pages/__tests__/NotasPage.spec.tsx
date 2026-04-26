@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { forwardRef, useEffect, useImperativeHandle, type ReactNode } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import NotasPage, { didObservacionesChange, normalizeObservacionesForSave } from '@/pages/NotasPage'
 
@@ -335,14 +335,34 @@ vi.mock('@/components/ui/select', async () => {
 vi.mock('@/components/calculator/GradeCalculator', () => {
   const MockGradeCalculator = forwardRef<
     { getLatestData: () => typeof latestCalculatorData },
-    { onResultsChange?: (results: typeof latestCalculatorData.results) => void }
+    {
+      onResultsChange?: (
+        results: typeof latestCalculatorData.results,
+        grades: typeof latestCalculatorData.grades,
+        rubrics: typeof latestCalculatorData.rubrics,
+        weights: typeof latestCalculatorData.weights
+      ) => void
+    }
   >(({ onResultsChange }, ref) => {
+    const hasEmittedInitialResults = useRef(false)
+
     useImperativeHandle(ref, () => ({
       getLatestData: () => latestCalculatorData,
     }))
 
     useEffect(() => {
-      onResultsChange?.(latestCalculatorData.results)
+      if (hasEmittedInitialResults.current) {
+        return
+      }
+
+      onResultsChange?.(
+        latestCalculatorData.results,
+        latestCalculatorData.grades,
+        latestCalculatorData.rubrics,
+        latestCalculatorData.weights
+      )
+
+      hasEmittedInitialResults.current = true
     }, [onResultsChange])
 
     return (

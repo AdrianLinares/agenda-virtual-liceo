@@ -194,6 +194,7 @@ CREATE TABLE anuncios (
     importante BOOLEAN DEFAULT false,
     fecha_publicacion TIMESTAMPTZ DEFAULT NOW(),
     fecha_expiracion TIMESTAMPTZ,
+    drive_public_url TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
