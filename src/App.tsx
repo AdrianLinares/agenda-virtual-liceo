@@ -138,11 +138,14 @@ function App() {
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
     const handleOnline = () => wakeAuth('online')
+    const handleFocus = () => wakeAuth('visibilitychange')
     window.addEventListener('online', handleOnline)
+    window.addEventListener('focus', handleFocus)
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('online', handleOnline)
+      window.removeEventListener('focus', handleFocus)
     }
   }, [markAppResumed, syncSession])
 

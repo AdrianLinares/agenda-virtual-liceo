@@ -10,6 +10,7 @@ type Profile = Database['public']['Tables']['profiles']['Row']
 let isInitializingAuth = false
 let hasAuthStateListener = false
 let isSyncingSession = false
+let initializePromise: Promise<void> | null = null
 
 const AUTH_TIMEOUT_MS = 25000
 const AUTH_RETRY_ATTEMPTS = 2
@@ -464,108 +465,117 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   initialize: async () => {
+    if (initializePromise) {
+      return initializePromise
+    }
+
     if (isInitializingAuth || get().initialized) {
       return
     }
 
-    isInitializingAuth = true
+    initializePromise = (async () => {
+      isInitializingAuth = true
 
-    try {
-      set({ loading: true })
+      try {
+        set({ loading: true })
 
-      // Step 1: restore a previous session (if it exists) when the app boots.
-      const { data: { session } } = await withRetry(
-        () => withTimeout(supabase.auth.getSession(), 15000, 'Tiempo de espera agotado al validar sesión'),
-        AUTH_RETRY_ATTEMPTS,
-        AUTH_RETRY_DELAY_MS
-      )
-
-      if (session?.user) {
-        // Step 2: load profile data tied to the authenticated user id.
-        const { data: profileData, error: profileError } = await withRetry(
-          () => withTimeout(
-            supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .single(),
-            15000,
-            'Tiempo de espera agotado al cargar el perfil'
-          ),
+        // Step 1: restore a previous session (if it exists) when the app boots.
+        const { data: { session } } = await withRetry(
+          () => withTimeout(supabase.auth.getSession(), 15000, 'Tiempo de espera agotado al validar sesión'),
           AUTH_RETRY_ATTEMPTS,
           AUTH_RETRY_DELAY_MS
         )
 
-        if (profileError) {
-          console.warn('Error fetching profile:', profileError)
-          // Do not block login if profile fetch fails; route guards still rely on auth user.
+        if (session?.user) {
+          // Step 2: load profile data tied to the authenticated user id.
+          const { data: profileData, error: profileError } = await withRetry(
+            () => withTimeout(
+              supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', session.user.id)
+                .single(),
+              15000,
+              'Tiempo de espera agotado al cargar el perfil'
+            ),
+            AUTH_RETRY_ATTEMPTS,
+            AUTH_RETRY_DELAY_MS
+          )
+
+          if (profileError) {
+            console.warn('Error fetching profile:', profileError)
+            // Do not block login if profile fetch fails; route guards still rely on auth user.
+          }
+
+          set({
+            user: session.user,
+            profile: profileData || null,
+            initialized: true
+          })
+        } else {
+          set({ user: null, profile: null, initialized: true })
         }
 
-        set({
-          user: session.user,
-          profile: profileData || null,
-          initialized: true
-        })
-      } else {
-        set({ user: null, profile: null, initialized: true })
-      }
-
-      if (!hasAuthStateListener) {
-        // Keep store synced with auth events and avoid profile queries on password update events.
-        supabase.auth.onAuthStateChange(async (event, session) => {
-          if (event === 'SIGNED_OUT') {
-            set({ user: null, profile: null })
-            return
-          }
-
-          if (!session?.user) {
-            return
-          }
-
-          if (event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED' || event === 'PASSWORD_RECOVERY') {
-            set({ user: session.user })
-            return
-          }
-
-          if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-            try {
-              const { data: profileData, error: profileError } = await withRetry(
-                () => withTimeout(
-                  supabase
-                    .from('profiles')
-                    .select('*')
-                    .eq('id', session.user.id)
-                    .single(),
-                  AUTH_TIMEOUT_MS,
-                  'Tiempo de espera agotado al cargar el perfil'
-                ),
-                AUTH_RETRY_ATTEMPTS,
-                AUTH_RETRY_DELAY_MS
-              )
-
-              if (profileError) {
-                console.warn('Error fetching profile on auth change:', profileError)
-              }
-
-              set({ user: session.user, profile: profileData || null })
-            } catch (authChangeError) {
-              console.warn('Non-blocking profile refresh error on auth change:', authChangeError)
-              set({ user: session.user })
+        if (!hasAuthStateListener) {
+          // Keep store synced with auth events and avoid profile queries on password update events.
+          supabase.auth.onAuthStateChange(async (event, session) => {
+            if (event === 'SIGNED_OUT') {
+              set({ user: null, profile: null })
+              return
             }
-            return
-          }
 
-          set({ user: session.user })
-        })
+            if (!session?.user) {
+              return
+            }
 
-        hasAuthStateListener = true
+            if (event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED' || event === 'PASSWORD_RECOVERY') {
+              set({ user: session.user })
+              return
+            }
+
+            if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+              try {
+                const { data: profileData, error: profileError } = await withRetry(
+                  () => withTimeout(
+                    supabase
+                      .from('profiles')
+                      .select('*')
+                      .eq('id', session.user.id)
+                      .single(),
+                    AUTH_TIMEOUT_MS,
+                    'Tiempo de espera agotado al cargar el perfil'
+                  ),
+                  AUTH_RETRY_ATTEMPTS,
+                  AUTH_RETRY_DELAY_MS
+                )
+
+                if (profileError) {
+                  console.warn('Error fetching profile on auth change:', profileError)
+                }
+
+                set({ user: session.user, profile: profileData || null })
+              } catch (authChangeError) {
+                console.warn('Non-blocking profile refresh error on auth change:', authChangeError)
+                set({ user: session.user })
+              }
+              return
+            }
+
+            set({ user: session.user })
+          })
+
+          hasAuthStateListener = true
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error)
+        set({ initialized: true })
+      } finally {
+        set({ loading: false })
+        isInitializingAuth = false
+        initializePromise = null
       }
-    } catch (error) {
-      console.error('Error initializing auth:', error)
-      set({ initialized: true })
-    } finally {
-      set({ loading: false })
-      isInitializingAuth = false
-    }
+    })()
+
+    return initializePromise
   },
 }))

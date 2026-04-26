@@ -13,7 +13,7 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    // Use sessionStorage so auth is cleared when the browser/tab is closed.
-    storage: typeof window !== 'undefined' ? window.sessionStorage : undefined
+    // Keep auth in localStorage to avoid session loss on mobile app/background transitions.
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined
   }
 })
