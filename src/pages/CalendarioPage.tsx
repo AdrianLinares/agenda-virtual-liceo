@@ -16,6 +16,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertCircle, CalendarDays, CheckCircle2, Loader2, MapPin, Pencil, Trash2, X } from 'lucide-react'
 import type { Database } from '@/types/database.types'
+import { DriveEmbed } from '@/components/anuncios/DriveEmbed'
 
 interface Evento {
     id: string
@@ -27,9 +28,12 @@ interface Evento {
     todo_el_dia: boolean
     lugar: string | null
     destinatarios: string[]
+    drive_public_url: string | null
     creado_por: string | null
     created_at: string
 }
+
+const isGoogleDriveEmbedEnabled = import.meta.env.VITE_ENABLE_GOOGLE_DRIVE_EMBED !== 'false'
 
 const DESTINATARIOS = [
     { value: 'todos', label: 'Todos' },
@@ -55,6 +59,7 @@ export default function CalendarioPage() {
     const [todoElDia, setTodoElDia] = useState(false)
     const [lugar, setLugar] = useState('')
     const [descripcion, setDescripcion] = useState('')
+    const [drivePublicUrl, setDrivePublicUrl] = useState('')
     const [destinatarios, setDestinatarios] = useState<string[]>(['todos'])
     const [createFormOpen, setCreateFormOpen] = useState(false)
     const [editingId, setEditingId] = useState<string | null>(null)
@@ -66,6 +71,7 @@ export default function CalendarioPage() {
     const [editTodoElDia, setEditTodoElDia] = useState(false)
     const [editLugar, setEditLugar] = useState('')
     const [editDescripcion, setEditDescripcion] = useState('')
+    const [editDrivePublicUrl, setEditDrivePublicUrl] = useState('')
     const [editDestinatario, setEditDestinatario] = useState('todos')
 
     const isStaff = profile?.rol === 'administrador' || profile?.rol === 'administrativo' || profile?.rol === 'docente'
@@ -152,6 +158,9 @@ export default function CalendarioPage() {
                 todo_el_dia: todoElDia,
                 lugar: lugar.trim() ? lugar.trim() : null,
                 destinatarios: normalizedDestinatarios,
+                drive_public_url: isGoogleDriveEmbedEnabled
+                    ? (drivePublicUrl.trim() ? drivePublicUrl.trim() : null)
+                    : null,
                 creado_por: profile.id,
             } satisfies Database['public']['Tables']['eventos']['Insert']
 
@@ -170,6 +179,7 @@ export default function CalendarioPage() {
             setTodoElDia(false)
             setLugar('')
             setDescripcion('')
+            setDrivePublicUrl('')
             setDestinatarios(['todos'])
             setCreateFormOpen(false)
             setSuccess('Evento creado')
@@ -204,6 +214,7 @@ export default function CalendarioPage() {
         setEditTodoElDia(evento.todo_el_dia)
         setEditLugar(evento.lugar || '')
         setEditDescripcion(evento.descripcion || '')
+        setEditDrivePublicUrl(evento.drive_public_url || '')
         setEditDestinatario(evento.destinatarios?.[0] || 'todos')
         setError(null)
         setSuccess(null)
@@ -212,6 +223,7 @@ export default function CalendarioPage() {
     const handleCancelEdit = () => {
         setEditingId(null)
         setActionLoadingId(null)
+        setEditDrivePublicUrl('')
     }
 
     const handleUpdateEvento = async (eventoId: string) => {
@@ -234,6 +246,9 @@ export default function CalendarioPage() {
                 todo_el_dia: editTodoElDia,
                 lugar: editLugar.trim() ? editLugar.trim() : null,
                 destinatarios: [editDestinatario],
+                drive_public_url: isGoogleDriveEmbedEnabled
+                    ? (editDrivePublicUrl.trim() ? editDrivePublicUrl.trim() : null)
+                    : null,
             } satisfies Database['public']['Tables']['eventos']['Update']
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -247,6 +262,7 @@ export default function CalendarioPage() {
 
             setSuccess('Evento actualizado')
             setEditingId(null)
+            setEditDrivePublicUrl('')
             await loadEventos()
         } catch (err) {
             console.error('Error updating evento:', err)
@@ -352,8 +368,12 @@ export default function CalendarioPage() {
                             <CardContent className="space-y-4">
                                 <div className="grid gap-4 md:grid-cols-2">
                                     <div className="space-y-2">
-                                        <Label>Título</Label>
-                                        <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+                                        <Label htmlFor="evento-create-titulo">Título</Label>
+                                        <Input
+                                            id="evento-create-titulo"
+                                            value={titulo}
+                                            onChange={(e) => setTitulo(e.target.value)}
+                                        />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Tipo</Label>
@@ -363,8 +383,9 @@ export default function CalendarioPage() {
 
                                 <div className="grid gap-4 md:grid-cols-2">
                                     <div className="space-y-2">
-                                        <Label>Fecha inicio</Label>
+                                        <Label htmlFor="evento-create-fecha-inicio">Fecha inicio</Label>
                                         <Input
+                                            id="evento-create-fecha-inicio"
                                             type="datetime-local"
                                             value={fechaInicio}
                                             onChange={(e) => setFechaInicio(e.target.value)}
@@ -423,6 +444,18 @@ export default function CalendarioPage() {
                                     </div>
                                 </div>
 
+                                {isGoogleDriveEmbedEnabled && (
+                                    <div className="space-y-2">
+                                        <Label htmlFor="evento-create-drive-public-url">Enlace público de Google Drive (opcional)</Label>
+                                        <Input
+                                            id="evento-create-drive-public-url"
+                                            value={drivePublicUrl}
+                                            onChange={(e) => setDrivePublicUrl(e.target.value)}
+                                            placeholder="https://drive.google.com/file/d/FILE_ID/view?usp=sharing"
+                                        />
+                                    </div>
+                                )}
+
                                 <Button onClick={handleCreateEvento} disabled={saving}>
                                     {saving ? (
                                         <>
@@ -473,8 +506,12 @@ export default function CalendarioPage() {
                                     <div className="space-y-4 border rounded-md p-4 bg-muted/30">
                                         <div className="grid gap-4 md:grid-cols-2">
                                             <div className="space-y-2">
-                                                <Label>Título</Label>
-                                                <Input value={editTitulo} onChange={(e) => setEditTitulo(e.target.value)} />
+                                                <Label htmlFor={`evento-edit-titulo-${evento.id}`}>Título</Label>
+                                                <Input
+                                                    id={`evento-edit-titulo-${evento.id}`}
+                                                    value={editTitulo}
+                                                    onChange={(e) => setEditTitulo(e.target.value)}
+                                                />
                                             </div>
                                             <div className="space-y-2">
                                                 <Label>Tipo</Label>
@@ -484,8 +521,9 @@ export default function CalendarioPage() {
 
                                         <div className="grid gap-4 md:grid-cols-2">
                                             <div className="space-y-2">
-                                                <Label>Fecha inicio</Label>
+                                                <Label htmlFor={`evento-edit-fecha-inicio-${evento.id}`}>Fecha inicio</Label>
                                                 <Input
+                                                    id={`evento-edit-fecha-inicio-${evento.id}`}
                                                     type="datetime-local"
                                                     value={editFechaInicio}
                                                     onChange={(e) => setEditFechaInicio(e.target.value)}
@@ -540,6 +578,18 @@ export default function CalendarioPage() {
                                             </div>
                                         </div>
 
+                                        {isGoogleDriveEmbedEnabled && (
+                                            <div className="space-y-2">
+                                                <Label htmlFor={`evento-edit-drive-public-url-${evento.id}`}>Enlace público de Google Drive (opcional)</Label>
+                                                <Input
+                                                    id={`evento-edit-drive-public-url-${evento.id}`}
+                                                    value={editDrivePublicUrl}
+                                                    onChange={(e) => setEditDrivePublicUrl(e.target.value)}
+                                                    placeholder="https://drive.google.com/file/d/FILE_ID/view?usp=sharing"
+                                                />
+                                            </div>
+                                        )}
+
                                         <div className="flex gap-2">
                                             <Button
                                                 onClick={() => handleUpdateEvento(evento.id)}
@@ -565,6 +615,11 @@ export default function CalendarioPage() {
                                         {evento.descripcion && (
                                             <p className="text-sm text-foreground whitespace-pre-line">{evento.descripcion}</p>
                                         )}
+                                        {isGoogleDriveEmbedEnabled
+                                            && evento.destinatarios.includes('todos')
+                                            && evento.drive_public_url && (
+                                                <DriveEmbed drivePublicUrl={evento.drive_public_url} />
+                                            )}
                                         {evento.lugar && (
                                             <p className="text-xs text-muted-foreground flex items-center gap-1">
                                                 <MapPin className="h-3 w-3" />

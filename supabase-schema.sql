@@ -281,6 +281,7 @@ CREATE TABLE eventos (
     todo_el_dia BOOLEAN DEFAULT false,
     lugar TEXT,
     destinatarios TEXT[],
+    drive_public_url TEXT,
     creado_por UUID REFERENCES profiles(id),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );

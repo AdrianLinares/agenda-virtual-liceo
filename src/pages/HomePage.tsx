@@ -16,6 +16,8 @@ interface Evento {
     fecha_fin: string | null
     todo_el_dia: boolean
     lugar: string | null
+    drive_public_url?: string | null
+    destinatarios?: string[] | null
 }
 
 interface Anuncio {
@@ -37,6 +39,7 @@ interface PublicAnuncioRow extends Anuncio {
 }
 
 export default function HomePage() {
+    const isGoogleDriveEmbedEnabled = import.meta.env.VITE_ENABLE_GOOGLE_DRIVE_EMBED !== 'false'
     const navigate = useNavigate()
     const [eventos, setEventos] = useState<Evento[]>([])
     const [anuncios, setAnuncios] = useState<Anuncio[]>([])
@@ -59,7 +62,7 @@ export default function HomePage() {
             const [eventosResult, anunciosResult] = await Promise.all([
                 withRetry(async () => withTimeout(supabase
                     .from('eventos')
-                    .select('id, titulo, descripcion, tipo, fecha_inicio, fecha_fin, todo_el_dia, lugar, destinatarios')
+                    .select('id, titulo, descripcion, tipo, fecha_inicio, fecha_fin, todo_el_dia, lugar, destinatarios, drive_public_url')
                     .gte('fecha_inicio', nowIso)
                     .order('fecha_inicio', { ascending: true })
                     .limit(30), 15000, 'Tiempo de espera agotado al cargar eventos públicos')),
@@ -85,6 +88,8 @@ export default function HomePage() {
                     fecha_fin: evento.fecha_fin,
                     todo_el_dia: evento.todo_el_dia,
                     lugar: evento.lugar,
+                    drive_public_url: evento.drive_public_url,
+                    destinatarios: evento.destinatarios,
                 }))
 
             if (anunciosResult.error) throw anunciosResult.error
@@ -312,38 +317,48 @@ export default function HomePage() {
                                     </div>
                                 ) : (
                                     <div className="space-y-4">
-                                        {eventos.map((evento) => (
-                                            <div
-                                                key={evento.id}
-                                                className="border-l-4 border-primary bg-muted p-4 rounded-r-lg hover:shadow-md transition-shadow"
-                                            >
-                                                <div className="flex items-start justify-between gap-4">
-                                                    <div className="flex-1">
-                                                        <div className="flex items-center gap-2 mb-2">
-                                                            <h3 className="font-semibold text-lg text-foreground">{evento.titulo}</h3>
-                                                            <span className={`text-xs px-2 py-1 rounded-full border ${getEventTypeColor(evento.tipo)}`}>
-                                                                {evento.tipo}
-                                                            </span>
-                                                        </div>
-                                                        {evento.descripcion && (
-                                                            <p className="text-foreground mb-2">{evento.descripcion}</p>
-                                                        )}
-                                                        <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                                                            <div className="flex items-center gap-1">
-                                                                <Clock className="h-4 w-4" />
-                                                                <span>{formatDate(evento.fecha_inicio, evento.todo_el_dia)}</span>
+                                        {eventos.map((evento) => {
+                                            const shouldRenderDriveEmbed = isGoogleDriveEmbedEnabled
+                                                && !!evento.drive_public_url
+                                                && !!evento.destinatarios?.some((item) => (item || '').toLowerCase() === 'todos')
+
+                                            return (
+                                                <div
+                                                    key={evento.id}
+                                                    className="border-l-4 border-primary bg-muted p-4 rounded-r-lg hover:shadow-md transition-shadow"
+                                                >
+                                                    <div className="flex items-start justify-between gap-4">
+                                                        <div className="flex-1">
+                                                            <div className="flex items-center gap-2 mb-2">
+                                                                <h3 className="font-semibold text-lg text-foreground">{evento.titulo}</h3>
+                                                                <span className={`text-xs px-2 py-1 rounded-full border ${getEventTypeColor(evento.tipo)}`}>
+                                                                    {evento.tipo}
+                                                                </span>
                                                             </div>
-                                                            {evento.lugar && (
-                                                                <div className="flex items-center gap-1">
-                                                                    <MapPin className="h-4 w-4" />
-                                                                    <span>{evento.lugar}</span>
+                                                            {shouldRenderDriveEmbed ? (
+                                                                <div className="mb-2">
+                                                                    <DriveEmbed drivePublicUrl={evento.drive_public_url} />
                                                                 </div>
-                                                            )}
+                                                            ) : evento.descripcion ? (
+                                                                <p className="text-foreground mb-2 whitespace-pre-wrap">{evento.descripcion}</p>
+                                                            ) : null}
+                                                            <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                                                                <div className="flex items-center gap-1">
+                                                                    <Clock className="h-4 w-4" />
+                                                                    <span>{formatDate(evento.fecha_inicio, evento.todo_el_dia)}</span>
+                                                                </div>
+                                                                {evento.lugar && (
+                                                                    <div className="flex items-center gap-1">
+                                                                        <MapPin className="h-4 w-4" />
+                                                                        <span>{evento.lugar}</span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            )
+                                        })}
                                     </div>
                                 )}
                             </CardContent>
