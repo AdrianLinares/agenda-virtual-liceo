@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { useAuthStore } from '@/lib/auth-store'
-import { supabase } from '@/lib/supabase'
+import { supabase, rpcCountNotas } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
     Select,
@@ -269,6 +269,7 @@ export default function NotasPage() {
     const [notas, setNotas] = useState<Nota[]>([])
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [totalNotas, setTotalNotas] = useState<number | null>(null)
 
     // Estados para registro de notas (solo docentes)
     const [showCalculator, setShowCalculator] = useState<false | true | string>(false)

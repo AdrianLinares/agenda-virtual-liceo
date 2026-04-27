@@ -26,6 +26,7 @@ interface PermisosStats {
 // Código auxiliar de caché y utilidades para el dashboard
 import { supabase } from '@/lib/supabase'
 import { withRetry, withTimeout } from '@/lib/async-utils'
+import { rpcCountNotas } from '@/lib/supabase'
 
 interface Evento {
   id: string
@@ -288,11 +289,11 @@ export default function DashboardPage() {
         .from('notas')
         .select('nota, grupo_id, asignatura_id')
         .in('periodo_id', periodoIds)
-      if (isAdmin) {
-        // no filter
-      } else if (isDocente && profile?.id) {
+      let grupos: string[] = []
+      let asignaturas: string[] = []
+      if (isDocente && profile?.id) {
         // Obtener grupos y asignaturas asignados al docente
-        const { data: asignaciones, error: errorAsign } = await withTimeout(
+        const { data: asignacionesData, error: errorAsign } = await withTimeout(
           supabase
             .from('asignaciones_docentes')
             .select('grupo_id, asignatura_id')
@@ -301,26 +302,46 @@ export default function DashboardPage() {
           'Tiempo de espera agotado al cargar asignaciones del docente'
         )
         if (errorAsign) throw errorAsign
-        const grupos = Array.from(new Set(((asignaciones || []) as TeacherAssignment[]).map((a) => a.grupo_id)))
-        const asignaturas = Array.from(new Set(((asignaciones || []) as TeacherAssignment[]).map((a) => a.asignatura_id)))
+        grupos = Array.from(new Set(((asignacionesData || []) as TeacherAssignment[]).map((a) => a.grupo_id)))
+        asignaturas = Array.from(new Set(((asignacionesData || []) as TeacherAssignment[]).map((a) => a.asignatura_id)))
         if (grupos.length === 0 || asignaturas.length === 0) {
           setNotasStats({ total: 0, promedio: 0 })
           setLoadingNotas(false)
           return
         }
         query = query.in('grupo_id', grupos).in('asignatura_id', asignaturas)
-      } else if (userId) {
-        query = query.eq('estudiante_id', userId)
       }
+
+      // Get filters for RPC
+      const filters: any = { periodo_id: periodoIds }
+      if (isDocente && profile?.id) {
+        if (grupos.length > 0) filters.grupo_id = grupos
+        if (asignaturas.length > 0) filters.asignatura_id = asignaturas
+      } else if (!isAdmin && userId) {
+        filters.estudiante_id = userId
+      }
+
+      // Use RPC for total count, fallback to data.length if fails
+      let total: number
+      try {
+        total = await rpcCountNotas(filters)
+      } catch (rpcError) {
+        console.log('RPC notas_count failed, falling back to data.length:', rpcError)
+        // Will set after fetching data
+      }
+
       const { data, error } = await withTimeout(query, 12000, 'Tiempo de espera agotado al cargar notas')
       if (error) throw error
       const notas = (data as Array<{ nota: number }> || []).map((n) => n.nota)
-      const total = notas.length
-      const promedio = total > 0 ? Math.round((notas.reduce((a, b) => a + b, 0) / total) * 100) / 100 : 0
+      if (total === undefined) {
+        total = notas.length
+      }
+      const promedio = total > 0 ? Math.round((notas.reduce((a, b) => a + b, 0) / notas.length) * 100) / 100 : 0
       const stats: NotasStats = { total, promedio }
       setNotasStats(stats)
       setCache(dashboardCache.notasByUser, cacheKey, stats)
     } catch (error) {
+      console.error('Error loading notas stats:', error)
       setNotasStats({ total: 0, promedio: 0 })
     } finally {
       setLoadingNotas(false)
