@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/lib/auth-store'
 import { Button } from '@/components/ui/button'
@@ -14,36 +14,30 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-export default function LoginPage() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-
   const signIn = useAuthStore((state) => state.signIn)
   const setHydrating = useAuthStore((state) => state.setHydrating)
   const navigate = useNavigate()
-  const hydrateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const hydrateTimeoutRef = useRef<number | null>(null)
 
-  const clearHydrateTimeout = () => {
+  const clearHydrateTimeout = useCallback(() => {
     if (hydrateTimeoutRef.current) {
       clearTimeout(hydrateTimeoutRef.current)
       hydrateTimeoutRef.current = null
     }
-  }
+  }, [])
 
-  const startHydrateTimeout = () => {
+  const startHydrateTimeout = useCallback(() => {
     clearHydrateTimeout()
     hydrateTimeoutRef.current = setTimeout(() => {
       setHydrating(false)
     }, getAuthHydrateWindowMs())
-  }
+  }, [clearHydrateTimeout, setHydrating])
 
   useEffect(() => {
     setHydrating(true)
     startHydrateTimeout()
     return clearHydrateTimeout
-  }, [setHydrating])
+  }, [setHydrating, startHydrateTimeout, clearHydrateTimeout])
 
   const handleFocus = () => {
     setHydrating(true)

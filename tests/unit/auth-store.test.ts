@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { useAuthStore } from '@/lib/auth-store'
 import { supabase } from '@/lib/supabase'
-import { getAuthHydrateWindowMs } from '@/config/feature-flags'
 import { recordEvent } from '@/lib/telemetry'
 
 // Mock dependencies
@@ -87,12 +86,14 @@ describe('useAuthStore', () => {
     it('sets authReady to true after successful session fetch', async () => {
       const mockSession = { user: { id: '1' } }
       vi.mocked(supabase.auth.getSession).mockResolvedValue({ data: { session: mockSession }, error: null })
+       
       vi.mocked(supabase.from).mockReturnValue({
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
             single: vi.fn().mockResolvedValue({ data: { id: '1', rol: 'user' }, error: null }),
           }),
         }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
 
       const { initialize } = useAuthStore.getState()

@@ -582,7 +582,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (!hasAuthStateListener) {
           // Keep store synced with auth events and avoid profile queries on password update events.
           supabase.auth.onAuthStateChange(async (event, session) => {
-            const applyAuthUpdate = () => {
+            const applyAuthUpdate = async () => {
               if (event === 'SIGNED_OUT') {
                 set({ user: null, profile: null })
                 return
@@ -643,7 +643,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           })
 
           hasAuthStateListener = true
-        }
         }
       } catch (error) {
         console.error('Error initializing auth:', error)
