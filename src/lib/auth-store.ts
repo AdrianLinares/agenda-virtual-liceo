@@ -50,6 +50,7 @@ interface AuthState {
   loading: boolean
   initialized: boolean
   resumeVersion: number
+  isHydrating: boolean
   setUser: (user: User | null) => void
   setProfile: (profile: Profile | null) => void
   setLoading: (loading: boolean) => void
@@ -61,6 +62,7 @@ interface AuthState {
   signOut: () => Promise<void>
   initialize: () => Promise<void>
   syncSession: (reason?: 'visibilitychange' | 'online' | 'manual') => Promise<void>
+  setHydrating: (hydrating: boolean) => void
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -69,11 +71,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   loading: true,
   initialized: false,
   resumeVersion: 0,
+  isHydrating: false,
 
   setUser: (user) => set({ user }),
   setProfile: (profile) => set({ profile }),
   setLoading: (loading) => set({ loading }),
   markAppResumed: () => set((state) => ({ resumeVersion: state.resumeVersion + 1 })),
+  setHydrating: (hydrating) => set({ isHydrating: hydrating }),
 
   signIn: async (email: string, password: string) => {
     try {
