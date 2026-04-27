@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/lib/auth-store'
+import { getAuthResumeStrategy } from '@/config/feature-flags'
 
 const HomePage = lazy(() => import('@/pages/HomePage'))
 const LoginPage = lazy(() => import('@/pages/LoginPage'))
@@ -103,7 +104,6 @@ function App() {
   const initialize = useAuthStore((state) => state.initialize)
   const syncSession = useAuthStore((state) => state.syncSession)
   const markAppResumed = useAuthStore((state) => state.markAppResumed)
-  const resumeVersion = useAuthStore((state) => state.resumeVersion)
   const lastResumeTriggerRef = useRef(0)
 
   useEffect(() => {
@@ -125,9 +125,11 @@ function App() {
         console.info('[app] resume trigger detected:', reason)
       }
 
-      void syncSession(reason).finally(() => {
-        markAppResumed()
-      })
+      if (getAuthResumeStrategy() === 'stable') {
+        void syncSession(reason).finally(() => {
+          markAppResumed()
+        })
+      }
     }
 
     const handleVisibilityChange = () => {
@@ -153,7 +155,7 @@ function App() {
     <BrowserRouter>
       <RecoveryLinkRedirect />
       <Suspense fallback={<PageLoader />}>
-        <Routes key={resumeVersion}>
+        <Routes>
           {/* Home Page - Public */}
           <Route path="/" element={<HomePage />} />
 
