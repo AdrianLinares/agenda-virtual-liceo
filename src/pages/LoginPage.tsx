@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/lib/auth-store'
 import { Button } from '@/components/ui/button'
@@ -14,7 +14,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
 
   const signIn = useAuthStore((state) => state.signIn)
+  const setHydrating = useAuthStore((state) => state.setHydrating)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    setHydrating(true)
+  }, [setHydrating])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -69,11 +74,13 @@ export default function LoginPage() {
                 <Label htmlFor="email">Correo Electrónico</Label>
                 <Input
                   id="email"
+                  name="email"
                   type="email"
                   autoComplete="username"
                   placeholder="tu@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  onFocus={() => setHydrating(true)}
                   required
                   disabled={loading}
                 />
@@ -83,11 +90,13 @@ export default function LoginPage() {
                 <Label htmlFor="password">Contraseña</Label>
                 <Input
                   id="password"
+                  name="password"
                   type="password"
                   autoComplete="current-password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  onFocus={() => setHydrating(true)}
                   required
                   disabled={loading}
                 />
