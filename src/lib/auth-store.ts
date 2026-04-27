@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase'
 import { withRetry, withTimeout } from '@/lib/async-utils'
 import { normalizeEmail } from '@/utils/normalizeEmail'
 import type { Database } from '@/types/database.types'
+import { getAuthHydrateWindowMs } from '@/config/feature-flags'
+import { recordEvent } from '@/lib/telemetry'
 
 type Profile = Database['public']['Tables']['profiles']['Row']
 
@@ -48,9 +50,10 @@ interface AuthState {
   user: User | null
   profile: Profile | null
   loading: boolean
-  initialized: boolean
+  authReady: boolean
   resumeVersion: number
   isHydrating: boolean
+  pendingAuthUpdate: (() => void) | null
   setUser: (user: User | null) => void
   setProfile: (profile: Profile | null) => void
   setLoading: (loading: boolean) => void
@@ -61,7 +64,8 @@ interface AuthState {
   updatePasswordWithRecovery: (newPassword: string) => Promise<void>
   signOut: () => Promise<void>
   initialize: () => Promise<void>
-  syncSession: (reason?: 'visibilitychange' | 'online' | 'manual') => Promise<void>
+  syncSession: (reason?: string) => Promise<void>
+  getSession: () => Promise<{ user: User | null; profile: Profile | null }>
   setHydrating: (hydrating: boolean) => void
 }
 
@@ -69,15 +73,33 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   profile: null,
   loading: true,
-  initialized: false,
+  authReady: false,
   resumeVersion: 0,
   isHydrating: false,
+  pendingAuthUpdate: null,
 
   setUser: (user) => set({ user }),
   setProfile: (profile) => set({ profile }),
   setLoading: (loading) => set({ loading }),
-  markAppResumed: () => set((state) => ({ resumeVersion: state.resumeVersion + 1 })),
-  setHydrating: (hydrating) => set({ isHydrating: hydrating }),
+  markAppResumed: () => {
+    set((state) => ({ resumeVersion: state.resumeVersion + 1 }))
+    recordEvent('markAppResumed')
+  },
+  /**
+
+   * Sets the hydrating state. If setting to false, applies any pending auth update.
+
+   * @param hydrating Whether the app is hydrating (e.g., autofill)
+
+   */
+
+  setHydrating: (hydrating: boolean) => {
+    set({ isHydrating: hydrating })
+    if (!hydrating && get().pendingAuthUpdate) {
+      get().pendingAuthUpdate()
+      set({ pendingAuthUpdate: null })
+    }
+  },
 
   signIn: async (email: string, password: string) => {
     try {
@@ -402,6 +424,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
+  /**
+
+   * Gets the current user session and profile, ensuring sync.
+
+   * @returns Promise<{user: User | null, profile: Profile | null}>
+
+   */
+
+  getSession: async () => {
+    await get().syncSession()
+    return { user: get().user, profile: get().profile }
+  },
+
+  /**
+
+   * Synchronizes the session with Supabase, updating user and profile.
+
+   * Idempotent: prevents concurrent calls.
+
+   * @param reason Optional reason for the sync (e.g., 'visibilitychange')
+
+   * @returns Promise<void>
+
+   */
+
   syncSession: async (reason = 'manual') => {
     if (isSyncingSession) {
       return
@@ -468,6 +515,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
+  /**
+
+   * Initializes the auth store by restoring session and profile data.
+
+   * Ensures authReady is set only after getSession completes.
+
+   * @returns Promise<void>
+
+   */
+
   initialize: async () => {
     if (initializePromise) {
       return initializePromise
@@ -514,65 +571,84 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           set({
             user: session.user,
             profile: profileData || null,
-            initialized: true
+            authReady: true
           })
+          recordEvent('authReady', { timestamp: Date.now() })
         } else {
-          set({ user: null, profile: null, initialized: true })
+          set({ user: null, profile: null, authReady: true })
+          recordEvent('authReady', { timestamp: Date.now() })
         }
 
         if (!hasAuthStateListener) {
           // Keep store synced with auth events and avoid profile queries on password update events.
           supabase.auth.onAuthStateChange(async (event, session) => {
-            if (event === 'SIGNED_OUT') {
-              set({ user: null, profile: null })
-              return
-            }
-
-            if (!session?.user) {
-              return
-            }
-
-            if (event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED' || event === 'PASSWORD_RECOVERY') {
-              set({ user: session.user })
-              return
-            }
-
-            if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-              try {
-                const { data: profileData, error: profileError } = await withRetry(
-                  () => withTimeout(
-                    supabase
-                      .from('profiles')
-                      .select('*')
-                      .eq('id', session.user.id)
-                      .single(),
-                    AUTH_TIMEOUT_MS,
-                    'Tiempo de espera agotado al cargar el perfil'
-                  ),
-                  AUTH_RETRY_ATTEMPTS,
-                  AUTH_RETRY_DELAY_MS
-                )
-
-                if (profileError) {
-                  console.warn('Error fetching profile on auth change:', profileError)
-                }
-
-                set({ user: session.user, profile: profileData || null })
-              } catch (authChangeError) {
-                console.warn('Non-blocking profile refresh error on auth change:', authChangeError)
-                set({ user: session.user })
+            const applyAuthUpdate = () => {
+              if (event === 'SIGNED_OUT') {
+                set({ user: null, profile: null })
+                return
               }
-              return
+
+              if (!session?.user) {
+                return
+              }
+
+              if (event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED' || event === 'PASSWORD_RECOVERY') {
+                set({ user: session.user })
+                return
+              }
+
+              if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+                try {
+                  const { data: profileData, error: profileError } = await withRetry(
+                    () => withTimeout(
+                      supabase
+                        .from('profiles')
+                        .select('*')
+                        .eq('id', session.user.id)
+                        .single(),
+                      AUTH_TIMEOUT_MS,
+                      'Tiempo de espera agotado al cargar el perfil'
+                    ),
+                    AUTH_RETRY_ATTEMPTS,
+                    AUTH_RETRY_DELAY_MS
+                  )
+
+                  if (profileError) {
+                    console.warn('Error fetching profile on auth change:', profileError)
+                  }
+
+                  set({ user: session.user, profile: profileData || null })
+                } catch (authChangeError) {
+                  console.warn('Non-blocking profile refresh error on auth change:', authChangeError)
+                  set({ user: session.user })
+                }
+                return
+              }
+
+              set({ user: session.user })
             }
 
-            set({ user: session.user })
+            if (get().isHydrating) {
+              const update = applyAuthUpdate
+              set({ pendingAuthUpdate: update })
+              setTimeout(() => {
+                if (get().pendingAuthUpdate === update) {
+                  update()
+                  set({ pendingAuthUpdate: null })
+                }
+              }, getAuthHydrateWindowMs())
+            } else {
+              applyAuthUpdate()
+            }
           })
 
           hasAuthStateListener = true
         }
+        }
       } catch (error) {
         console.error('Error initializing auth:', error)
-        set({ initialized: true })
+        set({ authReady: true })
+        recordEvent('authReady', { timestamp: Date.now(), error: true })
       } finally {
         set({ loading: false })
         isInitializingAuth = false
