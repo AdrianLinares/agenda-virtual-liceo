@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/lib/auth-store'
 import { Button } from '@/components/ui/button'
@@ -6,6 +6,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft } from 'lucide-react'
+import { getAuthHydrateWindowMs } from '@/config/feature-flags'
+
+export default function LoginPage() {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -16,10 +23,32 @@ export default function LoginPage() {
   const signIn = useAuthStore((state) => state.signIn)
   const setHydrating = useAuthStore((state) => state.setHydrating)
   const navigate = useNavigate()
+  const hydrateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  const clearHydrateTimeout = () => {
+    if (hydrateTimeoutRef.current) {
+      clearTimeout(hydrateTimeoutRef.current)
+      hydrateTimeoutRef.current = null
+    }
+  }
+
+  const startHydrateTimeout = () => {
+    clearHydrateTimeout()
+    hydrateTimeoutRef.current = setTimeout(() => {
+      setHydrating(false)
+    }, getAuthHydrateWindowMs())
+  }
 
   useEffect(() => {
     setHydrating(true)
+    startHydrateTimeout()
+    return clearHydrateTimeout
   }, [setHydrating])
+
+  const handleFocus = () => {
+    setHydrating(true)
+    startHydrateTimeout()
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -28,6 +57,8 @@ export default function LoginPage() {
 
     try {
       await signIn(email, password)
+      clearHydrateTimeout()
+      setHydrating(false)
       navigate('/dashboard')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al iniciar sesión'
@@ -72,34 +103,34 @@ export default function LoginPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Correo Electrónico</Label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="username"
-                  placeholder="tu@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  onFocus={() => setHydrating(true)}
-                  required
-                  disabled={loading}
-                />
+                 <Input
+                   id="email"
+                   name="email"
+                   type="email"
+                   autoComplete="username"
+                   placeholder="tu@email.com"
+                   value={email}
+                   onChange={(e) => setEmail(e.target.value)}
+                   onFocus={() => handleFocus()}
+                   required
+                   disabled={loading}
+                 />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="password">Contraseña</Label>
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onFocus={() => setHydrating(true)}
-                  required
-                  disabled={loading}
-                />
+                 <Input
+                   id="password"
+                   name="password"
+                   type="password"
+                   autoComplete="current-password"
+                   placeholder="••••••••"
+                   value={password}
+                   onChange={(e) => setPassword(e.target.value)}
+                   onFocus={() => handleFocus()}
+                   required
+                   disabled={loading}
+                 />
               </div>
 
               {error && (
