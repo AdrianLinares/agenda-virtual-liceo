@@ -359,6 +359,31 @@ export default function NotasPage() {
         }
     }
 
+    const fetchAllNotas = async (baseQuery: any, selectedPeriodo: string): Promise<Nota[]> => {
+        const PAGE_SIZE = 1000
+        let allNotas: Nota[] = []
+        let from = 0
+        let hasMore = true
+
+        while (hasMore) {
+            const { data, error } = await baseQuery
+                .range(from, from + PAGE_SIZE - 1)
+
+            if (error) throw error
+
+            const pageNotas = (data || []) as Nota[]
+            allNotas = [...allNotas, ...pageNotas]
+
+            if (pageNotas.length < PAGE_SIZE) {
+                hasMore = false
+            } else {
+                from += PAGE_SIZE
+            }
+        }
+
+        return allNotas
+    }
+
     const loadNotas = async (showLoader = true) => {
         if (!selectedPeriodo || !profile) return
 
@@ -369,12 +394,12 @@ export default function NotasPage() {
             let query = supabase
                 .from('notas')
                 .select(`
-          *,
-          asignatura:asignatura_id (nombre, codigo),
-          estudiante:estudiante_id (nombre_completo, email),
-          periodo:periodo_id (nombre, numero),
-          grupo:grupo_id (nombre, grado:grado_id (nombre))
-        `)
+                    *,
+                    asignatura:asignatura_id (nombre, codigo),
+                    estudiante:estudiante_id (nombre_completo, email),
+                    periodo:periodo_id (nombre, numero),
+                    grupo:grupo_id (nombre, grado:grado_id (nombre))
+                `)
                 .eq('periodo_id', selectedPeriodo)
 
             if (profile.rol === 'estudiante') {
@@ -415,10 +440,17 @@ export default function NotasPage() {
                 query = query.in('grupo_id', gruposAsignados).in('asignatura_id', asignaturasAsignadas)
             }
 
-            const { data, error } = await query
+            // For admin/administrativo, fetch all notas with pagination
+            let data: Nota[]
+            if (profile.rol === 'administrador' || profile.rol === 'administrativo') {
+                data = await fetchAllNotas(query, selectedPeriodo)
+            } else {
+                const { data: queryData, error } = await query
+                if (error) throw error
+                data = (queryData || []) as Nota[]
+            }
 
-            if (error) throw error
-            setNotas((data || []) as Nota[])
+            setNotas(data)
         } catch (err) {
             console.error('Error loading notas:', err)
             setError('Error al cargar las notas')

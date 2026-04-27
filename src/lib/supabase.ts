@@ -19,18 +19,19 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
 })
 
 export async function rpcCountNotas(params?: {
-  periodo_id?: string
-  grupo_id?: string
-  asignatura_id?: string
+  periodo_id?: string | string[]
+  grupo_id?: string | string[]
+  asignatura_id?: string | string[]
   estudiante_id?: string
   search?: string
-}): Promise<number> {
+}): Promise<number | undefined> {
   try {
     const { data, error } = await supabase.rpc('notas_count', params || {})
     if (error) throw error
-    return typeof data === 'number' ? data : parseInt(String(data), 10) || 0
+    const count = typeof data === 'number' ? data : parseInt(String(data), 10)
+    return isNaN(count) ? undefined : count
   } catch (error) {
     console.error('Error calling notas_count RPC:', error)
-    return 0
+    return undefined
   }
 }

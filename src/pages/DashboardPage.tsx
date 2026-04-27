@@ -252,7 +252,50 @@ export default function DashboardPage() {
     } finally {
       setLoadingAsistencia(false)
     }
-  }, [userId, profile?.rol, profile?.id])
+   }, [userId, profile?.rol, profile?.id])
+
+  // Helper to fetch all notas with pagination (bypass 1000 row limit)
+  const fetchAllNotas = async (
+    periodoIds: string[],
+    grupos: string[],
+    asignaturas: string[],
+    userId: string | null,
+    isAdminOrStaff: boolean
+  ): Promise<number[]> => {
+    const PAGE_SIZE = 1000
+    let allNotas: number[] = []
+    let from = 0
+    let hasMore = true
+
+    while (hasMore) {
+      let query = supabase
+        .from('notas')
+        .select('nota')
+        .in('periodo_id', periodoIds)
+        .range(from, from + PAGE_SIZE - 1)
+
+      if (grupos.length > 0) query = query.in('grupo_id', grupos)
+      if (asignaturas.length > 0) query = query.in('asignatura_id', asignaturas)
+      // Only filter by student if not admin/staff and userId exists
+      if (!isAdminOrStaff && userId) {
+        query = query.eq('estudiante_id', userId)
+      }
+
+      const { data, error } = await query
+      if (error) throw error
+
+      const pageNotas = (data || []).map((n: { nota: number }) => n.nota)
+      allNotas = [...allNotas, ...pageNotas]
+
+      if (pageNotas.length < PAGE_SIZE) {
+        hasMore = false
+      } else {
+        from += PAGE_SIZE
+      }
+    }
+
+    return allNotas
+  }
 
   // Notas: total y promedio
   const loadNotasStats = useCallback(async () => {
@@ -287,7 +330,7 @@ export default function DashboardPage() {
       }
       let query = supabase
         .from('notas')
-        .select('nota, grupo_id, asignatura_id')
+        .select('nota, grupo_id, asignatura_id', { count: 'exact' })
         .in('periodo_id', periodoIds)
       let grupos: string[] = []
       let asignaturas: string[] = []
@@ -321,22 +364,44 @@ export default function DashboardPage() {
         filters.estudiante_id = userId
       }
 
-      // Use RPC for total count, fallback to data.length if fails
-      let total: number
+      // Use RPC for total count, fallback to query count if fails
+      let total: number | undefined
       try {
         total = await rpcCountNotas(filters)
       } catch (rpcError) {
-        console.log('RPC notas_count failed, falling back to data.length:', rpcError)
-        // Will set after fetching data
+        console.log('RPC notas_count failed, falling back to query count:', rpcError)
       }
 
-      const { data, error } = await withTimeout(query, 12000, 'Tiempo de espera agotado al cargar notas')
+      // Get data for average and exact count as fallback
+      const { data, count, error } = await withTimeout(query, 12000, 'Tiempo de espera agotado al cargar notas')
       if (error) throw error
-      const notas = (data as Array<{ nota: number }> || []).map((n) => n.nota)
-      if (total === undefined) {
-        total = notas.length
+
+      // Use exact count from query if RPC failed
+      if (total === undefined && count !== null) {
+        total = count
       }
-      const promedio = total > 0 ? Math.round((notas.reduce((a, b) => a + b, 0) / notas.length) * 100) / 100 : 0
+
+      // For average, we need all grades if admin/staff or if we suspect incomplete data
+      let notas: number[] = []
+      const needsAllNotas = isAdmin || (total !== undefined && total > 1000)
+      
+      if (needsAllNotas) {
+        try {
+          notas = await fetchAllNotas(periodoIds, grupos, asignaturas, userId, isAdmin)
+        } catch (e) {
+          console.error('Failed to fetch all notas, falling back to query data:', e)
+          // Fall back to query data (limited but better than nothing)
+          if (data && data.length > 0) {
+            notas = (data as Array<{ nota: number }>).map((n) => n.nota)
+          }
+        }
+      } else if (data && data.length > 0) {
+        notas = (data as Array<{ nota: number }>).map((n) => n.nota)
+      }
+
+      const promedio = total > 0 && notas.length > 0
+        ? Math.round((notas.reduce((a, b) => a + b, 0) / notas.length) * 100) / 100
+        : 0
       const stats: NotasStats = { total, promedio }
       setNotasStats(stats)
       setCache(dashboardCache.notasByUser, cacheKey, stats)

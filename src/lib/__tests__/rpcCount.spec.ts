@@ -10,10 +10,11 @@ vi.mock('../supabase', () => ({
     try {
       const { data, error } = await supabase.rpc('notas_count', params || {})
       if (error) throw error
-      return typeof data === 'number' ? data : parseInt(String(data), 10) || 0
+      const count = typeof data === 'number' ? data : parseInt(String(data), 10)
+      return isNaN(count) ? undefined : count
     } catch (error) {
       console.error('Error calling notas_count RPC:', error)
-      return 0
+      return undefined
     }
   }),
 }))
@@ -43,22 +44,22 @@ describe('rpcCountNotas', () => {
     expect(result).toBe(123)
   })
 
-  it('returns 0 on RPC error', async () => {
+  it('returns undefined on RPC error', async () => {
     const { supabase } = await import('../supabase')
     supabase.rpc.mockResolvedValue({ data: null, error: new Error('RPC failed') })
 
     const result = await rpcCountNotas({ search: 'test' })
 
-    expect(result).toBe(0)
+    expect(result).toBeUndefined()
   })
 
-  it('returns 0 when data is not a number', async () => {
+  it('returns undefined when data is not a valid number', async () => {
     const { supabase } = await import('../supabase')
     supabase.rpc.mockResolvedValue({ data: 'invalid', error: null })
 
     const result = await rpcCountNotas()
 
-    expect(result).toBe(0)
+    expect(result).toBeUndefined()
   })
 
   it('passes empty object when no params', async () => {

@@ -1,5 +1,5 @@
--- Migration: 2026-04-27_notas_count_and_admin_rls.sql
--- Description: Add notas_count RPC function and RLS policy for admin/administrativo roles
+-- Migration: 2026-04-27_notas_count.sql
+-- Description: Add notas_count RPC function for efficient counting
 
 -- Up Migration
 
@@ -50,13 +50,6 @@ $$;
 -- Grant execute permission to authenticated users
 GRANT EXECUTE ON FUNCTION public.notas_count(JSON) TO authenticated;
 
--- Create RLS policy for admin/administrativo roles to allow SELECT on notas
-CREATE POLICY allow_admin_select ON public.notas
-FOR SELECT
-TO administrador, administrativo
-USING (true);
-
 -- Down Migration
 
 -- DROP FUNCTION IF EXISTS public.notas_count(JSON);
--- DROP POLICY IF EXISTS allow_admin_select ON public.notas;
