@@ -50,7 +50,7 @@ export const GradeCalculator = forwardRef<GradeCalculatorRef, GradeCalculatorPro
             const saved = localStorage.getItem(key);
             return saved ? JSON.parse(saved) as T : defaultValue;
         } catch (e) {
-            console.error("Error loading " + key, e);
+            console.error("Error al cargar " + key, e);
             return defaultValue;
         }
     };

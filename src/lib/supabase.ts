@@ -5,7 +5,7 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables')
+  throw new Error('Faltan las variables de entorno de Supabase')
 }
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
@@ -31,7 +31,7 @@ export async function rpcCountNotas(params?: {
     const count = typeof data === 'number' ? data : parseInt(String(data), 10)
     return isNaN(count) ? undefined : count
   } catch (error) {
-    console.error('Error calling notas_count RPC:', error)
+    console.error('Error al llamar RPC notas_count:', error)
     return undefined
   }
 }

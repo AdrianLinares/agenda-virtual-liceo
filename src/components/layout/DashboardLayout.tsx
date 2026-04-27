@@ -136,7 +136,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     try {
       await signOut()
     } catch (error) {
-      console.warn('Sign out flow returned an error:', error)
+      console.warn('El flujo de cierre de sesión devolvió un error:', error)
     } finally {
       navigate('/login', { replace: true })
     }

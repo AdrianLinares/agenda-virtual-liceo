@@ -94,7 +94,7 @@ export default function RestablecerContrasenaPage() {
                             await syncSession?.('manual')
                         } catch (e) {
                             // Non-blocking: continue even if syncSession fails
-                            console.warn('syncSession failed after setSession:', e)
+                            console.warn('Error de sincronización tras establecer sesión:', e)
                         }
 
                         setRecoveryReady(true)
@@ -131,7 +131,7 @@ export default function RestablecerContrasenaPage() {
                         try {
                             await syncSession?.('manual')
                         } catch (e) {
-                            console.warn('syncSession failed after exchangeCodeForSession:', e)
+                            console.warn('Error de sincronización tras intercambiar código de sesión:', e)
                         }
 
                         setRecoveryReady(true)
@@ -169,7 +169,7 @@ export default function RestablecerContrasenaPage() {
                         try {
                             await syncSession?.('manual')
                         } catch (e) {
-                            console.warn('syncSession failed after verifyOtp:', e)
+                            console.warn('Error de sincronización tras verificar OTP:', e)
                         }
 
                         setRecoveryReady(true)

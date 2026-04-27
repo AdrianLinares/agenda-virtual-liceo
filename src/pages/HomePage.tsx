@@ -110,7 +110,7 @@ export default function HomePage() {
             setEventos(finalEventos)
             setAnuncios(finalAnuncios)
         } catch (error) {
-            console.error('Error fetching public data:', error)
+            console.error('Error al obtener datos públicos:', error)
         } finally {
             setLoading(false)
         }

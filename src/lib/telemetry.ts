@@ -14,5 +14,5 @@ export interface TelemetryEvent {
  * @param payload Optional payload
  */
 export function recordEvent(name: string, payload?: Record<string, unknown>): void {
-  console.debug('[telemetry]', name, payload)
+  console.debug('[telemetría]', name, payload)
 }

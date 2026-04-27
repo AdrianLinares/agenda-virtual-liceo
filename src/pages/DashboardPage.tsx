@@ -369,7 +369,7 @@ export default function DashboardPage() {
       try {
         total = await rpcCountNotas(filters)
       } catch (rpcError) {
-        console.log('RPC notas_count failed, falling back to query count:', rpcError)
+        console.log('RPC notas_count falló, usando conteo de consulta como respaldo:', rpcError)
       }
 
       // Get data for average and exact count as fallback
@@ -389,7 +389,7 @@ export default function DashboardPage() {
         try {
           notas = await fetchAllNotas(periodoIds, grupos, asignaturas, userId, isAdmin)
         } catch (e) {
-          console.error('Failed to fetch all notas, falling back to query data:', e)
+          console.error('Error al obtener todas las notas, usando datos de consulta como respaldo:', e)
           // Fall back to query data (limited but better than nothing)
           if (data && data.length > 0) {
             notas = (data as Array<{ nota: number }>).map((n) => n.nota)
@@ -406,7 +406,7 @@ export default function DashboardPage() {
       setNotasStats(stats)
       setCache(dashboardCache.notasByUser, cacheKey, stats)
     } catch (error) {
-      console.error('Error loading notas stats:', error)
+      console.error('Error al cargar estadísticas de notas:', error)
       setNotasStats({ total: 0, promedio: 0 })
     } finally {
       setLoadingNotas(false)

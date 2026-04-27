@@ -46,6 +46,35 @@ function isSamePasswordMessage(msg: unknown) {
   return /same(\s+as)?|cannot.*same|different.*(old|actual)|igual|mismo/.test(m)
 }
 
+// Translate common Supabase auth error messages to Spanish
+function translateAuthError(message: string): string {
+  const m = normalizeMessage(message)
+  
+  if (m.includes('invalid login credentials') || m.includes('invalid credentials')) {
+    return 'Credenciales de inicio de sesión inválidas'
+  }
+  if (m.includes('email not confirmed')) {
+    return 'El correo electrónico no ha sido confirmado'
+  }
+  if (m.includes('user already registered')) {
+    return 'El usuario ya está registrado'
+  }
+  if (m.includes('weak password')) {
+    return 'La contraseña es demasiado débil'
+  }
+  if (m.includes('password should be at least')) {
+    return 'La contraseña debe tener al menos 6 caracteres'
+  }
+  if (m.includes('invalid email')) {
+    return 'El correo electrónico no es válido'
+  }
+  if (m.includes('signup disabled')) {
+    return 'El registro de usuarios está deshabilitado'
+  }
+  
+  return message // Return original if no translation found
+}
+
 interface AuthState {
   user: User | null
   profile: Profile | null
@@ -124,8 +153,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       )
 
       if (error) {
-        const errorMessage = error.message || 'Error desconocido al iniciar sesión'
-        console.error('Error signing in:', error)
+        const errorMessage = translateAuthError(error.message || '') || 'Error desconocido al iniciar sesión'
+        console.error('Error al iniciar sesión:', error)
         throw new Error(errorMessage)
       }
 
@@ -146,18 +175,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         )
 
         if (profileError) {
-          console.warn('Error fetching profile during sign-in (non-blocking):', profileError)
+          console.warn('Error al obtener perfil durante inicio de sesión (no bloqueante):', profileError)
           set({ user: data.user, profile: null })
           return
         }
 
         set({ user: data.user, profile: profileData || null })
       }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Error al iniciar sesión'
-      console.error('Error signing in:', error)
-      throw new Error(errorMessage)
-    } finally {
+      } catch (error) {
+        const errorMessage = error instanceof Error ? translateAuthError(error.message) : 'Error al iniciar sesión'
+        console.error('Error al iniciar sesión:', error)
+        throw new Error(errorMessage)
+      } finally {
       set({ loading: false })
     }
   },
@@ -273,11 +302,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (error) {
         throw new Error(error.message || 'No se pudo enviar el correo de recuperación')
       }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Error al solicitar recuperación de contraseña'
-      console.error('Error requesting password reset:', error)
-      throw new Error(errorMessage)
-    } finally {
+      } catch (error) {
+        const errorMessage = error instanceof Error ? translateAuthError(error.message) : 'Error al solicitar recuperación de contraseña'
+        console.error('Error requesting password reset:', error)
+        throw new Error(errorMessage)
+      } finally {
       set({ loading: false })
     }
   },
@@ -321,7 +350,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
 
           const updateMessage = error.message || 'No se pudo restablecer la contraseña'
-
           if (isAuthSessionMissingMessage(updateMessage)) {
             throw new Error('La sesión de recuperación expiró. Solicita un nuevo enlace para restablecer la contraseña.')
           }
@@ -330,7 +358,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             return
           }
 
-          throw new Error(updateMessage)
+          throw new Error(translateAuthError(updateMessage))
         },
         AUTH_RETRY_ATTEMPTS,
         AUTH_RETRY_DELAY_MS,
@@ -365,16 +393,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             AUTH_RETRY_DELAY_MS
           )
           if (fallbackError) {
-            console.warn('Non-blocking local sign-out fallback after recovery failed:', fallbackError)
+            console.warn('Cierre de sesión local no bloqueante tras fallo de recuperación:', fallbackError)
           }
         } catch (fallbackErr) {
-          console.warn('Non-blocking local sign-out final fallback failed (ignored):', fallbackErr)
+          console.warn('Fallo final de cierre de sesión local no bloqueante (ignorado):', fallbackErr)
         }
       }
 
       set({ user: null, profile: null })
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Error al restablecer contraseña'
+      const errorMessage = error instanceof Error ? translateAuthError(error.message) : 'Error al restablecer contraseña'
       console.error('Error updating password with recovery:', error)
       throw new Error(errorMessage)
     } finally {
@@ -401,7 +429,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       set({ user: null, profile: null })
     } catch (error) {
-      console.warn('Remote sign-out failed, falling back to local sign-out:', error)
+      console.warn('Cierre de sesión remoto falló, usando cierre local como respaldo:', error)
 
       try {
         await withRetry(
@@ -414,7 +442,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           AUTH_RETRY_DELAY_MS
         )
       } catch (localError) {
-        console.info('Local sign-out fallback failed (non-blocking):', localError)
+        console.info('Fallo del cierre de sesión local como respaldo (no bloqueante):', localError)
       }
 
       // Always clear local auth state to avoid blocking the UI.
@@ -458,7 +486,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     try {
       if (import.meta.env.DEV) {
-        console.info('[auth] syncing session after resume trigger:', reason)
+        console.info('[auth] sincronizando sesión tras disparador de reanudación:', reason)
       }
 
       const { data: { session }, error: sessionError } = await withRetry(
@@ -502,14 +530,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       )
 
       if (profileError) {
-        console.warn('Error refreshing profile on session sync:', profileError)
+        console.warn('Error al actualizar perfil en sincronización de sesión:', profileError)
         set({ user: session.user, profile: null })
         return
       }
 
       set({ user: session.user, profile: profileData || null })
     } catch (syncError) {
-      console.warn('Non-blocking session sync error:', syncError)
+      console.warn('Error de sincronización de sesión no bloqueante:', syncError)
     } finally {
       isSyncingSession = false
     }
@@ -564,7 +592,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           )
 
           if (profileError) {
-            console.warn('Error fetching profile:', profileError)
+            console.warn('Error al obtener perfil:', profileError)
             // Do not block login if profile fetch fails; route guards still rely on auth user.
           }
 
@@ -614,12 +642,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                   )
 
                   if (profileError) {
-                    console.warn('Error fetching profile on auth change:', profileError)
+                    console.warn('Error al obtener perfil en cambio de autenticación:', profileError)
                   }
 
                   set({ user: session.user, profile: profileData || null })
                 } catch (authChangeError) {
-                  console.warn('Non-blocking profile refresh error on auth change:', authChangeError)
+                  console.warn('Error de actualización de perfil no bloqueante en cambio de autenticación:', authChangeError)
                   set({ user: session.user })
                 }
                 return
@@ -645,7 +673,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           hasAuthStateListener = true
         }
       } catch (error) {
-        console.error('Error initializing auth:', error)
+        console.error('Error al inicializar autenticación:', error)
         set({ authReady: true })
         recordEvent('authReady', { timestamp: Date.now(), error: true })
       } finally {

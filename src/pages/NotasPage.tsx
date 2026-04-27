@@ -1217,7 +1217,7 @@ export default function NotasPage() {
         try {
             const data = parseObservacionesPayload(observaciones)
             if (!data) {
-                throw new Error('Invalid observaciones payload')
+                throw new Error('Datos de observaciones inválidos')
             }
 
             const { weights, rubrics } = parseStoredCalculatorData(observaciones)

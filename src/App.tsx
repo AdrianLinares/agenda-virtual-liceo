@@ -120,7 +120,7 @@ function App() {
 
       // En entorno de desarrollo se registra el motivo del resume para depuración.
       if (import.meta.env.DEV) {
-        console.info('[app] resume trigger detected:', reason)
+        console.info('[app] disparador de reanudación detectado:', reason)
       }
 
       if (getAuthResumeStrategy() === 'stable') {

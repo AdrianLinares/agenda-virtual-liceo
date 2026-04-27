@@ -13,7 +13,7 @@ vi.mock('../supabase', () => ({
       const count = typeof data === 'number' ? data : parseInt(String(data), 10)
       return isNaN(count) ? undefined : count
     } catch (error) {
-      console.error('Error calling notas_count RPC:', error)
+      console.error('Error al llamar RPC notas_count:', error)
       return undefined
     }
   }),
