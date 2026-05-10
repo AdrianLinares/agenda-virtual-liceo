@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useAuthStore } from '@/lib/auth-store'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select'
+import { sortByGradeAndGroupName } from '@/utils/grade-order'
 import { FileText, Download, AlertCircle, CheckCircle, Loader2 } from 'lucide-react'
 import { Alert, AlertDescription } from '../components/ui/alert'
 
@@ -45,6 +46,21 @@ interface Boletin {
   } | null
 }
 
+interface Grupo {
+  id: string
+  nombre: string
+  grado_id: string
+  grado: {
+    nombre: string
+  }
+}
+
+interface Estudiante {
+  id: string
+  nombre_completo: string
+  email: string
+}
+
 interface NotaDetalle {
   nota: number
   observaciones: string | null
@@ -63,6 +79,12 @@ export default function BoletinesPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [generatingPDF, setGeneratingPDF] = useState<string | null>(null)
+  const [grupos, setGrupos] = useState<Grupo[]>([])
+  const [estudiantes, setEstudiantes] = useState<Estudiante[]>([])
+  const [selectedGrupo, setSelectedGrupo] = useState<string>('all')
+  const [selectedEstudiante, setSelectedEstudiante] = useState<string>('all')
+  const [estudiantesPorGrupo, setEstudiantesPorGrupo] = useState<Record<string, string[]>>({})
+  const canUseViewFilters = profile?.rol === 'administrador' || profile?.rol === 'administrativo' || profile?.rol === 'docente'
 
   // Cargar periodos
   useEffect(() => {
@@ -77,6 +99,14 @@ export default function BoletinesPage() {
     // Motivo: loadBoletines depende del periodo y perfil; omitimos otras dependencias intencionalmente.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPeriodo, profile])
+
+  // Cargar opciones de filtro para administradores y docentes
+  useEffect(() => {
+    if (profile && canUseViewFilters) {
+      loadFilterOptions()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile])
 
   const loadPeriodos = async () => {
     try {
@@ -243,6 +273,104 @@ export default function BoletinesPage() {
       }))
       .sort((a, b) => (a.estudiante?.nombre_completo || '').localeCompare(b.estudiante?.nombre_completo || ''))
   }
+
+  const loadFilterOptions = async () => {
+    if (!profile) return
+
+    try {
+      let gruposIds: string[] = []
+
+      // Para docentes, filtrar solo sus grupos asignados
+      if (profile.rol === 'docente') {
+        const { data: asignaciones } = await supabase
+          .from('asignaciones_docentes')
+          .select('grupo_id')
+          .eq('docente_id', profile.id)
+
+        gruposIds = [...new Set((asignaciones || []).map((a) => a.grupo_id))]
+
+        if (gruposIds.length === 0) {
+          setGrupos([])
+          setEstudiantes([])
+          setEstudiantesPorGrupo({})
+          return
+        }
+      }
+
+      const [{ data: gruposData, error: gruposError }, { data: estudiantesData, error: estudiantesError }] =
+        await Promise.all([
+          supabase
+            .from('grupos')
+            .select('id, nombre, grado_id, grado:grado_id (nombre)')
+            .order('nombre', { ascending: true }),
+          supabase
+            .from('profiles')
+            .select('id, nombre_completo, email')
+            .eq('rol', 'estudiante')
+            .eq('activo', true)
+            .order('nombre_completo', { ascending: true }),
+        ])
+
+      if (gruposError) throw gruposError
+      if (estudiantesError) throw estudiantesError
+
+      const gruposFiltrados = sortByGradeAndGroupName(
+        ((gruposData || []) as Grupo[]).filter(
+          (g) => gruposIds.length === 0 || gruposIds.includes(g.id)
+        ),
+        (g) => g.grado?.nombre,
+        (g) => g.nombre
+      )
+
+      setGrupos(gruposFiltrados)
+      setEstudiantes((estudiantesData || []) as Estudiante[])
+
+      // Cargar relación estudiantes-grupos para dependencia grupo -> estudiantes
+      let egQuery = supabase.from('estudiantes_grupos').select('grupo_id, estudiante_id')
+
+      if (gruposIds.length > 0) {
+        egQuery = egQuery.in('grupo_id', gruposIds)
+      }
+
+      const { data: egData, error: egError } = await egQuery.returns<
+        Array<{ grupo_id: string; estudiante_id: string }>
+      >()
+
+      if (egError) throw egError
+
+      const egMap: Record<string, string[]> = {}
+      const estudiantesActivos = new Set(
+        ((estudiantesData || []) as Estudiante[]).map((e) => e.id)
+      )
+
+      for (const item of egData || []) {
+        if (!estudiantesActivos.has(item.estudiante_id)) continue
+        if (!egMap[item.grupo_id]) egMap[item.grupo_id] = []
+        if (!egMap[item.grupo_id].includes(item.estudiante_id)) {
+          egMap[item.grupo_id].push(item.estudiante_id)
+        }
+      }
+
+      setEstudiantesPorGrupo(egMap)
+    } catch (err) {
+      console.error('Error loading filter options:', err)
+    }
+  }
+
+  // Filtrado en cliente
+  const filteredBoletines = useMemo(() => {
+    return boletines.filter((boletin) => {
+      if (selectedGrupo !== 'all' && boletin.grupo_id !== selectedGrupo) return false
+      if (selectedEstudiante !== 'all' && boletin.estudiante_id !== selectedEstudiante) return false
+      return true
+    })
+  }, [boletines, selectedGrupo, selectedEstudiante])
+
+  const estudiantesDisponibles = useMemo(() => {
+    if (selectedGrupo === 'all') return estudiantes
+    const ids = new Set(estudiantesPorGrupo[selectedGrupo] || [])
+    return estudiantes.filter((e) => ids.has(e.id))
+  }, [estudiantes, selectedGrupo, estudiantesPorGrupo])
 
   const handleGeneratePDF = async (boletinId: string) => {
     setGeneratingPDF(boletinId)
@@ -537,13 +665,18 @@ export default function BoletinesPage() {
             </Alert>
           )}
 
-          {boletines.length > 0 && (
+          {filteredBoletines.length > 0 && (
             <div className="space-y-2">
               <p className="text-sm font-medium mb-3">
-                Boletines generados en este periodo: {boletines.length}
+                Boletines visibles: {filteredBoletines.length}
+                {filteredBoletines.length !== boletines.length && (
+                  <span className="text-muted-foreground font-normal">
+                    {' '}(filtrados de {boletines.length} totales)
+                  </span>
+                )}
               </p>
               <div className="grid gap-3">
-                {boletines.map((boletin) => (
+                {filteredBoletines.map((boletin) => (
                   <div
                     key={boletin.id}
                     className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted"
@@ -575,6 +708,15 @@ export default function BoletinesPage() {
                 ))}
               </div>
             </div>
+          )}
+
+          {boletines.length > 0 && filteredBoletines.length === 0 && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                No hay boletines que coincidan con los filtros seleccionados.
+              </AlertDescription>
+            </Alert>
           )}
 
           {boletines.length === 0 && (
@@ -611,7 +753,11 @@ export default function BoletinesPage() {
             <label className="text-sm font-medium whitespace-nowrap">
               Seleccionar Periodo:
             </label>
-            <Select value={selectedPeriodo} onValueChange={setSelectedPeriodo}>
+            <Select value={selectedPeriodo} onValueChange={(value) => {
+              setSelectedPeriodo(value)
+              setSelectedGrupo('all')
+              setSelectedEstudiante('all')
+            }}>
               <SelectTrigger className="w-full max-w-xs">
                 <SelectValue placeholder="Selecciona un periodo" />
               </SelectTrigger>
@@ -626,6 +772,66 @@ export default function BoletinesPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Filtros de grupo y estudiante (solo admin / administrativo / docente) */}
+      {canUseViewFilters && grupos.length > 0 && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Grupo</label>
+                <Select value={selectedGrupo} onValueChange={(value) => {
+                  setSelectedGrupo(value)
+                  setSelectedEstudiante('all')
+                }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos los grupos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los grupos</SelectItem>
+                    {grupos.map((grupo) => (
+                      <SelectItem key={grupo.id} value={grupo.id}>
+                        {grupo.grado.nombre} - {grupo.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-2 block">Estudiante</label>
+                <Select
+                  value={selectedEstudiante}
+                  onValueChange={setSelectedEstudiante}
+                  disabled={estudiantesDisponibles.length === 0}
+                >
+                  <SelectTrigger className="w-full md:min-w-[18rem]">
+                    <SelectValue placeholder="Todos los estudiantes" />
+                  </SelectTrigger>
+                  <SelectContent className="md:min-w-[22rem]">
+                    <SelectItem value="all">Todos los estudiantes</SelectItem>
+                    {estudiantesDisponibles.map((estudiante) => (
+                      <SelectItem
+                        key={estudiante.id}
+                        value={estudiante.id}
+                        className="whitespace-normal py-2 leading-tight"
+                        title={estudiante.nombre_completo}
+                      >
+                        {estudiante.nombre_completo}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {estudiantesDisponibles.length > 8 && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Desplaza la lista para ver todos los estudiantes ({estudiantesDisponibles.length} en total).
+                  </p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Error Alert */}
       {error && (
