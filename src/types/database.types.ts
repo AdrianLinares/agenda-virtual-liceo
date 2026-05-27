@@ -384,6 +384,7 @@ export interface Database {
           contenido: string
           autor_id: string
           destinatarios: string[]
+          grupo_id: string | null
           importante: boolean
           fecha_publicacion: string
           fecha_expiracion: string | null
@@ -396,6 +397,7 @@ export interface Database {
           contenido: string
           autor_id: string
           destinatarios: string[]
+          grupo_id?: string | null
           importante?: boolean
           fecha_publicacion?: string
           fecha_expiracion?: string | null
@@ -408,6 +410,7 @@ export interface Database {
           contenido?: string
           autor_id?: string
           destinatarios?: string[]
+          grupo_id?: string | null
           importante?: boolean
           fecha_publicacion?: string
           fecha_expiracion?: string | null
