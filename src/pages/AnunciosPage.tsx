@@ -12,6 +12,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertCircle, Bell, CheckCircle2, Loader2, Megaphone } from 'lucide-react'
 import { transformGoogleDriveUrlToEmbed } from '@/utils/transformGoogleDriveUrlToEmbed'
 import { DriveEmbed } from '@/components/anuncios/DriveEmbed'
+import { computeGrupoId } from '@/utils/anuncios'
+import { formatGrupoDisplayName } from '@/utils/anuncios'
 
 interface Anuncio {
     id: string
@@ -24,10 +26,16 @@ interface Anuncio {
     fecha_expiracion: string | null
     drive_public_url: string | null
     created_at: string
+    grupo_id: string | null
+    grupo_display_name?: string | null
     autor?: {
         nombre_completo: string
         email: string
     }
+    grupo?: {
+        nombre: string
+        grado?: { nombre: string } | null
+    } | null
 }
 
 const DESTINATARIOS = [
@@ -69,6 +77,10 @@ export default function AnunciosPage() {
     const [importante, setImportante] = useState(false)
     const [formOpen, setFormOpen] = useState(false)
     const [editingId, setEditingId] = useState<string | null>(null)
+    const [targetGroupMode, setTargetGroupMode] = useState<'all' | 'specific'>('all')
+    const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
+    const [grupos, setGrupos] = useState<{ id: string; displayName: string }[]>([])
+    const [loadingGrupos, setLoadingGrupos] = useState(false)
 
     const isStaff = profile?.rol === 'administrador' || profile?.rol === 'administrativo' || profile?.rol === 'docente'
     const canViewAll = profile?.rol === 'administrador' || profile?.rol === 'administrativo'
@@ -84,7 +96,8 @@ export default function AnunciosPage() {
                 .from('anuncios')
                 .select(`
           *,
-          autor:autor_id (nombre_completo, email)
+          autor:autor_id (nombre_completo, email),
+          grupo:grupo_id (nombre, grado:grado_id (nombre))
         `)
                 .order('fecha_publicacion', { ascending: false })
 
@@ -95,7 +108,10 @@ export default function AnunciosPage() {
             const { data, error } = await withTimeout(query, 15000, 'Tiempo de espera agotado al cargar anuncios')
             if (error) throw error
 
-            const items = (data || []) as Anuncio[]
+            const items = ((data || []) as Anuncio[]).map((item) => ({
+                ...item,
+                grupo_display_name: formatGrupoDisplayName(item.grupo),
+            }))
             const visibleItems = canViewAll
                 ? items
                 : items.filter((item) => {
@@ -112,11 +128,37 @@ export default function AnunciosPage() {
         }
     }, [canViewAll, profile])
 
+    const loadGrupos = useCallback(async () => {
+        setLoadingGrupos(true)
+        try {
+            const { data, error } = await supabase
+                .from('grupos')
+                .select('id, nombre, grado:grado_id(nombre)')
+                .eq('año_academico', 2026)
+                .order('nombre')
+            if (error) throw error
+            setGrupos((data || []).map((g: { id: string; nombre: string; grado: { nombre: string } | null }) => ({
+                id: g.id,
+                displayName: `${g.grado?.nombre || ''} ${g.nombre}`.trim()
+            })))
+        } catch (err) {
+            console.error('Error loading grupos:', err)
+        } finally {
+            setLoadingGrupos(false)
+        }
+    }, [])
+
     useEffect(() => {
         if (profile) {
             void loadAnuncios()
         }
     }, [loadAnuncios, profile])
+
+    useEffect(() => {
+        if (formOpen && destinatarios.includes('estudiante')) {
+            void loadGrupos()
+        }
+    }, [formOpen, destinatarios, loadGrupos])
 
     const resetForm = () => {
         setTitulo('')
@@ -127,12 +169,19 @@ export default function AnunciosPage() {
         setImportante(false)
         setEditingId(null)
         setFormOpen(false)
+        setTargetGroupMode('all')
+        setSelectedGroupId(null)
     }
 
     const handleDestinatarioToggle = (value: string, checked: boolean) => {
         if (value === 'todos') {
             setDestinatarios(checked ? ['todos'] : [])
             return
+        }
+
+        if (value === 'estudiante' && !checked) {
+            setTargetGroupMode('all')
+            setSelectedGroupId(null)
         }
 
         setDestinatarios((prev) => {
@@ -180,10 +229,13 @@ export default function AnunciosPage() {
                 ? ['todos']
                 : Array.from(new Set(destinatarios))
 
+            const grupoId = computeGrupoId(destinatarios, targetGroupMode, selectedGroupId)
+
             const payload: Database['public']['Tables']['anuncios']['Update'] = {
                 titulo: titulo.trim(),
                 contenido: contenido.trim(),
                 destinatarios: normalizedDestinatarios,
+                grupo_id: grupoId,
                 importante,
                 fecha_expiracion: fechaExpiracion ? new Date(fechaExpiracion).toISOString() : null,
                 drive_public_url: isGoogleDriveEmbedEnabled
@@ -205,6 +257,7 @@ export default function AnunciosPage() {
                     contenido: contenido.trim(),
                     autor_id: profile.id,
                     destinatarios: normalizedDestinatarios,
+                    grupo_id: grupoId,
                     importante,
                     fecha_publicacion: new Date().toISOString(),
                     fecha_expiracion: fechaExpiracion ? new Date(fechaExpiracion).toISOString() : null,
@@ -242,6 +295,13 @@ export default function AnunciosPage() {
         setFechaExpiracion(anuncio.fecha_expiracion ? anuncio.fecha_expiracion.slice(0, 10) : '')
         setDrivePublicUrl(anuncio.drive_public_url ?? '')
         setImportante(anuncio.importante)
+        if (anuncio.grupo_id) {
+            setTargetGroupMode('specific')
+            setSelectedGroupId(anuncio.grupo_id)
+        } else {
+            setTargetGroupMode('all')
+            setSelectedGroupId(null)
+        }
         setError(null)
         setSuccess(null)
     }
@@ -380,6 +440,54 @@ export default function AnunciosPage() {
                                                 )
                                             })}
                                         </div>
+                                        {destinatarios.includes('estudiante') && (
+                                            <div className="mt-3 space-y-3 pl-2 border-l-2 border-muted">
+                                                <label className="flex items-center gap-2 text-sm">
+                                                    <input
+                                                        type="radio"
+                                                        name="grupo-target"
+                                                        checked={targetGroupMode === 'all'}
+                                                        onChange={() => {
+                                                            setTargetGroupMode('all')
+                                                            setSelectedGroupId(null)
+                                                        }}
+                                                        className="h-4 w-4"
+                                                    />
+                                                    Todos los estudiantes
+                                                </label>
+                                                <label className="flex items-center gap-2 text-sm">
+                                                    <input
+                                                        type="radio"
+                                                        name="grupo-target"
+                                                        checked={targetGroupMode === 'specific'}
+                                                        onChange={() => setTargetGroupMode('specific')}
+                                                        className="h-4 w-4"
+                                                    />
+                                                    Solo un grupo específico
+                                                </label>
+                                                {targetGroupMode === 'specific' && (
+                                                    <div className="pl-6">
+                                                        {loadingGrupos ? (
+                                                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                                <Loader2 className="h-3 w-3 animate-spin" />
+                                                                Cargando grupos...
+                                                            </div>
+                                                        ) : (
+                                                            <select
+                                                                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                                                value={selectedGroupId ?? ''}
+                                                                onChange={(e) => setSelectedGroupId(e.target.value || null)}
+                                                            >
+                                                                <option value="">Seleccionar grupo...</option>
+                                                                {grupos.map((g) => (
+                                                                    <option key={g.id} value={g.id}>{g.displayName}</option>
+                                                                ))}
+                                                            </select>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -489,6 +597,9 @@ export default function AnunciosPage() {
                                     </div>
                                     <span className="text-xs text-muted-foreground">
                                         {anuncio.destinatarios.join(', ')}
+                                        {anuncio.grupo_id && (
+                                            <span> • {anuncio.grupo_display_name || 'Grupo específico'}</span>
+                                        )}
                                     </span>
                                 </div>
                                 {canEditOrDelete(anuncio) && (

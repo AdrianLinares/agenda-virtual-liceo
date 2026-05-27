@@ -191,6 +191,7 @@ CREATE TABLE anuncios (
     contenido TEXT NOT NULL,
     autor_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
     destinatarios TEXT[],
+    grupo_id UUID REFERENCES public.grupos(id) ON DELETE SET NULL,
     importante BOOLEAN DEFAULT false,
     fecha_publicacion TIMESTAMPTZ DEFAULT NOW(),
     fecha_expiracion TIMESTAMPTZ,
@@ -549,15 +550,44 @@ CREATE POLICY "Admin staff view all announcements"
     );
 
 -- Otros usuarios solo ven anuncios activos dirigidos a su rol o a todos
+-- (con soporte para grupo_id: estudiantes y padres ven solo si están en el grupo)
 CREATE POLICY "Users view targeted active announcements"
     ON anuncios FOR SELECT
     USING (
         (fecha_expiracion IS NULL OR fecha_expiracion > NOW())
         AND (
-            destinatarios IS NULL
-            OR array_length(destinatarios, 1) IS NULL
-            OR destinatarios @> ARRAY['todos']::TEXT[]
-            OR destinatarios @> ARRAY[public.get_user_role()::TEXT]
+            COALESCE(public.get_user_role() IN ('administrador', 'administrativo'), false)
+            OR
+            (
+                (
+                    destinatarios IS NULL
+                    OR array_length(destinatarios, 1) IS NULL
+                    OR destinatarios @> ARRAY['todos']::TEXT[]
+                    OR destinatarios @> ARRAY[public.get_user_role()::TEXT]
+                )
+                AND (
+                    NOT (destinatarios @> ARRAY['estudiante']::TEXT[] AND grupo_id IS NOT NULL)
+                    OR (
+                        public.get_user_role() = 'estudiante'
+                        AND EXISTS (
+                            SELECT 1 FROM public.estudiantes_grupos eg
+                            WHERE eg.grupo_id = anuncios.grupo_id
+                              AND eg.estudiante_id = auth.uid()
+                              AND eg.estado = 'activo'
+                        )
+                    )
+                    OR (
+                        public.get_user_role() = 'padre'
+                        AND EXISTS (
+                            SELECT 1 FROM public.padres_estudiantes pe
+                            JOIN public.estudiantes_grupos eg ON eg.estudiante_id = pe.estudiante_id
+                            WHERE pe.padre_id = auth.uid()
+                              AND eg.grupo_id = anuncios.grupo_id
+                              AND eg.estado = 'activo'
+                        )
+                    )
+                )
+            )
         )
     );
 
