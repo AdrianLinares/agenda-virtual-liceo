@@ -282,6 +282,7 @@ CREATE TABLE eventos (
     todo_el_dia BOOLEAN DEFAULT false,
     lugar TEXT,
     destinatarios TEXT[],
+    grupo_id UUID REFERENCES public.grupos(id) ON DELETE SET NULL,
     drive_public_url TEXT,
     creado_por UUID REFERENCES profiles(id),
     created_at TIMESTAMPTZ DEFAULT NOW()
@@ -687,10 +688,37 @@ CREATE POLICY "Admin staff view all events" ON eventos FOR SELECT
 
 CREATE POLICY "Users view targeted events" ON eventos FOR SELECT
     USING (
-        destinatarios IS NULL
-        OR array_length(destinatarios, 1) IS NULL
-        OR destinatarios @> ARRAY['todos']::TEXT[]
-        OR destinatarios @> ARRAY[public.get_user_role()::TEXT]
+        COALESCE(public.get_user_role() IN ('administrador', 'administrativo'), false)
+        OR (
+            (
+                destinatarios IS NULL
+                OR array_length(destinatarios, 1) IS NULL
+                OR destinatarios @> ARRAY['todos']::TEXT[]
+                OR destinatarios @> ARRAY[public.get_user_role()::TEXT]
+            )
+            AND (
+                NOT (destinatarios @> ARRAY['estudiante']::TEXT[] AND grupo_id IS NOT NULL)
+                OR (
+                    public.get_user_role() = 'estudiante'
+                    AND EXISTS (
+                        SELECT 1 FROM public.estudiantes_grupos eg
+                        WHERE eg.grupo_id = eventos.grupo_id
+                          AND eg.estudiante_id = auth.uid()
+                          AND eg.estado = 'activo'
+                    )
+                )
+                OR (
+                    public.get_user_role() = 'padre'
+                    AND EXISTS (
+                        SELECT 1 FROM public.padres_estudiantes pe
+                        JOIN public.estudiantes_grupos eg ON eg.estudiante_id = pe.estudiante_id
+                        WHERE pe.padre_id = auth.uid()
+                          AND eg.grupo_id = eventos.grupo_id
+                          AND eg.estado = 'activo'
+                    )
+                )
+            )
+        )
     );
 
 CREATE POLICY "Staff create events" ON eventos FOR INSERT
