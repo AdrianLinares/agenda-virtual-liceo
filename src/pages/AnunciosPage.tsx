@@ -12,8 +12,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertCircle, Bell, CheckCircle2, Loader2, Megaphone } from 'lucide-react'
 import { transformGoogleDriveUrlToEmbed } from '@/utils/transformGoogleDriveUrlToEmbed'
 import { DriveEmbed } from '@/components/anuncios/DriveEmbed'
-import { computeGrupoId } from '@/utils/anuncios'
-import { formatGrupoDisplayName } from '@/utils/anuncios'
+import { computeGrupoId, formatGrupoDisplayName } from '@/utils/anuncios'
+import { sortByGradeAndGroupName } from '@/utils/grade-order'
 
 interface Anuncio {
     id: string
@@ -135,9 +135,14 @@ export default function AnunciosPage() {
                 .from('grupos')
                 .select('id, nombre, grado:grado_id(nombre)')
                 .eq('año_academico', 2026)
-                .order('nombre')
             if (error) throw error
-            setGrupos((data || []).map((g: { id: string; nombre: string; grado: { nombre: string } | null }) => ({
+
+            const gruposOrdenados = sortByGradeAndGroupName(
+                data || [],
+                (g) => g.grado?.nombre,
+                (g) => g.nombre,
+            )
+            setGrupos(gruposOrdenados.map((g) => ({
                 id: g.id,
                 displayName: `${g.grado?.nombre || ''} ${g.nombre}`.trim()
             })))
