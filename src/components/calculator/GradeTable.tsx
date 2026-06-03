@@ -41,7 +41,7 @@ export function GradeTable({
         // Permitir solo números y punto decimal
         if (!/^\d*\.?\d*$/.test(value)) return;
 
-        const numValue = parseFloat(value);
+        const numValue = value === '' ? 0 : parseFloat(value);
         // Diagnostic log removed in production
         onGradeChange(category, index, numValue);
     };
@@ -75,9 +75,9 @@ export function GradeTable({
                                     return (
                                         <td key={i} className="border p-2">
                                             <div className="relative">
-                                                <Input
+                                                    <Input
                                                     type="text"
-                                                    value={value === undefined ? '' : value}
+                                                    value={value === undefined || isNaN(value) ? '' : value}
                                                     onChange={(e) =>
                                                         handleChange(category, i, e.target.value)
                                                     }
