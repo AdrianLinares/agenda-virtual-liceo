@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuthStore } from '@/lib/auth-store'
 import { supabase } from '@/lib/supabase'
 import { withTimeout } from '@/lib/async-utils'
@@ -17,6 +17,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertCircle, CalendarDays, CheckCircle2, Loader2, MapPin, Pencil, Trash2, X } from 'lucide-react'
 import type { Database } from '@/types/database.types'
 import { DriveEmbed } from '@/components/anuncios/DriveEmbed'
+import { formatGrupoDisplayName } from '@/utils/anuncios'
+import { sortByGradeAndGroupName } from '@/utils/grade-order'
 
 interface Evento {
     id: string
@@ -28,9 +30,15 @@ interface Evento {
     todo_el_dia: boolean
     lugar: string | null
     destinatarios: string[]
+    grupo_id: string | null
+    grupo_display_name?: string | null
     drive_public_url: string | null
     creado_por: string | null
     created_at: string
+    grupo?: {
+        nombre: string
+        grado?: { nombre: string } | null
+    } | null
 }
 
 const isGoogleDriveEmbedEnabled = import.meta.env.VITE_ENABLE_GOOGLE_DRIVE_EMBED !== 'false'
@@ -73,6 +81,43 @@ export default function CalendarioPage() {
     const [editDescripcion, setEditDescripcion] = useState('')
     const [editDrivePublicUrl, setEditDrivePublicUrl] = useState('')
     const [editDestinatario, setEditDestinatario] = useState('todos')
+    const [targetGroupMode, setTargetGroupMode] = useState<'all' | 'specific'>('all')
+    const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
+    const [editTargetGroupMode, setEditTargetGroupMode] = useState<'all' | 'specific'>('all')
+    const [editSelectedGroupId, setEditSelectedGroupId] = useState<string | null>(null)
+    const [grupos, setGrupos] = useState<{ id: string; displayName: string }[]>([])
+    const [loadingGrupos, setLoadingGrupos] = useState(false)
+
+    const loadGrupos = useCallback(async () => {
+        setLoadingGrupos(true)
+        try {
+            const { data, error } = await supabase
+                .from('grupos')
+                .select('id, nombre, grado:grado_id(nombre)')
+                .eq('año_academico', 2026)
+            if (error) throw error
+
+            const gruposOrdenados = sortByGradeAndGroupName(
+                data || [],
+                (g) => g.grado?.nombre,
+                (g) => g.nombre,
+            )
+            setGrupos(gruposOrdenados.map((g) => ({
+                id: g.id,
+                displayName: `${g.grado?.nombre || ''} ${g.nombre}`.trim()
+            })))
+        } catch (err) {
+            console.error('Error loading grupos:', err)
+        } finally {
+            setLoadingGrupos(false)
+        }
+    }, [])
+
+    useEffect(() => {
+        if (createFormOpen && destinatarios.includes('estudiante')) {
+            void loadGrupos()
+        }
+    }, [createFormOpen, destinatarios, loadGrupos])
 
     const isStaff = profile?.rol === 'administrador' || profile?.rol === 'administrativo' || profile?.rol === 'docente'
     const canViewAll = profile?.rol === 'administrador' || profile?.rol === 'administrativo'
@@ -94,7 +139,7 @@ export default function CalendarioPage() {
         try {
             let query = supabase
                 .from('eventos')
-                .select('*')
+                .select('*, grupo:grupo_id (nombre, grado:grado_id (nombre))')
                 .order('fecha_inicio', { ascending: true })
 
             if (profile.rol && !canViewAll) {
@@ -105,7 +150,11 @@ export default function CalendarioPage() {
             if (error) throw error
 
             const now = new Date()
-            const upcoming = ((data || []) as Evento[])
+            const items = ((data || []) as Evento[]).map((item) => ({
+                ...item,
+                grupo_display_name: formatGrupoDisplayName(item.grupo),
+            }))
+            const upcoming = items
                 .filter((evento) => {
                     const referenceDate = evento.fecha_fin ? new Date(evento.fecha_fin) : new Date(evento.fecha_inicio)
                     if (Number.isNaN(referenceDate.getTime())) return false
@@ -149,6 +198,10 @@ export default function CalendarioPage() {
                 ? ['todos']
                 : Array.from(new Set(destinatarios))
 
+            const grupoId = destinatarios.includes('estudiante') && targetGroupMode === 'specific' && selectedGroupId
+                ? selectedGroupId
+                : null
+
             const payload = {
                 titulo: titulo.trim(),
                 descripcion: descripcion.trim() ? descripcion.trim() : null,
@@ -158,6 +211,7 @@ export default function CalendarioPage() {
                 todo_el_dia: todoElDia,
                 lugar: lugar.trim() ? lugar.trim() : null,
                 destinatarios: normalizedDestinatarios,
+                grupo_id: grupoId,
                 drive_public_url: isGoogleDriveEmbedEnabled
                     ? (drivePublicUrl.trim() ? drivePublicUrl.trim() : null)
                     : null,
@@ -181,6 +235,8 @@ export default function CalendarioPage() {
             setDescripcion('')
             setDrivePublicUrl('')
             setDestinatarios(['todos'])
+            setTargetGroupMode('all')
+            setSelectedGroupId(null)
             setCreateFormOpen(false)
             setSuccess('Evento creado')
             await loadEventos()
@@ -216,6 +272,16 @@ export default function CalendarioPage() {
         setEditDescripcion(evento.descripcion || '')
         setEditDrivePublicUrl(evento.drive_public_url || '')
         setEditDestinatario(evento.destinatarios?.[0] || 'todos')
+        if (evento.grupo_id) {
+            setEditTargetGroupMode('specific')
+            setEditSelectedGroupId(evento.grupo_id)
+        } else {
+            setEditTargetGroupMode('all')
+            setEditSelectedGroupId(null)
+        }
+        if (evento.destinatarios.includes('estudiante') && evento.grupo_id) {
+            void loadGrupos()
+        }
         setError(null)
         setSuccess(null)
     }
@@ -224,6 +290,8 @@ export default function CalendarioPage() {
         setEditingId(null)
         setActionLoadingId(null)
         setEditDrivePublicUrl('')
+        setEditTargetGroupMode('all')
+        setEditSelectedGroupId(null)
     }
 
     const handleUpdateEvento = async (eventoId: string) => {
@@ -237,6 +305,10 @@ export default function CalendarioPage() {
         setSuccess(null)
 
         try {
+            const editGrupoId = editDestinatario === 'estudiante' && editTargetGroupMode === 'specific' && editSelectedGroupId
+                ? editSelectedGroupId
+                : null
+
             const payload = {
                 titulo: editTitulo.trim(),
                 descripcion: editDescripcion.trim() ? editDescripcion.trim() : null,
@@ -246,6 +318,7 @@ export default function CalendarioPage() {
                 todo_el_dia: editTodoElDia,
                 lugar: editLugar.trim() ? editLugar.trim() : null,
                 destinatarios: [editDestinatario],
+                grupo_id: editGrupoId,
                 drive_public_url: isGoogleDriveEmbedEnabled
                     ? (editDrivePublicUrl.trim() ? editDrivePublicUrl.trim() : null)
                     : null,
@@ -307,6 +380,11 @@ export default function CalendarioPage() {
         if (value === 'todos') {
             setDestinatarios(checked ? ['todos'] : [])
             return
+        }
+
+        if (value === 'estudiante' && !checked) {
+            setTargetGroupMode('all')
+            setSelectedGroupId(null)
         }
 
         setDestinatarios((prev) => {
@@ -424,6 +502,54 @@ export default function CalendarioPage() {
                                                 )
                                             })}
                                         </div>
+                                        {destinatarios.includes('estudiante') && (
+                                            <div className="mt-3 space-y-3 pl-2 border-l-2 border-muted">
+                                                <label className="flex items-center gap-2 text-sm">
+                                                    <input
+                                                        type="radio"
+                                                        name="evento-create-grupo-target"
+                                                        checked={targetGroupMode === 'all'}
+                                                        onChange={() => {
+                                                            setTargetGroupMode('all')
+                                                            setSelectedGroupId(null)
+                                                        }}
+                                                        className="h-4 w-4"
+                                                    />
+                                                    Todos los estudiantes
+                                                </label>
+                                                <label className="flex items-center gap-2 text-sm">
+                                                    <input
+                                                        type="radio"
+                                                        name="evento-create-grupo-target"
+                                                        checked={targetGroupMode === 'specific'}
+                                                        onChange={() => setTargetGroupMode('specific')}
+                                                        className="h-4 w-4"
+                                                    />
+                                                    Solo un grupo específico
+                                                </label>
+                                                {targetGroupMode === 'specific' && (
+                                                    <div className="pl-6">
+                                                        {loadingGrupos ? (
+                                                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                                <Loader2 className="h-3 w-3 animate-spin" />
+                                                                Cargando grupos...
+                                                            </div>
+                                                        ) : (
+                                                            <select
+                                                                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                                                value={selectedGroupId ?? ''}
+                                                                onChange={(e) => setSelectedGroupId(e.target.value || null)}
+                                                            >
+                                                                <option value="">Seleccionar grupo...</option>
+                                                                {grupos.map((g) => (
+                                                                    <option key={g.id} value={g.id}>{g.displayName}</option>
+                                                                ))}
+                                                            </select>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -558,6 +684,57 @@ export default function CalendarioPage() {
                                                         ))}
                                                     </SelectContent>
                                                 </Select>
+                                                {editDestinatario === 'estudiante' && (
+                                                    <div className="mt-3 space-y-3 pl-2 border-l-2 border-muted">
+                                                        <label className="flex items-center gap-2 text-sm">
+                                                            <input
+                                                                type="radio"
+                                                                name="evento-edit-grupo-target"
+                                                                checked={editTargetGroupMode === 'all'}
+                                                                onChange={() => {
+                                                                    setEditTargetGroupMode('all')
+                                                                    setEditSelectedGroupId(null)
+                                                                }}
+                                                                className="h-4 w-4"
+                                                            />
+                                                            Todos los estudiantes
+                                                        </label>
+                                                        <label className="flex items-center gap-2 text-sm">
+                                                            <input
+                                                                type="radio"
+                                                                name="evento-edit-grupo-target"
+                                                                checked={editTargetGroupMode === 'specific'}
+                                                                onChange={() => {
+                                                                    setEditTargetGroupMode('specific')
+                                                                    void loadGrupos()
+                                                                }}
+                                                                className="h-4 w-4"
+                                                            />
+                                                            Solo un grupo específico
+                                                        </label>
+                                                        {editTargetGroupMode === 'specific' && (
+                                                            <div className="pl-6">
+                                                                {loadingGrupos ? (
+                                                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                                                        Cargando grupos...
+                                                                    </div>
+                                                                ) : (
+                                                                    <select
+                                                                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                                                        value={editSelectedGroupId ?? ''}
+                                                                        onChange={(e) => setEditSelectedGroupId(e.target.value || null)}
+                                                                    >
+                                                                        <option value="">Seleccionar grupo...</option>
+                                                                        {grupos.map((g) => (
+                                                                            <option key={g.id} value={g.id}>{g.displayName}</option>
+                                                                        ))}
+                                                                    </select>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
 
@@ -626,7 +803,10 @@ export default function CalendarioPage() {
                                                 {evento.lugar}
                                             </p>
                                         )}
-                                        <p className="text-xs text-muted-foreground">Destinatarios: {evento.destinatarios.join(', ')}</p>
+                                        <p className="text-xs text-muted-foreground">
+    Destinatarios: {evento.destinatarios.join(', ')}
+    {evento.grupo_display_name && <span> • {evento.grupo_display_name}</span>}
+</p>
                                     </>
                                 )}
 

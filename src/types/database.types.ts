@@ -593,6 +593,7 @@ export interface Database {
           todo_el_dia: boolean
           lugar: string | null
           destinatarios: string[]
+          grupo_id: string | null
           drive_public_url: string | null
           creado_por: string | null
           created_at: string
@@ -607,6 +608,7 @@ export interface Database {
           todo_el_dia?: boolean
           lugar?: string | null
           destinatarios: string[]
+          grupo_id?: string | null
           drive_public_url?: string | null
           creado_por?: string | null
           created_at?: string
@@ -621,6 +623,7 @@ export interface Database {
           todo_el_dia?: boolean
           lugar?: string | null
           destinatarios?: string[]
+          grupo_id?: string | null
           drive_public_url?: string | null
           creado_por?: string | null
           created_at?: string
