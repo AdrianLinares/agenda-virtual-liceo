@@ -43,7 +43,7 @@ jobs:
           # (optional) server secrets if tests require them:
           # SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           # CRON_SECRET: ${{ secrets.CRON_SECRET }}
-        run: pnpm run test:e2e -- --reporter=github
+        run: pnpm run test:e2e --reporter=github
 
       - name: Upload Playwright report (if any)
         if: always()
