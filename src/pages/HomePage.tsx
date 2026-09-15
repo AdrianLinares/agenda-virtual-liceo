@@ -16,7 +16,7 @@ interface Evento {
     fecha_fin: string | null
     todo_el_dia: boolean
     lugar: string | null
-    drive_public_url?: string | null
+    drive_public_urls?: string[] | null
     destinatarios?: string[] | null
 }
 
@@ -26,7 +26,7 @@ interface Anuncio {
     contenido: string
     importante: boolean
     fecha_publicacion: string
-    drive_public_url?: string | null
+    drive_public_urls?: string[] | null
     destinatarios?: string[] | null
 }
 
@@ -62,13 +62,13 @@ export default function HomePage() {
             const [eventosResult, anunciosResult] = await Promise.all([
                 withRetry(async () => withTimeout(supabase
                     .from('eventos')
-                    .select('id, titulo, descripcion, tipo, fecha_inicio, fecha_fin, todo_el_dia, lugar, destinatarios, drive_public_url')
+                    .select('id, titulo, descripcion, tipo, fecha_inicio, fecha_fin, todo_el_dia, lugar, destinatarios, drive_public_urls')
                     .gte('fecha_inicio', nowIso)
                     .order('fecha_inicio', { ascending: true })
                     .limit(30), 15000, 'Tiempo de espera agotado al cargar eventos públicos')),
                 withRetry(async () => withTimeout(supabase
                     .from('anuncios')
-                    .select('id, titulo, contenido, importante, fecha_publicacion, destinatarios, drive_public_url')
+                    .select('id, titulo, contenido, importante, fecha_publicacion, destinatarios, drive_public_urls')
                     .or(`fecha_expiracion.is.null,fecha_expiracion.gte.${nowIso}`)
                     .order('fecha_publicacion', { ascending: false })
                     .limit(30), 15000, 'Tiempo de espera agotado al cargar anuncios públicos')),
@@ -88,7 +88,7 @@ export default function HomePage() {
                     fecha_fin: evento.fecha_fin,
                     todo_el_dia: evento.todo_el_dia,
                     lugar: evento.lugar,
-                    drive_public_url: evento.drive_public_url,
+                    drive_public_urls: evento.drive_public_urls,
                     destinatarios: evento.destinatarios,
                 }))
 
@@ -103,7 +103,7 @@ export default function HomePage() {
                     contenido: anuncio.contenido,
                     importante: anuncio.importante,
                     fecha_publicacion: anuncio.fecha_publicacion,
-                    drive_public_url: anuncio.drive_public_url,
+                    drive_public_urls: anuncio.drive_public_urls,
                     destinatarios: anuncio.destinatarios,
                 }))
 
@@ -318,8 +318,10 @@ export default function HomePage() {
                                 ) : (
                                     <div className="space-y-4">
                                         {eventos.map((evento) => {
-                                            const shouldRenderDriveEmbed = isGoogleDriveEmbedEnabled
-                                                && !!evento.drive_public_url
+                                            const drivePublicUrls = isGoogleDriveEmbedEnabled
+                                                ? (evento.drive_public_urls ?? [])
+                                                : []
+                                            const shouldRenderDriveEmbed = drivePublicUrls.length > 0
                                                 && !!evento.destinatarios?.some((item) => (item || '').toLowerCase() === 'todos')
 
                                             return (
@@ -336,8 +338,10 @@ export default function HomePage() {
                                                                 </span>
                                                             </div>
                                                             {shouldRenderDriveEmbed ? (
-                                                                <div className="mb-2">
-                                                                    <DriveEmbed drivePublicUrl={evento.drive_public_url} />
+                                                                <div className="mb-2 space-y-4">
+                                                                    {drivePublicUrls.map((url) => (
+                                                                        <DriveEmbed key={url} drivePublicUrl={url} />
+                                                                    ))}
                                                                 </div>
                                                             ) : evento.descripcion ? (
                                                                 <p className="text-foreground mb-2 whitespace-pre-wrap">{evento.descripcion}</p>
@@ -404,8 +408,12 @@ export default function HomePage() {
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        {anuncio.drive_public_url && anuncio.destinatarios?.some((item) => (item || '').toLowerCase() === 'todos') ? (
-                                                            <DriveEmbed drivePublicUrl={anuncio.drive_public_url} />
+                                                        {(anuncio.drive_public_urls?.length ?? 0) > 0 && anuncio.destinatarios?.some((item) => (item || '').toLowerCase() === 'todos') ? (
+                                                            <div className="space-y-4">
+                                                                {(anuncio.drive_public_urls ?? []).map((url) => (
+                                                                    <DriveEmbed key={url} drivePublicUrl={url} />
+                                                                ))}
+                                                            </div>
                                                         ) : (
                                                             <p className="text-foreground mb-2 whitespace-pre-wrap">{anuncio.contenido}</p>
                                                         )}

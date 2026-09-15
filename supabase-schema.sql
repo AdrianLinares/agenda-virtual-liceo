@@ -195,7 +195,7 @@ CREATE TABLE anuncios (
     importante BOOLEAN DEFAULT false,
     fecha_publicacion TIMESTAMPTZ DEFAULT NOW(),
     fecha_expiracion TIMESTAMPTZ,
-    drive_public_url TEXT,
+    drive_public_urls TEXT[],
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -283,7 +283,7 @@ CREATE TABLE eventos (
     lugar TEXT,
     destinatarios TEXT[],
     grupo_id UUID REFERENCES public.grupos(id) ON DELETE SET NULL,
-    drive_public_url TEXT,
+    drive_public_urls TEXT[],
     creado_por UUID REFERENCES profiles(id),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );

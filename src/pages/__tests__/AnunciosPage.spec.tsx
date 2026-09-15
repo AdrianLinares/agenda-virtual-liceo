@@ -19,7 +19,7 @@ type AnuncioRow = {
   importante: boolean
   fecha_publicacion: string
   fecha_expiracion: string | null
-  drive_public_url: string | null
+  drive_public_urls: string[] | null
   created_at: string
   grupo_id: string | null
   grupo_display_name?: string | null
@@ -58,7 +58,7 @@ const anunciosStore: AnuncioRow[] = [
     importante: false,
     fecha_publicacion: '2026-04-01T10:00:00.000Z',
     fecha_expiracion: null,
-    drive_public_url: 'https://drive.google.com/file/d/EXISTENTE123/view?usp=sharing',
+    drive_public_urls: ['https://drive.google.com/file/d/EXISTENTE123/view?usp=sharing'],
     created_at: '2026-04-01T10:00:00.000Z',
     grupo_id: null,
     grupo: null,
@@ -79,7 +79,7 @@ const initialAnuncios = (): AnuncioRow[] => [
     importante: false,
     fecha_publicacion: '2026-04-01T10:00:00.000Z',
     fecha_expiracion: null,
-    drive_public_url: 'https://drive.google.com/file/d/EXISTENTE123/view?usp=sharing',
+    drive_public_urls: ['https://drive.google.com/file/d/EXISTENTE123/view?usp=sharing'],
     created_at: '2026-04-01T10:00:00.000Z',
     grupo_id: null,
     grupo: null,
@@ -100,7 +100,7 @@ const initialAnunciosWithGrupo = (): AnuncioRow[] => [
     importante: false,
     fecha_publicacion: '2026-04-01T10:00:00.000Z',
     fecha_expiracion: null,
-    drive_public_url: 'https://drive.google.com/file/d/EXISTENTE123/view?usp=sharing',
+    drive_public_urls: ['https://drive.google.com/file/d/EXISTENTE123/view?usp=sharing'],
     created_at: '2026-04-01T10:00:00.000Z',
     grupo_id: null,
     grupo: null,
@@ -118,7 +118,7 @@ const initialAnunciosWithGrupo = (): AnuncioRow[] => [
     importante: true,
     fecha_publicacion: '2026-04-05T08:00:00.000Z',
     fecha_expiracion: null,
-    drive_public_url: null,
+    drive_public_urls: null,
     created_at: '2026-04-05T08:00:00.000Z',
     grupo_id: 'grupo-5a',
     grupo: { nombre: '5A', grado: { nombre: 'Grado 5' } },
@@ -158,7 +158,7 @@ function createBuilder(table: string) {
         importante: Boolean(next.importante),
         fecha_publicacion: String(next.fecha_publicacion ?? new Date().toISOString()),
         fecha_expiracion: (next.fecha_expiracion as string | null) ?? null,
-        drive_public_url: (next.drive_public_url as string | null) ?? null,
+        drive_public_urls: (next.drive_public_urls as string[] | null) ?? null,
         grupo_id: (next.grupo_id as string | null) ?? null,
         created_at: new Date().toISOString(),
         autor: {
@@ -181,7 +181,7 @@ function createBuilder(table: string) {
         current.destinatarios = (next.destinatarios as string[]) ?? current.destinatarios
         current.importante = next.importante === undefined ? current.importante : Boolean(next.importante)
         current.fecha_expiracion = (next.fecha_expiracion as string | null | undefined) ?? current.fecha_expiracion
-        current.drive_public_url = (next.drive_public_url as string | null | undefined) ?? current.drive_public_url
+        current.drive_public_urls = (next.drive_public_urls as string[] | null | undefined) ?? current.drive_public_urls
         if (next.grupo_id !== undefined) current.grupo_id = next.grupo_id as string | null
       }
 
@@ -239,7 +239,7 @@ vi.mock('@/lib/async-utils', () => ({
   withTimeout: (promise: Promise<unknown>) => promise,
 }))
 
-describe('AnunciosPage - integración drive_public_url', () => {
+describe('AnunciosPage - integración drive_public_urls', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubEnv('VITE_ENABLE_GOOGLE_DRIVE_EMBED', 'true')
@@ -247,7 +247,7 @@ describe('AnunciosPage - integración drive_public_url', () => {
     anunciosStore.push(...initialAnuncios())
   })
 
-  it('incluye drive_public_url en payload al crear anuncio', async () => {
+  it('incluye drive_public_urls en payload al crear anuncio', async () => {
     const user = userEvent.setup()
     render(<AnunciosPage />)
 
@@ -260,8 +260,10 @@ describe('AnunciosPage - integración drive_public_url', () => {
     await user.type(screen.getByLabelText('Título'), 'Anuncio con drive')
     await user.type(screen.getByLabelText('Contenido'), 'Detalle del anuncio')
 
+    await user.click(screen.getByRole('button', { name: /Agregar enlace/i }))
+
     const driveUrl = 'https://drive.google.com/file/d/DRIVEID123/view?usp=sharing'
-    await user.type(screen.getByLabelText('Enlace público de Google Drive (opcional)'), driveUrl)
+    await user.type(screen.getByLabelText('Enlace de Google Drive 1'), driveUrl)
 
     const submitButtons = screen.getAllByRole('button', { name: /^Publicar$/i })
     await user.click(submitButtons[0])
@@ -270,11 +272,71 @@ describe('AnunciosPage - integración drive_public_url', () => {
       expect(insertMock).toHaveBeenCalledTimes(1)
     })
 
-    const payload = insertMock.mock.calls[0][0] as { drive_public_url: string | null }
-    expect(payload.drive_public_url).toBe(driveUrl)
+    const payload = insertMock.mock.calls[0][0] as { drive_public_urls: string[] | null }
+    expect(payload.drive_public_urls).toEqual([driveUrl])
   })
 
-  it('precarga, actualiza y renderiza DriveEmbed con drive_public_url', async () => {
+  it('envía ambos enlaces en el payload al crear anuncio con dos enlaces válidos', async () => {
+    const user = userEvent.setup()
+    render(<AnunciosPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Publicar anuncio/i })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /Publicar anuncio/i }))
+
+    await user.type(screen.getByLabelText('Título'), 'Anuncio con dos drives')
+    await user.type(screen.getByLabelText('Contenido'), 'Detalle del anuncio')
+
+    await user.click(screen.getByRole('button', { name: /Agregar enlace/i }))
+    await user.click(screen.getByRole('button', { name: /Agregar enlace/i }))
+
+    const firstUrl = 'https://drive.google.com/file/d/PRIMER123/view?usp=sharing'
+    const secondUrl = 'https://drive.google.com/file/d/SEGUNDO456/view?usp=sharing'
+    await user.type(screen.getByLabelText('Enlace de Google Drive 1'), firstUrl)
+    await user.type(screen.getByLabelText('Enlace de Google Drive 2'), secondUrl)
+
+    const submitButtons = screen.getAllByRole('button', { name: /^Publicar$/i })
+    await user.click(submitButtons[0])
+
+    await waitFor(() => {
+      expect(insertMock).toHaveBeenCalledTimes(1)
+    })
+
+    const payload = insertMock.mock.calls[0][0] as { drive_public_urls: string[] | null }
+    expect(payload.drive_public_urls).toEqual([firstUrl, secondUrl])
+  })
+
+  it('muestra error de URL inválida y no inserta con un enlace inválido', async () => {
+    const user = userEvent.setup()
+    render(<AnunciosPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Publicar anuncio/i })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /Publicar anuncio/i }))
+
+    await user.type(screen.getByLabelText('Título'), 'Anuncio con enlace inválido')
+    await user.type(screen.getByLabelText('Contenido'), 'Detalle del anuncio')
+
+    await user.click(screen.getByRole('button', { name: /Agregar enlace/i }))
+    await user.click(screen.getByRole('button', { name: /Agregar enlace/i }))
+
+    await user.type(screen.getByLabelText('Enlace de Google Drive 1'), 'https://drive.google.com/file/d/VALIDO123/view?usp=sharing')
+    await user.type(screen.getByLabelText('Enlace de Google Drive 2'), 'https://example.com/no-es-drive')
+
+    const submitButtons = screen.getAllByRole('button', { name: /^Publicar$/i })
+    await user.click(submitButtons[0])
+
+    expect(
+      await screen.findByText('URL inválida. Asegúrate de pegar un enlace público de Google Drive.'),
+    ).toBeInTheDocument()
+    expect(insertMock).not.toHaveBeenCalled()
+  })
+
+  it('precarga, actualiza y renderiza DriveEmbed con drive_public_urls', async () => {
     const user = userEvent.setup()
     render(<AnunciosPage />)
 
@@ -286,7 +348,7 @@ describe('AnunciosPage - integración drive_public_url', () => {
 
     await user.click(screen.getAllByRole('button', { name: /Editar/i })[0])
 
-    const driveInput = screen.getByLabelText('Enlace público de Google Drive (opcional)') as HTMLInputElement
+    const driveInput = screen.getByLabelText('Enlace de Google Drive 1') as HTMLInputElement
     expect(driveInput.value).toBe('https://drive.google.com/file/d/EXISTENTE123/view?usp=sharing')
 
     await user.clear(driveInput)
@@ -299,8 +361,38 @@ describe('AnunciosPage - integración drive_public_url', () => {
       expect(updateMock).toHaveBeenCalledTimes(1)
     })
 
-    const payload = updateMock.mock.calls[0][0] as { drive_public_url: string | null }
-    expect(payload.drive_public_url).toBe(updatedUrl)
+    const payload = updateMock.mock.calls[0][0] as { drive_public_urls: string[] | null }
+    expect(payload.drive_public_urls).toEqual([updatedUrl])
+  })
+
+  it('renderiza un embed por cada enlace del anuncio', async () => {
+    anunciosStore.length = 0
+    anunciosStore.push({
+      id: 'anuncio-multi-drive',
+      titulo: 'Circular con dos documentos',
+      contenido: 'Contenido con dos enlaces',
+      autor_id: 'docente-1',
+      destinatarios: ['todos'],
+      importante: false,
+      fecha_publicacion: '2026-04-01T10:00:00.000Z',
+      fecha_expiracion: null,
+      drive_public_urls: [
+        'https://drive.google.com/file/d/PRIMERO123/view?usp=sharing',
+        'https://drive.google.com/file/d/SEGUNDO456/view?usp=sharing',
+      ],
+      created_at: '2026-04-01T10:00:00.000Z',
+      grupo_id: null,
+      grupo: null,
+      autor: {
+        nombre_completo: 'Docente Test',
+        email: 'docente@liceo.edu',
+      },
+    })
+
+    render(<AnunciosPage />)
+
+    expect(await screen.findByText('Circular con dos documentos')).toBeInTheDocument()
+    expect(screen.getAllByTitle('Vista previa del documento de Google Drive')).toHaveLength(2)
   })
 })
 
@@ -489,7 +581,7 @@ describe('AnunciosPage - grupo targeting', () => {
       importante: false,
       fecha_publicacion: '2026-04-05T08:00:00.000Z',
       fecha_expiracion: null,
-      drive_public_url: null,
+      drive_public_urls: null,
       created_at: '2026-04-05T08:00:00.000Z',
       grupo_id: 'grupo-5a',
       grupo: { nombre: '5A', grado: { nombre: 'Grado 5' } },

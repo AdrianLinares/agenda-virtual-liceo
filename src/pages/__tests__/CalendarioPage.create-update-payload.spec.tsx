@@ -14,7 +14,7 @@ type EventoRow = {
   todo_el_dia: boolean
   lugar: string | null
   destinatarios: string[]
-  drive_public_url: string | null
+  drive_public_urls: string[] | null
   creado_por: string | null
   created_at: string
 }
@@ -41,7 +41,7 @@ const eventosStore: EventoRow[] = [
     todo_el_dia: false,
     lugar: 'Salón 1',
     destinatarios: ['todos'],
-    drive_public_url: 'https://drive.google.com/file/d/EXISTENTE123/view?usp=sharing',
+    drive_public_urls: ['https://drive.google.com/file/d/EXISTENTE123/view?usp=sharing'],
     creado_por: 'docente-1',
     created_at: '2099-04-20T10:00:00.000Z',
   },
@@ -58,7 +58,7 @@ const initialEventos = (): EventoRow[] => [
     todo_el_dia: false,
     lugar: 'Salón 1',
     destinatarios: ['todos'],
-    drive_public_url: 'https://drive.google.com/file/d/EXISTENTE123/view?usp=sharing',
+    drive_public_urls: ['https://drive.google.com/file/d/EXISTENTE123/view?usp=sharing'],
     creado_por: 'docente-1',
     created_at: '2099-04-20T10:00:00.000Z',
   },
@@ -90,7 +90,7 @@ function createBuilder(table: string) {
         todo_el_dia: Boolean(next.todo_el_dia),
         lugar: (next.lugar as string | null) ?? null,
         destinatarios: (next.destinatarios as string[]) ?? ['todos'],
-        drive_public_url: (next.drive_public_url as string | null) ?? null,
+        drive_public_urls: (next.drive_public_urls as string[] | null) ?? null,
         creado_por: String(next.creado_por ?? 'docente-1'),
         created_at: new Date().toISOString(),
       })
@@ -112,8 +112,8 @@ function createBuilder(table: string) {
         current.todo_el_dia = next.todo_el_dia === undefined ? current.todo_el_dia : Boolean(next.todo_el_dia)
         current.lugar = (next.lugar as string | null | undefined) ?? current.lugar
         current.destinatarios = (next.destinatarios as string[] | undefined) ?? current.destinatarios
-        current.drive_public_url =
-          (next.drive_public_url as string | null | undefined) ?? current.drive_public_url
+        current.drive_public_urls =
+          (next.drive_public_urls as string[] | null | undefined) ?? current.drive_public_urls
       }
 
       return { data: current ? [current] : [], error: null }
@@ -169,7 +169,7 @@ vi.mock('@/lib/async-utils', () => ({
   withTimeout: (promise: Promise<unknown>) => promise,
 }))
 
-describe('CalendarioPage - payload drive_public_url', () => {
+describe('CalendarioPage - payload drive_public_urls', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubEnv('VITE_ENABLE_GOOGLE_DRIVE_EMBED', 'true')
@@ -177,7 +177,7 @@ describe('CalendarioPage - payload drive_public_url', () => {
     eventosStore.push(...initialEventos())
   })
 
-  it('incluye drive_public_url en payload al crear evento', async () => {
+  it('incluye drive_public_urls en payload al crear evento', async () => {
     const user = userEvent.setup()
     render(<CalendarioPage />)
 
@@ -189,8 +189,10 @@ describe('CalendarioPage - payload drive_public_url', () => {
     await user.type(screen.getByLabelText('Título'), 'Evento con drive')
     await user.type(screen.getByLabelText('Fecha inicio'), '2099-06-01T08:00')
 
+    await user.click(screen.getByRole('button', { name: /Agregar enlace/i }))
+
     const driveUrl = 'https://drive.google.com/file/d/CREATE123/view?usp=sharing'
-    await user.type(screen.getByLabelText('Enlace público de Google Drive (opcional)'), driveUrl)
+    await user.type(screen.getByLabelText('Enlace de Google Drive 1'), driveUrl)
 
     await user.click(screen.getByRole('button', { name: /^Crear evento$/i }))
 
@@ -198,11 +200,67 @@ describe('CalendarioPage - payload drive_public_url', () => {
       expect(insertMock).toHaveBeenCalledTimes(1)
     })
 
-    const payload = insertMock.mock.calls[0][0] as { drive_public_url: string | null }
-    expect(payload.drive_public_url).toBe(driveUrl)
+    const payload = insertMock.mock.calls[0][0] as { drive_public_urls: string[] | null }
+    expect(payload.drive_public_urls).toEqual([driveUrl])
   })
 
-  it('precarga y envía drive_public_url en payload al actualizar evento', async () => {
+  it('envía ambos enlaces en el payload al crear evento con dos enlaces válidos', async () => {
+    const user = userEvent.setup()
+    render(<CalendarioPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Crear evento/i })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /Crear evento/i }))
+    await user.type(screen.getByLabelText('Título'), 'Evento con dos drives')
+    await user.type(screen.getByLabelText('Fecha inicio'), '2099-06-01T08:00')
+
+    await user.click(screen.getByRole('button', { name: /Agregar enlace/i }))
+    await user.click(screen.getByRole('button', { name: /Agregar enlace/i }))
+
+    const firstUrl = 'https://drive.google.com/file/d/PRIMERO123/view?usp=sharing'
+    const secondUrl = 'https://drive.google.com/file/d/SEGUNDO456/view?usp=sharing'
+    await user.type(screen.getByLabelText('Enlace de Google Drive 1'), firstUrl)
+    await user.type(screen.getByLabelText('Enlace de Google Drive 2'), secondUrl)
+
+    await user.click(screen.getByRole('button', { name: /^Crear evento$/i }))
+
+    await waitFor(() => {
+      expect(insertMock).toHaveBeenCalledTimes(1)
+    })
+
+    const payload = insertMock.mock.calls[0][0] as { drive_public_urls: string[] | null }
+    expect(payload.drive_public_urls).toEqual([firstUrl, secondUrl])
+  })
+
+  it('muestra error de URL inválida y no inserta con un enlace inválido', async () => {
+    const user = userEvent.setup()
+    render(<CalendarioPage />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Crear evento/i })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /Crear evento/i }))
+    await user.type(screen.getByLabelText('Título'), 'Evento con enlace inválido')
+    await user.type(screen.getByLabelText('Fecha inicio'), '2099-06-01T08:00')
+
+    await user.click(screen.getByRole('button', { name: /Agregar enlace/i }))
+    await user.click(screen.getByRole('button', { name: /Agregar enlace/i }))
+
+    await user.type(screen.getByLabelText('Enlace de Google Drive 1'), 'https://drive.google.com/file/d/VALIDO123/view?usp=sharing')
+    await user.type(screen.getByLabelText('Enlace de Google Drive 2'), 'https://example.com/no-es-drive')
+
+    await user.click(screen.getByRole('button', { name: /^Crear evento$/i }))
+
+    expect(
+      await screen.findByText('URL inválida. Asegúrate de pegar un enlace público de Google Drive.'),
+    ).toBeInTheDocument()
+    expect(insertMock).not.toHaveBeenCalled()
+  })
+
+  it('precarga y envía drive_public_urls en payload al actualizar evento', async () => {
     const user = userEvent.setup()
     render(<CalendarioPage />)
 
@@ -212,7 +270,7 @@ describe('CalendarioPage - payload drive_public_url', () => {
 
     await user.click(screen.getAllByRole('button', { name: /Editar/i })[0])
 
-    const driveInput = screen.getByLabelText('Enlace público de Google Drive (opcional)') as HTMLInputElement
+    const driveInput = screen.getByLabelText('Enlace de Google Drive 1') as HTMLInputElement
     expect(driveInput.value).toBe('https://drive.google.com/file/d/EXISTENTE123/view?usp=sharing')
 
     await user.clear(driveInput)
@@ -225,7 +283,7 @@ describe('CalendarioPage - payload drive_public_url', () => {
       expect(updateMock).toHaveBeenCalledTimes(1)
     })
 
-    const payload = updateMock.mock.calls[0][0] as { drive_public_url: string | null }
-    expect(payload.drive_public_url).toBe(updatedUrl)
+    const payload = updateMock.mock.calls[0][0] as { drive_public_urls: string[] | null }
+    expect(payload.drive_public_urls).toEqual([updatedUrl])
   })
 })

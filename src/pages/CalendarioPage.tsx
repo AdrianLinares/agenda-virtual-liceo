@@ -14,8 +14,9 @@ import {
     SelectValue,
 } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { AlertCircle, CalendarDays, CheckCircle2, Loader2, MapPin, Pencil, Trash2, X } from 'lucide-react'
+import { AlertCircle, CalendarDays, CheckCircle2, Loader2, MapPin, Pencil, Plus, Trash2, X } from 'lucide-react'
 import type { Database } from '@/types/database.types'
+import { isValidDriveLink, MAX_DRIVE_LINKS, normalizeDriveLinks } from '@/utils/driveLinks'
 import { DriveEmbed } from '@/components/anuncios/DriveEmbed'
 import { formatGrupoDisplayName } from '@/utils/anuncios'
 import { sortByGradeAndGroupName } from '@/utils/grade-order'
@@ -32,7 +33,7 @@ interface Evento {
     destinatarios: string[]
     grupo_id: string | null
     grupo_display_name?: string | null
-    drive_public_url: string | null
+    drive_public_urls: string[] | null
     creado_por: string | null
     created_at: string
     grupo?: {
@@ -67,7 +68,7 @@ export default function CalendarioPage() {
     const [todoElDia, setTodoElDia] = useState(false)
     const [lugar, setLugar] = useState('')
     const [descripcion, setDescripcion] = useState('')
-    const [drivePublicUrl, setDrivePublicUrl] = useState('')
+    const [drivePublicUrls, setDrivePublicUrls] = useState<string[]>([])
     const [destinatarios, setDestinatarios] = useState<string[]>(['todos'])
     const [createFormOpen, setCreateFormOpen] = useState(false)
     const [editingId, setEditingId] = useState<string | null>(null)
@@ -79,7 +80,7 @@ export default function CalendarioPage() {
     const [editTodoElDia, setEditTodoElDia] = useState(false)
     const [editLugar, setEditLugar] = useState('')
     const [editDescripcion, setEditDescripcion] = useState('')
-    const [editDrivePublicUrl, setEditDrivePublicUrl] = useState('')
+    const [editDrivePublicUrls, setEditDrivePublicUrls] = useState<string[]>([])
     const [editDestinatario, setEditDestinatario] = useState('todos')
     const [targetGroupMode, setTargetGroupMode] = useState<'all' | 'specific'>('all')
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
@@ -175,6 +176,30 @@ export default function CalendarioPage() {
         }
     }
 
+    const handleAddDriveLink = () => {
+        setDrivePublicUrls((prev) => (prev.length >= MAX_DRIVE_LINKS ? prev : [...prev, '']))
+    }
+
+    const handleDriveLinkChange = (index: number, value: string) => {
+        setDrivePublicUrls((prev) => prev.map((url, i) => (i === index ? value : url)))
+    }
+
+    const handleRemoveDriveLink = (index: number) => {
+        setDrivePublicUrls((prev) => prev.filter((_, i) => i !== index))
+    }
+
+    const handleAddEditDriveLink = () => {
+        setEditDrivePublicUrls((prev) => (prev.length >= MAX_DRIVE_LINKS ? prev : [...prev, '']))
+    }
+
+    const handleEditDriveLinkChange = (index: number, value: string) => {
+        setEditDrivePublicUrls((prev) => prev.map((url, i) => (i === index ? value : url)))
+    }
+
+    const handleRemoveEditDriveLink = (index: number) => {
+        setEditDrivePublicUrls((prev) => prev.filter((_, i) => i !== index))
+    }
+
     const handleCreateEvento = async () => {
         if (!profile) return
         if (!titulo.trim() || !fechaInicio) {
@@ -186,6 +211,15 @@ export default function CalendarioPage() {
         if (destinatarios.length === 0) {
             setCreateFormOpen(true)
             setError('Selecciona al menos un destinatario')
+            return
+        }
+
+        const normalizedDrivePublicUrls = isGoogleDriveEmbedEnabled
+            ? normalizeDriveLinks(drivePublicUrls)
+            : []
+        if (normalizedDrivePublicUrls.some((url) => !isValidDriveLink(url))) {
+            setCreateFormOpen(true)
+            setError('URL inválida. Asegúrate de pegar un enlace público de Google Drive.')
             return
         }
 
@@ -212,9 +246,7 @@ export default function CalendarioPage() {
                 lugar: lugar.trim() ? lugar.trim() : null,
                 destinatarios: normalizedDestinatarios,
                 grupo_id: grupoId,
-                drive_public_url: isGoogleDriveEmbedEnabled
-                    ? (drivePublicUrl.trim() ? drivePublicUrl.trim() : null)
-                    : null,
+                drive_public_urls: normalizedDrivePublicUrls.length > 0 ? normalizedDrivePublicUrls : null,
                 creado_por: profile.id,
             } satisfies Database['public']['Tables']['eventos']['Insert']
 
@@ -233,7 +265,7 @@ export default function CalendarioPage() {
             setTodoElDia(false)
             setLugar('')
             setDescripcion('')
-            setDrivePublicUrl('')
+            setDrivePublicUrls([])
             setDestinatarios(['todos'])
             setTargetGroupMode('all')
             setSelectedGroupId(null)
@@ -270,7 +302,7 @@ export default function CalendarioPage() {
         setEditTodoElDia(evento.todo_el_dia)
         setEditLugar(evento.lugar || '')
         setEditDescripcion(evento.descripcion || '')
-        setEditDrivePublicUrl(evento.drive_public_url || '')
+        setEditDrivePublicUrls(evento.drive_public_urls ?? [])
         setEditDestinatario(evento.destinatarios?.[0] || 'todos')
         if (evento.grupo_id) {
             setEditTargetGroupMode('specific')
@@ -289,7 +321,7 @@ export default function CalendarioPage() {
     const handleCancelEdit = () => {
         setEditingId(null)
         setActionLoadingId(null)
-        setEditDrivePublicUrl('')
+        setEditDrivePublicUrls([])
         setEditTargetGroupMode('all')
         setEditSelectedGroupId(null)
     }
@@ -297,6 +329,14 @@ export default function CalendarioPage() {
     const handleUpdateEvento = async (eventoId: string) => {
         if (!editTitulo.trim() || !editFechaInicio) {
             setError('Completa el título y la fecha de inicio para actualizar')
+            return
+        }
+
+        const normalizedEditDrivePublicUrls = isGoogleDriveEmbedEnabled
+            ? normalizeDriveLinks(editDrivePublicUrls)
+            : []
+        if (normalizedEditDrivePublicUrls.some((url) => !isValidDriveLink(url))) {
+            setError('URL inválida. Asegúrate de pegar un enlace público de Google Drive.')
             return
         }
 
@@ -319,9 +359,7 @@ export default function CalendarioPage() {
                 lugar: editLugar.trim() ? editLugar.trim() : null,
                 destinatarios: [editDestinatario],
                 grupo_id: editGrupoId,
-                drive_public_url: isGoogleDriveEmbedEnabled
-                    ? (editDrivePublicUrl.trim() ? editDrivePublicUrl.trim() : null)
-                    : null,
+                drive_public_urls: normalizedEditDrivePublicUrls.length > 0 ? normalizedEditDrivePublicUrls : null,
             } satisfies Database['public']['Tables']['eventos']['Update']
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -335,7 +373,7 @@ export default function CalendarioPage() {
 
             setSuccess('Evento actualizado')
             setEditingId(null)
-            setEditDrivePublicUrl('')
+            setEditDrivePublicUrls([])
             await loadEventos()
         } catch (err) {
             console.error('Error updating evento:', err)
@@ -572,13 +610,46 @@ export default function CalendarioPage() {
 
                                 {isGoogleDriveEmbedEnabled && (
                                     <div className="space-y-2">
-                                        <Label htmlFor="evento-create-drive-public-url">Enlace público de Google Drive (opcional)</Label>
-                                        <Input
-                                            id="evento-create-drive-public-url"
-                                            value={drivePublicUrl}
-                                            onChange={(e) => setDrivePublicUrl(e.target.value)}
-                                            placeholder="https://drive.google.com/file/d/FILE_ID/view?usp=sharing"
-                                        />
+                                        <Label>Enlaces públicos de Google Drive (opcional)</Label>
+                                        {drivePublicUrls.length > 0 && (
+                                            <div className="space-y-2">
+                                                {drivePublicUrls.map((url, index) => (
+                                                    <div key={index} className="flex gap-2">
+                                                        <Input
+                                                            id={`evento-create-drive-public-url-${index}`}
+                                                            value={url}
+                                                            onChange={(e) => handleDriveLinkChange(index, e.target.value)}
+                                                            placeholder="https://drive.google.com/file/d/FILE_ID/view?usp=sharing"
+                                                            aria-label={`Enlace de Google Drive ${index + 1}`}
+                                                            aria-describedby="evento-create-drive-public-urls-helper"
+                                                            className="flex-1"
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="icon"
+                                                            onClick={() => handleRemoveDriveLink(index)}
+                                                            aria-label={`Eliminar enlace ${index + 1}`}
+                                                        >
+                                                            <X className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={handleAddDriveLink}
+                                            disabled={drivePublicUrls.length >= MAX_DRIVE_LINKS}
+                                        >
+                                            <Plus className="mr-2 h-4 w-4" />
+                                            Agregar enlace
+                                        </Button>
+                                        <p id="evento-create-drive-public-urls-helper" className="text-sm text-muted-foreground">
+                                            El documento debe ser público: "Cualquier persona con el enlace". Si no es
+                                            público se mostrará un enlace en lugar del preview.
+                                        </p>
                                     </div>
                                 )}
 
@@ -757,13 +828,46 @@ export default function CalendarioPage() {
 
                                         {isGoogleDriveEmbedEnabled && (
                                             <div className="space-y-2">
-                                                <Label htmlFor={`evento-edit-drive-public-url-${evento.id}`}>Enlace público de Google Drive (opcional)</Label>
-                                                <Input
-                                                    id={`evento-edit-drive-public-url-${evento.id}`}
-                                                    value={editDrivePublicUrl}
-                                                    onChange={(e) => setEditDrivePublicUrl(e.target.value)}
-                                                    placeholder="https://drive.google.com/file/d/FILE_ID/view?usp=sharing"
-                                                />
+                                                <Label>Enlaces públicos de Google Drive (opcional)</Label>
+                                                {editDrivePublicUrls.length > 0 && (
+                                                    <div className="space-y-2">
+                                                        {editDrivePublicUrls.map((url, index) => (
+                                                            <div key={index} className="flex gap-2">
+                                                                <Input
+                                                                    id={`evento-edit-drive-public-url-${evento.id}-${index}`}
+                                                                    value={url}
+                                                                    onChange={(e) => handleEditDriveLinkChange(index, e.target.value)}
+                                                                    placeholder="https://drive.google.com/file/d/FILE_ID/view?usp=sharing"
+                                                                    aria-label={`Enlace de Google Drive ${index + 1}`}
+                                                                    aria-describedby={`evento-edit-drive-public-urls-helper-${evento.id}`}
+                                                                    className="flex-1"
+                                                                />
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="icon"
+                                                                    onClick={() => handleRemoveEditDriveLink(index)}
+                                                                    aria-label={`Eliminar enlace ${index + 1}`}
+                                                                >
+                                                                    <X className="h-4 w-4" />
+                                                                </Button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    onClick={handleAddEditDriveLink}
+                                                    disabled={editDrivePublicUrls.length >= MAX_DRIVE_LINKS}
+                                                >
+                                                    <Plus className="mr-2 h-4 w-4" />
+                                                    Agregar enlace
+                                                </Button>
+                                                <p id={`evento-edit-drive-public-urls-helper-${evento.id}`} className="text-sm text-muted-foreground">
+                                                    El documento debe ser público: "Cualquier persona con el enlace". Si no
+                                                    es público se mostrará un enlace en lugar del preview.
+                                                </p>
                                             </div>
                                         )}
 
@@ -794,9 +898,13 @@ export default function CalendarioPage() {
                                         )}
                                         {isGoogleDriveEmbedEnabled
                                             && evento.destinatarios.includes('todos')
-                                            && evento.drive_public_url && (
-                                                <DriveEmbed drivePublicUrl={evento.drive_public_url} />
-                                            )}
+                                            && (evento.drive_public_urls?.length ?? 0) > 0 && (
+                                            <div className="space-y-4">
+                                                {(evento.drive_public_urls ?? []).map((url) => (
+                                                    <DriveEmbed key={url} drivePublicUrl={url} />
+                                                ))}
+                                            </div>
+                                        )}
                                         {evento.lugar && (
                                             <p className="text-xs text-muted-foreground flex items-center gap-1">
                                                 <MapPin className="h-3 w-3" />

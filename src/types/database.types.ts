@@ -388,7 +388,7 @@ export interface Database {
           importante: boolean
           fecha_publicacion: string
           fecha_expiracion: string | null
-          drive_public_url: string | null
+          drive_public_urls: string[] | null
           created_at: string
         }
         Insert: {
@@ -401,7 +401,7 @@ export interface Database {
           importante?: boolean
           fecha_publicacion?: string
           fecha_expiracion?: string | null
-          drive_public_url?: string | null
+          drive_public_urls?: string[] | null
           created_at?: string
         }
         Update: {
@@ -414,7 +414,7 @@ export interface Database {
           importante?: boolean
           fecha_publicacion?: string
           fecha_expiracion?: string | null
-          drive_public_url?: string | null
+          drive_public_urls?: string[] | null
           created_at?: string
         }
       }
@@ -594,7 +594,7 @@ export interface Database {
           lugar: string | null
           destinatarios: string[]
           grupo_id: string | null
-          drive_public_url: string | null
+          drive_public_urls: string[] | null
           creado_por: string | null
           created_at: string
         }
@@ -609,7 +609,7 @@ export interface Database {
           lugar?: string | null
           destinatarios: string[]
           grupo_id?: string | null
-          drive_public_url?: string | null
+          drive_public_urls?: string[] | null
           creado_por?: string | null
           created_at?: string
         }
@@ -624,7 +624,7 @@ export interface Database {
           lugar?: string | null
           destinatarios?: string[]
           grupo_id?: string | null
-          drive_public_url?: string | null
+          drive_public_urls?: string[] | null
           creado_por?: string | null
           created_at?: string
         }

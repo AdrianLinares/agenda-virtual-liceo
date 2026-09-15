@@ -14,7 +14,7 @@ type PublicEventoRow = {
   todo_el_dia: boolean
   lugar: string | null
   destinatarios?: string[] | null
-  drive_public_url?: string | null
+  drive_public_urls?: string[] | null
 }
 
 type PublicAnuncioRow = {
@@ -24,7 +24,7 @@ type PublicAnuncioRow = {
   importante: boolean
   fecha_publicacion: string
   destinatarios?: string[] | null
-  drive_public_url?: string | null
+  drive_public_urls?: string[] | null
 }
 
 let eventosMockData: PublicEventoRow[] = []
@@ -67,7 +67,7 @@ describe('HomePage - eventos DriveEmbed', () => {
     anunciosMockData = []
   })
 
-  it('renderiza DriveEmbed cuando el evento es para todos y tiene drive_public_url', async () => {
+  it('renderiza DriveEmbed cuando el evento es para todos y tiene drive_public_urls', async () => {
     eventosMockData = [
       {
         id: 'evento-todos-drive',
@@ -79,7 +79,7 @@ describe('HomePage - eventos DriveEmbed', () => {
         todo_el_dia: false,
         lugar: 'Auditorio',
         destinatarios: ['todos'],
-        drive_public_url: 'https://drive.google.com/file/d/DRIVE-EVENTO-123/view?usp=sharing',
+        drive_public_urls: ['https://drive.google.com/file/d/DRIVE-EVENTO-123/view?usp=sharing'],
       },
     ]
 
@@ -94,7 +94,37 @@ describe('HomePage - eventos DriveEmbed', () => {
     expect(screen.queryByText('Descripción que no debe mostrarse si hay embed')).not.toBeInTheDocument()
   })
 
-  it('no renderiza DriveEmbed cuando no hay drive_public_url o el evento no es para todos y mantiene contenido original', async () => {
+  it('renderiza un embed por cada enlace del evento para todos', async () => {
+    eventosMockData = [
+      {
+        id: 'evento-todos-dos-drives',
+        titulo: 'Evento con dos documentos',
+        descripcion: 'Descripción que no debe mostrarse si hay embed',
+        tipo: 'academico',
+        fecha_inicio: '2026-05-20T10:00:00.000Z',
+        fecha_fin: null,
+        todo_el_dia: false,
+        lugar: 'Auditorio',
+        destinatarios: ['todos'],
+        drive_public_urls: [
+          'https://drive.google.com/file/d/DRIVE-EVENTO-111/view?usp=sharing',
+          'https://drive.google.com/file/d/DRIVE-EVENTO-222/view?usp=sharing',
+        ],
+      },
+    ]
+
+    render(
+      <MemoryRouter>
+        <HomePage />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('Evento con dos documentos')).toBeInTheDocument()
+    expect(screen.getAllByTitle('Vista previa del documento de Google Drive')).toHaveLength(2)
+    expect(screen.queryByText('Descripción que no debe mostrarse si hay embed')).not.toBeInTheDocument()
+  })
+
+  it('no renderiza DriveEmbed cuando no hay drive_public_urls o el evento no es para todos y mantiene contenido original', async () => {
     eventosMockData = [
       {
         id: 'evento-sin-drive',
@@ -106,7 +136,7 @@ describe('HomePage - eventos DriveEmbed', () => {
         todo_el_dia: false,
         lugar: 'Salón 1',
         destinatarios: ['todos'],
-        drive_public_url: null,
+        drive_public_urls: null,
       },
       {
         id: 'evento-no-todos',
@@ -118,7 +148,7 @@ describe('HomePage - eventos DriveEmbed', () => {
         todo_el_dia: false,
         lugar: 'Sala de maestros',
         destinatarios: ['estudiante'],
-        drive_public_url: 'https://drive.google.com/file/d/DRIVE-EVENTO-999/view?usp=sharing',
+        drive_public_urls: ['https://drive.google.com/file/d/DRIVE-EVENTO-999/view?usp=sharing'],
       },
     ]
 

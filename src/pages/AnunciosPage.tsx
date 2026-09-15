@@ -9,8 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { AlertCircle, Bell, CheckCircle2, Loader2, Megaphone } from 'lucide-react'
-import { transformGoogleDriveUrlToEmbed } from '@/utils/transformGoogleDriveUrlToEmbed'
+import { AlertCircle, Bell, CheckCircle2, Loader2, Megaphone, Plus, X } from 'lucide-react'
+import { isValidDriveLink, MAX_DRIVE_LINKS, normalizeDriveLinks } from '@/utils/driveLinks'
 import { DriveEmbed } from '@/components/anuncios/DriveEmbed'
 import { computeGrupoId, formatGrupoDisplayName } from '@/utils/anuncios'
 import { sortByGradeAndGroupName } from '@/utils/grade-order'
@@ -24,7 +24,7 @@ interface Anuncio {
     importante: boolean
     fecha_publicacion: string
     fecha_expiracion: string | null
-    drive_public_url: string | null
+    drive_public_urls: string[] | null
     created_at: string
     grupo_id: string | null
     grupo_display_name?: string | null
@@ -73,7 +73,7 @@ export default function AnunciosPage() {
     const [contenido, setContenido] = useState('')
     const [destinatarios, setDestinatarios] = useState<string[]>(['todos'])
     const [fechaExpiracion, setFechaExpiracion] = useState('')
-    const [drivePublicUrl, setDrivePublicUrl] = useState('')
+    const [drivePublicUrls, setDrivePublicUrls] = useState<string[]>([])
     const [importante, setImportante] = useState(false)
     const [formOpen, setFormOpen] = useState(false)
     const [editingId, setEditingId] = useState<string | null>(null)
@@ -170,7 +170,7 @@ export default function AnunciosPage() {
         setContenido('')
         setDestinatarios(['todos'])
         setFechaExpiracion('')
-        setDrivePublicUrl('')
+        setDrivePublicUrls([])
         setImportante(false)
         setEditingId(null)
         setFormOpen(false)
@@ -200,6 +200,18 @@ export default function AnunciosPage() {
         })
     }
 
+    const handleAddDriveLink = () => {
+        setDrivePublicUrls((prev) => (prev.length >= MAX_DRIVE_LINKS ? prev : [...prev, '']))
+    }
+
+    const handleDriveLinkChange = (index: number, value: string) => {
+        setDrivePublicUrls((prev) => prev.map((url, i) => (i === index ? value : url)))
+    }
+
+    const handleRemoveDriveLink = (index: number) => {
+        setDrivePublicUrls((prev) => prev.filter((_, i) => i !== index))
+    }
+
     const handleSaveAnuncio = async () => {
         if (!profile) return
         if (!titulo.trim() || !contenido.trim()) {
@@ -214,12 +226,10 @@ export default function AnunciosPage() {
             return
         }
 
-        const normalizedDrivePublicUrl = drivePublicUrl.trim()
-        if (
-            isGoogleDriveEmbedEnabled
-            && normalizedDrivePublicUrl.length > 0
-            && !transformGoogleDriveUrlToEmbed(normalizedDrivePublicUrl)
-        ) {
+        const normalizedDrivePublicUrls = isGoogleDriveEmbedEnabled
+            ? normalizeDriveLinks(drivePublicUrls)
+            : []
+        if (normalizedDrivePublicUrls.some((url) => !isValidDriveLink(url))) {
             setFormOpen(true)
             setError('URL inválida. Asegúrate de pegar un enlace público de Google Drive.')
             return
@@ -243,9 +253,7 @@ export default function AnunciosPage() {
                 grupo_id: grupoId,
                 importante,
                 fecha_expiracion: fechaExpiracion ? new Date(fechaExpiracion).toISOString() : null,
-                drive_public_url: isGoogleDriveEmbedEnabled
-                    ? (normalizedDrivePublicUrl.length > 0 ? normalizedDrivePublicUrl : null)
-                    : null,
+                drive_public_urls: normalizedDrivePublicUrls.length > 0 ? normalizedDrivePublicUrls : null,
             }
 
             let error = null
@@ -266,9 +274,7 @@ export default function AnunciosPage() {
                     importante,
                     fecha_publicacion: new Date().toISOString(),
                     fecha_expiracion: fechaExpiracion ? new Date(fechaExpiracion).toISOString() : null,
-                    drive_public_url: isGoogleDriveEmbedEnabled
-                        ? (normalizedDrivePublicUrl.length > 0 ? normalizedDrivePublicUrl : null)
-                        : null,
+                    drive_public_urls: normalizedDrivePublicUrls.length > 0 ? normalizedDrivePublicUrls : null,
                 }
 
                 const result = await withTimeout((dbClient)
@@ -298,7 +304,7 @@ export default function AnunciosPage() {
         setContenido(anuncio.contenido)
         setDestinatarios(anuncio.destinatarios.length > 0 ? anuncio.destinatarios : ['todos'])
         setFechaExpiracion(anuncio.fecha_expiracion ? anuncio.fecha_expiracion.slice(0, 10) : '')
-        setDrivePublicUrl(anuncio.drive_public_url ?? '')
+        setDrivePublicUrls(anuncio.drive_public_urls ?? [])
         setImportante(anuncio.importante)
         if (anuncio.grupo_id) {
             setTargetGroupMode('specific')
@@ -507,15 +513,43 @@ export default function AnunciosPage() {
 
                                 {isGoogleDriveEmbedEnabled && (
                                     <div className="space-y-2">
-                                        <Label htmlFor="drive-public-url">Enlace público de Google Drive (opcional)</Label>
-                                        <Input
-                                            id="drive-public-url"
-                                            value={drivePublicUrl}
-                                            onChange={(e) => setDrivePublicUrl(e.target.value)}
-                                            placeholder="https://drive.google.com/file/d/FILE_ID/view?usp=sharing"
-                                            aria-describedby="drive-public-url-helper"
-                                        />
-                                        <p id="drive-public-url-helper" className="text-sm text-muted-foreground">
+                                        <Label>Enlaces públicos de Google Drive (opcional)</Label>
+                                        {drivePublicUrls.length > 0 && (
+                                            <div className="space-y-2">
+                                                {drivePublicUrls.map((url, index) => (
+                                                    <div key={index} className="flex gap-2">
+                                                        <Input
+                                                            id={`drive-public-url-${index}`}
+                                                            value={url}
+                                                            onChange={(e) => handleDriveLinkChange(index, e.target.value)}
+                                                            placeholder="https://drive.google.com/file/d/FILE_ID/view?usp=sharing"
+                                                            aria-label={`Enlace de Google Drive ${index + 1}`}
+                                                            aria-describedby="drive-public-urls-helper"
+                                                            className="flex-1"
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="icon"
+                                                            onClick={() => handleRemoveDriveLink(index)}
+                                                            aria-label={`Eliminar enlace ${index + 1}`}
+                                                        >
+                                                            <X className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={handleAddDriveLink}
+                                            disabled={drivePublicUrls.length >= MAX_DRIVE_LINKS}
+                                        >
+                                            <Plus className="mr-2 h-4 w-4" />
+                                            Agregar enlace
+                                        </Button>
+                                        <p id="drive-public-urls-helper" className="text-sm text-muted-foreground">
                                             El documento debe ser público: "Cualquier persona con el enlace". Si no es
                                             público se mostrará un enlace en lugar del preview.
                                         </p>
@@ -630,9 +664,11 @@ export default function AnunciosPage() {
                             </CardHeader>
                             <CardContent>
                                 <p className="text-sm text-foreground whitespace-pre-line">{anuncio.contenido}</p>
-                                {isGoogleDriveEmbedEnabled && anuncio.drive_public_url && (
-                                    <div className="mt-4">
-                                        <DriveEmbed drivePublicUrl={anuncio.drive_public_url} />
+                                {isGoogleDriveEmbedEnabled && anuncio.drive_public_urls && anuncio.drive_public_urls.length > 0 && (
+                                    <div className="mt-4 space-y-4">
+                                        {anuncio.drive_public_urls.map((url) => (
+                                            <DriveEmbed key={url} drivePublicUrl={url} />
+                                        ))}
                                     </div>
                                 )}
                             </CardContent>

@@ -23,7 +23,7 @@ type PublicAnuncioRow = {
   importante: boolean
   fecha_publicacion: string
   destinatarios?: string[] | null
-  drive_public_url?: string | null
+  drive_public_urls?: string[] | null
 }
 
 let eventosMockData: PublicEventoRow[] = []
@@ -66,7 +66,7 @@ describe('HomePage - integración DriveEmbed', () => {
     anunciosMockData = []
   })
 
-  it('renderiza DriveEmbed cuando el anuncio para todos incluye drive_public_url', async () => {
+  it('renderiza DriveEmbed cuando el anuncio para todos incluye drive_public_urls', async () => {
     anunciosMockData = [
       {
         id: 'anuncio-todos-drive',
@@ -75,7 +75,7 @@ describe('HomePage - integración DriveEmbed', () => {
         importante: true,
         fecha_publicacion: '2026-04-26T12:00:00.000Z',
         destinatarios: ['todos'],
-        drive_public_url: 'https://drive.google.com/file/d/DRIVE123/view?usp=sharing',
+        drive_public_urls: ['https://drive.google.com/file/d/DRIVE123/view?usp=sharing'],
       },
     ]
 
@@ -92,7 +92,7 @@ describe('HomePage - integración DriveEmbed', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('renderiza el párrafo de contenido para anuncio de grupo sin drive_public_url y no muestra iframe', async () => {
+  it('renderiza el párrafo de contenido para anuncio de grupo sin drive_public_urls y no muestra iframe', async () => {
     anunciosMockData = [
       {
         id: 'anuncio-grupo-sin-drive',
@@ -101,7 +101,7 @@ describe('HomePage - integración DriveEmbed', () => {
         importante: false,
         fecha_publicacion: '2026-04-26T12:00:00.000Z',
         destinatarios: ['estudiante'],
-        drive_public_url: null,
+        drive_public_urls: null,
       },
     ]
 
@@ -114,5 +114,34 @@ describe('HomePage - integración DriveEmbed', () => {
     expect(await screen.findByText('Comunicado estudiantes')).toBeInTheDocument()
     expect(screen.getByText('Contenido visible para grupo sin vista previa')).toBeInTheDocument()
     expect(screen.queryByTitle('Vista previa del documento de Google Drive')).not.toBeInTheDocument()
+  })
+
+  it('renderiza un embed por cada enlace del anuncio para todos', async () => {
+    anunciosMockData = [
+      {
+        id: 'anuncio-todos-dos-drives',
+        titulo: 'Comunicado con dos documentos',
+        contenido: 'Contenido textual que no debe mostrarse cuando hay embed',
+        importante: false,
+        fecha_publicacion: '2026-04-26T12:00:00.000Z',
+        destinatarios: ['todos'],
+        drive_public_urls: [
+          'https://drive.google.com/file/d/PRIMERO123/view?usp=sharing',
+          'https://drive.google.com/file/d/SEGUNDO456/view?usp=sharing',
+        ],
+      },
+    ]
+
+    render(
+      <MemoryRouter>
+        <HomePage />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('Comunicado con dos documentos')).toBeInTheDocument()
+    expect(screen.getAllByTitle('Vista previa del documento de Google Drive')).toHaveLength(2)
+    expect(
+      screen.queryByText('Contenido textual que no debe mostrarse cuando hay embed'),
+    ).not.toBeInTheDocument()
   })
 })

@@ -13,7 +13,7 @@ type EventoRow = {
   todo_el_dia: boolean
   lugar: string | null
   destinatarios: string[]
-  drive_public_url: string | null
+  drive_public_urls: string[] | null
   creado_por: string | null
   created_at: string
 }
@@ -65,7 +65,7 @@ describe('CalendarioPage - integración DriveEmbed', () => {
     eventosMockData = []
   })
 
-  it('renderiza el embed cuando el evento es para todos y tiene drive_public_url', async () => {
+  it('renderiza el embed cuando el evento es para todos y tiene drive_public_urls', async () => {
     eventosMockData = [
       {
         id: 'evento-publico-drive',
@@ -77,7 +77,7 @@ describe('CalendarioPage - integración DriveEmbed', () => {
         todo_el_dia: false,
         lugar: 'Auditorio',
         destinatarios: ['todos'],
-        drive_public_url: 'https://drive.google.com/file/d/DRIVE123/view?usp=sharing',
+        drive_public_urls: ['https://drive.google.com/file/d/DRIVE123/view?usp=sharing'],
         creado_por: 'docente-1',
         created_at: '2099-04-20T10:00:00.000Z',
       },
@@ -89,7 +89,34 @@ describe('CalendarioPage - integración DriveEmbed', () => {
     expect(screen.getByTitle('Vista previa del documento de Google Drive')).toBeInTheDocument()
   })
 
-  it('no renderiza el embed cuando no aplica la regla de todos + drive_public_url', async () => {
+  it('renderiza un embed por cada enlace del evento para todos', async () => {
+    eventosMockData = [
+      {
+        id: 'evento-publico-dos-drives',
+        titulo: 'Reunión con dos documentos',
+        descripcion: 'Descripción del evento',
+        tipo: 'General',
+        fecha_inicio: '2099-04-26T10:00:00.000Z',
+        fecha_fin: null,
+        todo_el_dia: false,
+        lugar: 'Auditorio',
+        destinatarios: ['todos'],
+        drive_public_urls: [
+          'https://drive.google.com/file/d/PRIMERO123/view?usp=sharing',
+          'https://drive.google.com/file/d/SEGUNDO456/view?usp=sharing',
+        ],
+        creado_por: 'docente-1',
+        created_at: '2099-04-20T10:00:00.000Z',
+      },
+    ]
+
+    render(<CalendarioPage />)
+
+    expect(await screen.findByText('Reunión con dos documentos')).toBeInTheDocument()
+    expect(screen.getAllByTitle('Vista previa del documento de Google Drive')).toHaveLength(2)
+  })
+
+  it('no renderiza el embed cuando no aplica la regla de todos + drive_public_urls', async () => {
     eventosMockData = [
       {
         id: 'evento-grupo-drive',
@@ -101,7 +128,7 @@ describe('CalendarioPage - integración DriveEmbed', () => {
         todo_el_dia: false,
         lugar: null,
         destinatarios: ['estudiante'],
-        drive_public_url: 'https://drive.google.com/file/d/DRIVE999/view?usp=sharing',
+        drive_public_urls: ['https://drive.google.com/file/d/DRIVE999/view?usp=sharing'],
         creado_por: 'docente-1',
         created_at: '2099-04-20T10:00:00.000Z',
       },
