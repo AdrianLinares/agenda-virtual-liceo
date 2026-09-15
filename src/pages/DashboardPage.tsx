@@ -356,7 +356,7 @@ export default function DashboardPage() {
       }
 
       // Get filters for RPC
-      const filters: any = { periodo_id: periodoIds }
+      const filters: Parameters<typeof rpcCountNotas>[0] = { periodo_id: periodoIds }
       if (isDocente && profile?.id) {
         if (grupos.length > 0) filters.grupo_id = grupos
         if (asignaturas.length > 0) filters.asignatura_id = asignaturas

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { useAuthStore } from '@/lib/auth-store'
-import { supabase, rpcCountNotas } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
     Select,
@@ -269,7 +269,6 @@ export default function NotasPage() {
     const [notas, setNotas] = useState<Nota[]>([])
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const [totalNotas, setTotalNotas] = useState<number | null>(null)
 
     // Estados para registro de notas (solo docentes)
     const [showCalculator, setShowCalculator] = useState<false | true | string>(false)
@@ -359,7 +358,8 @@ export default function NotasPage() {
         }
     }
 
-    const fetchAllNotas = async (baseQuery: any, selectedPeriodo: string): Promise<Nota[]> => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fetchAllNotas = async (baseQuery: any): Promise<Nota[]> => {
         const PAGE_SIZE = 1000
         let allNotas: Nota[] = []
         let from = 0
@@ -443,7 +443,7 @@ export default function NotasPage() {
             // For admin/administrativo, fetch all notas with pagination
             let data: Nota[]
             if (profile.rol === 'administrador' || profile.rol === 'administrativo') {
-                data = await fetchAllNotas(query, selectedPeriodo)
+                data = await fetchAllNotas(query)
             } else {
                 const { data: queryData, error } = await query
                 if (error) throw error
