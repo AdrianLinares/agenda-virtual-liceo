@@ -24,7 +24,7 @@ Users need to reach the complete received/sent history without depending on one 
 - Test runner: `pnpm run test:ci` (authoritative Vitest run); focused command: `pnpm exec vitest run src/pages/__tests__/MensajesPage.spec.tsx`.
 - Verification: `pnpm lint`, `pnpm build`, and `pnpm run test:ci`.
 - Delivery strategy: user-selected `feature-branch-chain` under `ask-on-risk`. No PR is created or pushed by this task.
-- The original estimate was approximately 200 lines. The net tracker-to-main diff is 683 changed lines; the PR 1 and PR 2 review slices account for 361 and 371 changed lines respectively (732 combined across slices), excluding unrelated working-tree changes.
+- The original estimate was approximately 200 lines. The net tracker-to-main diff was about 683 changed lines before the delivery note; the PR 1 and PR 2 review slices now account for 361 and 377 changed lines respectively (738 combined), excluding unrelated working-tree changes.
 
 ## Authorized scope and route
 - Feature branch: `feat/messages-list-controls`.
@@ -35,8 +35,14 @@ Users need to reach the complete received/sent history without depending on one 
 - Strategy: user-selected `feature-branch-chain`.
 - Tracker branch: local `feat/messages-list-controls-tracker`, created from `origin/main`; its PR to `main` must remain draft/no-merge while child slices are reviewed. No remote PR was created.
 - PR 1 slice: local child branch `feat/messages-list-controls-01-pagination-dates`, at `7e15ec7`; base is the tracker branch; includes pagination/date behavior, tests, and its task document. Current count: 351 additions + 10 deletions = 361 changed lines.
-- PR 2 slice: current branch `feat/messages-list-controls`, based on PR 1 commit `7e15ec7`; target is `feat/messages-list-controls-01-pagination-dates`; includes the page-clamp correction, counterpart filter, selected-detail behavior, failed-query recovery, and the decision to keep the hosted row cap unchanged. Current slice count after task evidence updates: 340 additions + 31 deletions = 371 changed lines.
-- The tracker branch is the final integration target and only it may merge to `main`; do not create or open remote PRs in this task. Recount slices after final task-document updates; keep each child PR under 400 changed lines.
+- PR 2 slice: current branch `feat/messages-list-controls`, based on PR 1 commit `7e15ec7`; target is `feat/messages-list-controls-01-pagination-dates`; includes the page-clamp correction, counterpart filter, selected-detail behavior, failed-query recovery, and the decision to keep the hosted row cap unchanged. Current slice count: 346 additions + 31 deletions = 377 changed lines.
+- The tracker branch is the final integration target and only it may merge to `main`; keep its PR draft/no-merge while child slices are reviewed. Recount slices after final task-document updates; keep each child PR under 400 changed lines.
+
+## Remote delivery status
+- The user explicitly authorized pushing to `origin`, creating the feature-branch chain, and integrating PR 1/PR 2 after checks.
+- `git push -u origin feat/messages-list-controls-tracker feat/messages-list-controls-01-pagination-dates feat/messages-list-controls` failed before any successful ref update was reported: the configured GitHub CLI credential helper could not run its referenced executable, then Git could not obtain a username. Do not retry blindly or switch to another credential/session.
+- No remote PR or merge was created. Searches for a related issue (`messages pagination`, `mensajes`, `inbox`, `sent messages`, `pagination`) returned no matches; repository PR policy requires an approved issue (`status:approved`) before opening PRs.
+- The final tracker-to-main diff is over 400 changed lines; obtain explicit `size:exception` approval before merging the tracker to `main` if that review budget applies.
 
 ## Checklist and progress
 - [x] W1 — Correct stale-page handling and expand edge-case tests for paginated received and sent messages.
@@ -107,4 +113,4 @@ Users need to reach the complete received/sent history without depending on one 
 - Engram mirror: pending; the save was rejected because multiple active runtime sessions match this project. Preserve this local task document and resynchronize when the session ambiguity is resolved.
 
 ## Next step
-W1-ERROR is complete and W2 is closed as a no-op per the user's decision. No push or remote PR was created. The local feature-chain branches are ready for a later user-directed PR flow. Leave `.atl/skill-registry.md` and `.codegraph/` untouched. Engram mirror resynchronization is pending.
+W1-ERROR is complete and W2 is closed as a no-op per the user's decision. To resume remote delivery, restore the configured GitHub credential helper and provide an approved issue number; then push the local branches and open the tracker/child PR chain. Wait for checks before child merges, and obtain `size:exception` approval before the over-budget tracker-to-main merge. Leave `.atl/skill-registry.md` and `.codegraph/` untouched. Engram mirror resynchronization is pending.
