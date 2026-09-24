@@ -24,7 +24,7 @@ Users need to reach the complete received/sent history without depending on one 
 - Test runner: `pnpm run test:ci` (authoritative Vitest run); focused command: `pnpm exec vitest run src/pages/__tests__/MensajesPage.spec.tsx`.
 - Verification: `pnpm lint`, `pnpm build`, and `pnpm run test:ci`.
 - Delivery strategy: user-selected `feature-branch-chain` under `ask-on-risk`. No PR is created or pushed by this task.
-- The original estimate was approximately 200 lines. The full integration diff is about 717 changed lines; the planned PR 1 and PR 2 slices are 361 and 356 changed lines respectively, excluding unrelated working-tree changes.
+- The original estimate was approximately 200 lines. The full integration diff is about 720 changed lines; the planned PR 1 and PR 2 slices are 361 and 359 changed lines respectively, excluding unrelated working-tree changes.
 
 ## Authorized scope and route
 - Feature branch: `feat/messages-list-controls`.
@@ -35,7 +35,7 @@ Users need to reach the complete received/sent history without depending on one 
 - Strategy: user-selected `feature-branch-chain`.
 - Tracker branch: local `feat/messages-list-controls-tracker`, created from `origin/main`; its PR to `main` must remain draft/no-merge while child slices are reviewed. No remote PR was created.
 - PR 1 slice: local child branch `feat/messages-list-controls-01-pagination-dates`, at `7e15ec7`; base is the tracker branch; includes pagination/date behavior, tests, and its task document. Current count: 351 additions + 10 deletions = 361 changed lines.
-- PR 2 slice: current branch `feat/messages-list-controls`, based on PR 1 commit `7e15ec7`; target is `feat/messages-list-controls-01-pagination-dates`; includes the page-clamp correction, counterpart filter, selected-detail behavior, and failed-query recovery. Current pre-commit count: 331 additions + 25 deletions = 356 changed lines.
+- PR 2 slice: current branch `feat/messages-list-controls`, based on PR 1 commit `7e15ec7`; target is `feat/messages-list-controls-01-pagination-dates`; includes the page-clamp correction, counterpart filter, selected-detail behavior, and failed-query recovery. Current slice count after task evidence updates: 334 additions + 25 deletions = 359 changed lines.
 - The tracker branch is the final integration target and only it may merge to `main`; do not create or open remote PRs in this task. Recount slices after final task-document updates; keep each child PR under 400 changed lines.
 
 ## Checklist and progress
@@ -58,6 +58,7 @@ Users need to reach the complete received/sent history without depending on one 
   - TDD RED: focused run failed the new clamp assertion because the selected detail remained visible after page 2 clamped to page 1 (1 file, 9 tests; 2 failed, 7 passed; the other failure was the missing counterpart control).
   - TDD GREEN: focused run passed (1 file, 9 tests).
   - Verification: `pnpm lint` passed; `pnpm build` passed with the existing stale Browserslist-data notice; `pnpm run test:ci` passed (18 files, 96 tests).
+  - Commit: `85f3944` (`feat(messages): filter counterpart and recover stale results`).
 - [x] W1-FILTER — Add an optional counterpart dropdown to both message tabs.
   - Acceptance: `recibidos` filters by selected sender ID; `enviados` filters by selected recipient ID; the filter combines with date bounds and pagination, and clearing it restores the unfiltered mailbox from page 1.
   - Route: delegated direct with W1-FINAL because both behaviors touch the same page/query/test files; strict TDD applies.
@@ -72,6 +73,7 @@ Users need to reach the complete received/sent history without depending on one 
   - TDD RED: focused Vitest failed as expected (1 failed, 9 passed); after the changed-date query failed, the old `Mensaje página 1` row remained visible.
   - TDD GREEN: focused Vitest passed (1 file, 11 tests), including changed-criteria clearing and same-criteria refresh preservation.
   - Verification: `pnpm lint` passed; `pnpm build` passed with the existing stale Browserslist-data notice; `pnpm run test:ci` passed (18 files, 98 tests).
+  - Commit: `85f3944` (`feat(messages): filter counterpart and recover stale results`).
 - [ ] W2 — Apply hosted API row cap `3,000` after remote authorization.
   - Acceptance: the exact intended hosted project reports `max_rows = 3000` after the authorized change.
   - Verification: read back the configured value from that same authorized project.
@@ -97,6 +99,7 @@ Users need to reach the complete received/sent history without depending on one 
 - W1-ERROR correction: a failed current query clears prior page rows, count, and selection only when the request key differs from the last successful query; failed same-criteria refreshes preserve them. Request-ID protection still guards success and error completion updates.
 - W1-ERROR TDD evidence: the pre-fix changed-date failure showed the stale `Mensaje página 1` row (1 failed, 9 passed); post-fix focused tests passed (11 tests), including preservation on a failed same-criteria refresh.
 - W1-ERROR verification passed: lint, build (existing stale Browserslist-data notice), and full CI Vitest (18 files, 98 tests).
+- W1-FINAL, W1-FILTER, and W1-ERROR were committed together as `85f3944` (`feat(messages): filter counterpart and recover stale results`).
 - Parent reran `pnpm run test:ci` successfully (18 files, 98 tests) and `git diff --check` passed. Risk assessment could not inventory the unrelated untracked `.codegraph/`, so the delegated-verification tier remains high; independent verification found no blocker in settled request-error states.
 - Residual verifier caveats: no explicit delayed/out-of-order request or failed clamp-refetch test; during a clamp refetch there may be a brief prior-row/page mismatch; a failed manual page navigation may leave a page/count indicator mismatch. No additional correction was made after the bounded W1-ERROR fix.
 - Hosted Supabase `max_rows` remains pending; no remote operation or local pretend configuration was performed.
