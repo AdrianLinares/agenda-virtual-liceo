@@ -118,6 +118,7 @@ export default function MensajesPage() {
     const [totalMessages, setTotalMessages] = useState(0)
     const [startDate, setStartDate] = useState('')
     const [endDate, setEndDate] = useState('')
+    const [counterpartId, setCounterpartId] = useState('todos')
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -132,6 +133,7 @@ export default function MensajesPage() {
     const [asunto, setAsunto] = useState('')
     const [contenido, setContenido] = useState('')
     const [recipients, setRecipients] = useState<PerfilOption[]>([])
+    const [counterparts, setCounterparts] = useState<PerfilOption[]>([])
     const [gruposDisponibles, setGruposDisponibles] = useState<GrupoOption[]>([])
     const [estudiantesGrupos, setEstudiantesGrupos] = useState<EstudianteGrupoLink[]>([])
     const [padresEstudiantes, setPadresEstudiantes] = useState<PadreEstudianteLink[]>([])
@@ -141,6 +143,7 @@ export default function MensajesPage() {
     const [refreshing, setRefreshing] = useState(false)
     const [replyingMessageId, setReplyingMessageId] = useState<string | null>(null)
     const messageRequestId = useRef(0)
+    const lastLoadedMessageQuery = useRef<string | null>(null)
     const composeCardRef = useRef<HTMLDivElement | null>(null)
     const detailCardRef = useRef<HTMLDivElement | null>(null)
     const composeMessageRef = useRef<HTMLTextAreaElement | null>(null)
@@ -170,7 +173,7 @@ export default function MensajesPage() {
         void loadMensajes()
         // Motivo: la carga también depende de los criterios de bandeja; la recarga manual conserva estos criterios.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [profile?.id, tab, startDate, endDate, page])
+    }, [profile?.id, tab, startDate, endDate, counterpartId, page])
 
     useEffect(() => {
         setPage(1)
@@ -265,6 +268,7 @@ export default function MensajesPage() {
         if (!profile) return
 
         const requestId = ++messageRequestId.current
+        const queryKey = JSON.stringify([profile.id, tab, startDate, endDate, counterpartId, page])
 
         if (!isValidCalendarDate(startDate) || !isValidCalendarDate(endDate) || (startDate && endDate && startDate > endDate)) {
             setMensajes([])
@@ -296,6 +300,10 @@ export default function MensajesPage() {
                 query = query.eq('remitente_id', profile.id)
             }
 
+            if (counterpartId !== 'todos') {
+                query = query.eq(tab === 'recibidos' ? 'remitente_id' : 'destinatario_id', counterpartId)
+            }
+
             if (startDate) query = query.gte('created_at', startOfCalendarDate(startDate))
             if (endDate) query = query.lt('created_at', startOfNextCalendarDate(endDate))
 
@@ -310,15 +318,24 @@ export default function MensajesPage() {
                 if (page > lastPage) {
                     setTotalMessages(resultCount)
                     setPage(lastPage)
+                    setSelectedMessage(null)
                     return
                 }
 
+                lastLoadedMessageQuery.current = queryKey
                 setMensajes((data || []) as Mensaje[])
                 setTotalMessages(resultCount)
             }
         } catch (err) {
             console.error('Error loading mensajes:', err)
-            if (requestId === messageRequestId.current) setError('Error al cargar los mensajes')
+            if (requestId === messageRequestId.current) {
+                setError('Error al cargar los mensajes')
+                if (lastLoadedMessageQuery.current !== queryKey) {
+                    setMensajes([])
+                    setTotalMessages(0)
+                    setSelectedMessage(null)
+                }
+            }
         } finally {
             if (requestId === messageRequestId.current) setLoading(false)
         }
@@ -326,6 +343,12 @@ export default function MensajesPage() {
 
     const handleDateChange = (setDate: (value: string) => void, value: string) => {
         setDate(value)
+        setPage(1)
+        setSelectedMessage(null)
+    }
+
+    const handleCounterpartChange = (value: string) => {
+        setCounterpartId(value)
         setPage(1)
         setSelectedMessage(null)
     }
@@ -355,6 +378,15 @@ export default function MensajesPage() {
                 email: string
                 rol: string
             }>
+
+            setCounterparts(items
+                .filter((item) => item.id !== profile.id)
+                .map((item) => ({
+                    id: item.id,
+                    nombre_completo: item.nombre_completo,
+                    email: item.email,
+                    rol: item.rol,
+                })))
 
             const list = items
                 .filter((item) => item.id !== profile.id)
@@ -892,7 +924,7 @@ export default function MensajesPage() {
                 </Button>
             </div>
 
-            <div className="grid gap-4 rounded-lg border border-border p-4 sm:grid-cols-2">
+            <div className="grid gap-4 rounded-lg border border-border p-4 sm:grid-cols-3">
                 <div className="space-y-2">
                     <Label htmlFor="messages-start-date">Desde</Label>
                     <Input
@@ -910,6 +942,22 @@ export default function MensajesPage() {
                         value={endDate}
                         onChange={(event) => handleDateChange(setEndDate, event.target.value)}
                     />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="messages-counterpart">{tab === 'recibidos' ? 'Remitente' : 'Destinatario'}</Label>
+                    <Select value={counterpartId} onValueChange={handleCounterpartChange}>
+                        <SelectTrigger id="messages-counterpart">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="todos">Todos</SelectItem>
+                            {counterparts.map((counterpart) => (
+                                <SelectItem key={counterpart.id} value={counterpart.id}>
+                                    {counterpart.nombre_completo}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
             </div>
 
@@ -1175,7 +1223,7 @@ export default function MensajesPage() {
                 </Button>
             </nav>
 
-            {!loading && mensajes.length === 0 && (
+            {!loading && !error && mensajes.length === 0 && (
                 <Alert>
                     <Mail className="h-4 w-4" />
                     <AlertDescription>No hay mensajes en esta bandeja.</AlertDescription>
