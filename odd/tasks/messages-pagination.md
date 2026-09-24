@@ -1,7 +1,7 @@
 # Messages pagination and date filters
 
 ## Objective
-Make received and sent messages browsable through server-side pagination, an inclusive date-range filter, and an optional counterpart filter; raise the requested Supabase Data API row cap to 3,000 once the hosted-project mutation is explicitly authorized.
+Make received and sent messages browsable through server-side pagination, an inclusive date-range filter, and an optional counterpart filter; leave the hosted Supabase Data API row cap unchanged per the user's decision.
 
 ## Problem
 The messages page issues one unpaginated query. The target account has 1,855 message rows, which can exceed the API response cap. Users also cannot narrow either mailbox by date.
@@ -24,18 +24,18 @@ Users need to reach the complete received/sent history without depending on one 
 - Test runner: `pnpm run test:ci` (authoritative Vitest run); focused command: `pnpm exec vitest run src/pages/__tests__/MensajesPage.spec.tsx`.
 - Verification: `pnpm lint`, `pnpm build`, and `pnpm run test:ci`.
 - Delivery strategy: user-selected `feature-branch-chain` under `ask-on-risk`. No PR is created or pushed by this task.
-- The original estimate was approximately 200 lines. The full integration diff is about 720 changed lines; the planned PR 1 and PR 2 slices are 361 and 359 changed lines respectively, excluding unrelated working-tree changes.
+- The original estimate was approximately 200 lines. The full integration diff is about 732 changed lines; the planned PR 1 and PR 2 slices are 361 and 371 changed lines respectively, excluding unrelated working-tree changes.
 
 ## Authorized scope and route
 - Feature branch: `feat/messages-list-controls`.
 - Work unit W1: implement server-side page/range filtering plus tests in `src/pages/MensajesPage.tsx` and `src/pages/__tests__/MensajesPage.spec.tsx`. Route: delegated direct, triggered by the 2+ non-trivial-file writer rule and preparation/mapping rule. The parent mapped the page, current query, reusable Supabase range patterns, and test setup before delegation.
-- Work unit W2: set hosted Supabase Data API `max_rows` to 3,000. User requested the value, but the exact remote target and credential/session authorization are not confirmed; do not perform this mutation until explicitly authorized.
+- Work unit W2: keep the hosted Supabase API row cap unchanged. The user decided not to raise it to 3,000.
 
 ## Delivery plan
 - Strategy: user-selected `feature-branch-chain`.
 - Tracker branch: local `feat/messages-list-controls-tracker`, created from `origin/main`; its PR to `main` must remain draft/no-merge while child slices are reviewed. No remote PR was created.
 - PR 1 slice: local child branch `feat/messages-list-controls-01-pagination-dates`, at `7e15ec7`; base is the tracker branch; includes pagination/date behavior, tests, and its task document. Current count: 351 additions + 10 deletions = 361 changed lines.
-- PR 2 slice: current branch `feat/messages-list-controls`, based on PR 1 commit `7e15ec7`; target is `feat/messages-list-controls-01-pagination-dates`; includes the page-clamp correction, counterpart filter, selected-detail behavior, and failed-query recovery. Current slice count after task evidence updates: 334 additions + 25 deletions = 359 changed lines.
+- PR 2 slice: current branch `feat/messages-list-controls`, based on PR 1 commit `7e15ec7`; target is `feat/messages-list-controls-01-pagination-dates`; includes the page-clamp correction, counterpart filter, selected-detail behavior, failed-query recovery, and the decision to keep the hosted row cap unchanged. Current slice count after task evidence updates: 340 additions + 31 deletions = 371 changed lines.
 - The tracker branch is the final integration target and only it may merge to `main`; do not create or open remote PRs in this task. Recount slices after final task-document updates; keep each child PR under 400 changed lines.
 
 ## Checklist and progress
@@ -74,10 +74,10 @@ Users need to reach the complete received/sent history without depending on one 
   - TDD GREEN: focused Vitest passed (1 file, 11 tests), including changed-criteria clearing and same-criteria refresh preservation.
   - Verification: `pnpm lint` passed; `pnpm build` passed with the existing stale Browserslist-data notice; `pnpm run test:ci` passed (18 files, 98 tests).
   - Commit: `85f3944` (`feat(messages): filter counterpart and recover stale results`).
-- [ ] W2 — Apply hosted API row cap `3,000` after remote authorization.
-  - Acceptance: the exact intended hosted project reports `max_rows = 3000` after the authorized change.
-  - Verification: read back the configured value from that same authorized project.
-  - Route: direct bounded remote setting operation only after explicit authorization; no project probing or mutation before that.
+- [x] W2 — Keep the hosted API row cap unchanged.
+  - User decision: retain the current cap (believed by the user to be 1,000); do not change hosted settings.
+  - Rationale: the message list now requests 20 rows per page with server-side `.range()`; increasing the API cap is unnecessary for traversing the full history. Date/counterpart filters further narrow results.
+  - Verification: no hosted setting was read or changed; the active deployed cap remains unverified.
 
 ## Progress evidence
 - The user selected strict TDD and requested date filters for both inbox tabs.
@@ -102,9 +102,9 @@ Users need to reach the complete received/sent history without depending on one 
 - W1-FINAL, W1-FILTER, and W1-ERROR were committed together as `85f3944` (`feat(messages): filter counterpart and recover stale results`).
 - Parent reran `pnpm run test:ci` successfully (18 files, 98 tests) and `git diff --check` passed. Risk assessment could not inventory the unrelated untracked `.codegraph/`, so the delegated-verification tier remains high; independent verification found no blocker in settled request-error states.
 - Residual verifier caveats: no explicit delayed/out-of-order request or failed clamp-refetch test; during a clamp refetch there may be a brief prior-row/page mismatch; a failed manual page navigation may leave a page/count indicator mismatch. No additional correction was made after the bounded W1-ERROR fix.
-- Hosted Supabase `max_rows` remains pending; no remote operation or local pretend configuration was performed.
+- Per user decision, hosted Supabase `max_rows` is left unchanged; the user believes it is currently 1,000, but the deployed value was not queried. The UI's 20-row server pagination does not depend on raising that cap.
 - The working tree also contains unrelated changes in `.atl/skill-registry.md` and untracked `.codegraph/`; preserve them and exclude them from feature commits.
 - Engram mirror: pending; the save was rejected because multiple active runtime sessions match this project. Preserve this local task document and resynchronize when the session ambiguity is resolved.
 
 ## Next step
-W1-ERROR is complete. Recount the PR 2 slice, then commit only its feature files and task document. Do not push/create PRs; keep W2 blocked pending exact remote authorization. Leave `.atl/skill-registry.md` and `.codegraph/` untouched. Engram mirror resynchronization is pending.
+W1-ERROR is complete and W2 is closed as a no-op per the user's decision. No push or remote PR was created. The local feature-chain branches are ready for a later user-directed PR flow. Leave `.atl/skill-registry.md` and `.codegraph/` untouched. Engram mirror resynchronization is pending.
