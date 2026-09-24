@@ -10,10 +10,11 @@ type MessageQuery = {
   range: [number, number] | null
 }
 
-const { authState, messageQueries } = vi.hoisted(() => ({
+const { authState, messageFixture, messageQueries } = vi.hoisted(() => ({
   authState: {
     profile: { id: 'user-1', rol: 'docente', email: 'docente@example.test', nombre_completo: 'Docente Test', activo: true },
   },
+  messageFixture: { totalCount: 25 },
   messageQueries: [] as Array<{ filters: Map<string, unknown>; range: [number, number] | null }>,
 }))
 
@@ -41,22 +42,29 @@ function createBuilder(table: string) {
     then: (resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) => {
       if (table === 'mensajes') messageQueries.push(query)
       const offset = query.range?.[0] ?? 0
+      const count = table === 'mensajes' ? messageFixture.totalCount : null
+      const pageEnd = query.range?.[1] ?? offset
       const data = table === 'mensajes'
-        ? [{
-            id: `message-${offset}`,
+        ? Array.from({ length: Math.max(0, Math.min(pageEnd + 1, count ?? 0) - offset) }, (_, index) => {
+          const messageNumber = offset + index + 1
+          return {
+            id: `message-${messageNumber}`,
             remitente_id: 'other-user',
             destinatario_id: 'user-1',
-            asunto: `Mensaje página ${Math.floor(offset / 20) + 1}`,
-            contenido: 'Contenido de prueba',
-            estado: 'enviado',
+            asunto: index === 0
+              ? `Mensaje página ${Math.floor((messageNumber - 1) / 20) + 1}`
+              : `Mensaje ${messageNumber}`,
+            contenido: `Contenido de prueba ${messageNumber}`,
+            estado: 'leido',
             leido_en: null,
             created_at: '2026-03-15T12:00:00.000Z',
             remitente: { nombre_completo: 'Remitente', email: 'sender@example.test' },
             destinatario: { nombre_completo: 'Destinatario', email: 'receiver@example.test' },
-          }]
+          }
+        })
         : []
 
-      return Promise.resolve({ data, error: null, count: table === 'mensajes' ? 25 : null }).then(resolve, reject)
+      return Promise.resolve({ data, error: null, count }).then(resolve, reject)
     },
   }
 
@@ -81,6 +89,10 @@ function renderPage() {
 
 describe('MensajesPage list controls', () => {
   beforeEach(() => {
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: vi.fn(),
+    })
     authState.profile = {
       id: 'user-1',
       rol: 'docente',
@@ -89,6 +101,7 @@ describe('MensajesPage list controls', () => {
       activo: true,
     }
     messageQueries.length = 0
+    messageFixture.totalCount = 25
   })
 
   it('filters received and sent messages by the current user and inclusive dates', async () => {
@@ -126,9 +139,48 @@ describe('MensajesPage list controls', () => {
     await user.click(screen.getByRole('button', { name: 'Siguiente' }))
     await screen.findByText('Mensaje página 2')
     expect(messageQueries.at(-1)?.range).toEqual([20, 39])
+    expect(screen.getAllByRole('button', { name: /Mensaje/ })).toHaveLength(5)
     expect(screen.getByText('Página 2 de 2')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Anterior' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Siguiente' })).toBeDisabled()
+  })
+
+  it('clamps to a valid page after the matching result count shrinks while refreshing a later page', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await screen.findByText('Mensaje página 1')
+    await user.click(screen.getByRole('button', { name: 'Siguiente' }))
+    await screen.findByText('Mensaje página 2')
+
+    messageFixture.totalCount = 5
+    await user.click(screen.getByRole('button', { name: 'Actualizar' }))
+
+    expect(await screen.findByText('Página 1 de 1')).toBeInTheDocument()
+    expect(await screen.findByText('Mensaje página 1')).toBeInTheDocument()
+    expect(messageQueries.at(-1)?.range).toEqual([0, 19])
+  })
+
+  it('shows the empty state and a single-page boundary when there are no matching messages', async () => {
+    messageFixture.totalCount = 0
+    renderPage()
+
+    expect(await screen.findByText('No hay mensajes en esta bandeja.')).toBeVisible()
+    expect(screen.getByText('Página 1 de 1')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Anterior' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Siguiente' })).toBeDisabled()
+    expect(messageQueries.at(-1)?.range).toEqual([0, 19])
+  })
+
+  it('preserves selecting a message into its detail view', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await screen.findByText('Mensaje página 1')
+    await user.click(screen.getAllByRole('button', { name: /Mensaje página 1/ })[0])
+
+    expect(await screen.findByText('Vista previa del mensaje seleccionado')).toBeVisible()
+    expect(screen.getByText('Contenido de prueba 1')).toBeVisible()
   })
 
   it('resets pagination when date, tab, or profile changes', async () => {

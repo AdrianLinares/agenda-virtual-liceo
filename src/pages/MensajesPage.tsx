@@ -304,8 +304,17 @@ export default function MensajesPage() {
             if (error) throw error
 
             if (requestId === messageRequestId.current) {
+                const resultCount = count ?? 0
+                const lastPage = Math.max(1, Math.ceil(resultCount / MESSAGE_PAGE_SIZE))
+
+                if (page > lastPage) {
+                    setTotalMessages(resultCount)
+                    setPage(lastPage)
+                    return
+                }
+
                 setMensajes((data || []) as Mensaje[])
-                setTotalMessages(count ?? 0)
+                setTotalMessages(resultCount)
             }
         } catch (err) {
             console.error('Error loading mensajes:', err)
