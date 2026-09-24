@@ -24,7 +24,7 @@ Users need to reach the complete received/sent history without depending on one 
 - Test runner: `pnpm run test:ci` (authoritative Vitest run); focused command: `pnpm exec vitest run src/pages/__tests__/MensajesPage.spec.tsx`.
 - Verification: `pnpm lint`, `pnpm build`, and `pnpm run test:ci`.
 - Delivery strategy: user-selected `feature-branch-chain` under `ask-on-risk`. No PR is created or pushed by this task.
-- The original estimate was approximately 200 lines. The full integration diff is about 732 changed lines; the planned PR 1 and PR 2 slices are 361 and 371 changed lines respectively, excluding unrelated working-tree changes.
+- The original estimate was approximately 200 lines. The net tracker-to-main diff is 683 changed lines; the PR 1 and PR 2 review slices account for 361 and 371 changed lines respectively (732 combined across slices), excluding unrelated working-tree changes.
 
 ## Authorized scope and route
 - Feature branch: `feat/messages-list-controls`.
