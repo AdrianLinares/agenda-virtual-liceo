@@ -70,6 +70,26 @@ type TabType = 'recibidos' | 'enviados'
 
 const SEND_MESSAGE_TIMEOUT_MS = 45000
 const REFRESH_SUCCESS_MESSAGE = 'Datos actualizados'
+const MESSAGE_PAGE_SIZE = 20
+
+function isValidCalendarDate(value: string) {
+    if (!value) return true
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+
+    const date = new Date(`${value}T00:00:00.000Z`)
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
+}
+
+function startOfNextCalendarDate(value: string) {
+    const [year, month, day] = value.split('-').map(Number)
+    const date = new Date(year, month - 1, day + 1)
+    return date.toISOString()
+}
+
+function startOfCalendarDate(value: string) {
+    const [year, month, day] = value.split('-').map(Number)
+    return new Date(year, month - 1, day).toISOString()
+}
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
     let timeoutId: ReturnType<typeof setTimeout> | null = null
@@ -94,6 +114,10 @@ export default function MensajesPage() {
     const [searchParams, setSearchParams] = useSearchParams()
     const [tab, setTab] = useState<TabType>('recibidos')
     const [mensajes, setMensajes] = useState<Mensaje[]>([])
+    const [page, setPage] = useState(1)
+    const [totalMessages, setTotalMessages] = useState(0)
+    const [startDate, setStartDate] = useState('')
+    const [endDate, setEndDate] = useState('')
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -116,18 +140,25 @@ export default function MensajesPage() {
     const [markingRead, setMarkingRead] = useState<string | null>(null)
     const [refreshing, setRefreshing] = useState(false)
     const [replyingMessageId, setReplyingMessageId] = useState<string | null>(null)
+    const messageRequestId = useRef(0)
     const composeCardRef = useRef<HTMLDivElement | null>(null)
     const detailCardRef = useRef<HTMLDivElement | null>(null)
     const composeMessageRef = useRef<HTMLTextAreaElement | null>(null)
 
     useEffect(() => {
         const tabParam = searchParams.get('tab')
-        if (tabParam === 'recibidos' || tabParam === 'enviados') {
+        if ((tabParam === 'recibidos' || tabParam === 'enviados') && tabParam !== tab) {
             setTab(tabParam)
+            setPage(1)
+            setSelectedMessage(null)
         }
-    }, [searchParams])
+    }, [searchParams, tab])
 
     const handleTabChange = (nextTab: TabType) => {
+        if (nextTab !== tab) {
+            setPage(1)
+            setSelectedMessage(null)
+        }
         setTab(nextTab)
         const nextSearchParams = new URLSearchParams(searchParams)
         nextSearchParams.set('tab', nextTab)
@@ -137,10 +168,14 @@ export default function MensajesPage() {
     useEffect(() => {
         if (!profile) return
         void loadMensajes()
-        // Motivo: la carga de mensajes depende de la pestaña activa; se omiten otras dependencias intencionalmente
-        // para controlar la recarga manual desde la UI.
+        // Motivo: la carga también depende de los criterios de bandeja; la recarga manual conserva estos criterios.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [profile, tab])
+    }, [profile?.id, tab, startDate, endDate, page])
+
+    useEffect(() => {
+        setPage(1)
+        setSelectedMessage(null)
+    }, [profile?.id])
 
     useEffect(() => {
         if (!profile) return
@@ -229,6 +264,19 @@ export default function MensajesPage() {
     const loadMensajes = async () => {
         if (!profile) return
 
+        const requestId = ++messageRequestId.current
+
+        if (!isValidCalendarDate(startDate) || !isValidCalendarDate(endDate) || (startDate && endDate && startDate > endDate)) {
+            setMensajes([])
+            setTotalMessages(0)
+            setSelectedMessage(null)
+            setError(startDate && endDate && startDate > endDate
+                ? 'La fecha Desde no puede ser posterior a Hasta.'
+                : 'Ingresa fechas válidas para filtrar los mensajes.')
+            setLoading(false)
+            return
+        }
+
         setLoading(true)
         setError(null)
 
@@ -239,7 +287,7 @@ export default function MensajesPage() {
           *,
           remitente:remitente_id (nombre_completo, email),
           destinatario:destinatario_id (nombre_completo, email)
-        `)
+        `, { count: 'exact' })
                 .order('created_at', { ascending: false })
 
             if (tab === 'recibidos') {
@@ -248,16 +296,36 @@ export default function MensajesPage() {
                 query = query.eq('remitente_id', profile.id)
             }
 
-            const { data, error } = await query
+            if (startDate) query = query.gte('created_at', startOfCalendarDate(startDate))
+            if (endDate) query = query.lt('created_at', startOfNextCalendarDate(endDate))
+
+            const from = (page - 1) * MESSAGE_PAGE_SIZE
+            const { data, error, count } = await query.range(from, from + MESSAGE_PAGE_SIZE - 1)
             if (error) throw error
 
-            setMensajes((data || []) as Mensaje[])
+            if (requestId === messageRequestId.current) {
+                setMensajes((data || []) as Mensaje[])
+                setTotalMessages(count ?? 0)
+            }
         } catch (err) {
             console.error('Error loading mensajes:', err)
-            setError('Error al cargar los mensajes')
+            if (requestId === messageRequestId.current) setError('Error al cargar los mensajes')
         } finally {
-            setLoading(false)
+            if (requestId === messageRequestId.current) setLoading(false)
         }
+    }
+
+    const handleDateChange = (setDate: (value: string) => void, value: string) => {
+        setDate(value)
+        setPage(1)
+        setSelectedMessage(null)
+    }
+
+    const totalPages = Math.max(1, Math.ceil(totalMessages / MESSAGE_PAGE_SIZE))
+
+    const handlePageChange = (nextPage: number) => {
+        setPage(nextPage)
+        setSelectedMessage(null)
     }
 
     const loadRecipients = async () => {
@@ -815,6 +883,27 @@ export default function MensajesPage() {
                 </Button>
             </div>
 
+            <div className="grid gap-4 rounded-lg border border-border p-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                    <Label htmlFor="messages-start-date">Desde</Label>
+                    <Input
+                        id="messages-start-date"
+                        type="date"
+                        value={startDate}
+                        onChange={(event) => handleDateChange(setStartDate, event.target.value)}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="messages-end-date">Hasta</Label>
+                    <Input
+                        id="messages-end-date"
+                        type="date"
+                        value={endDate}
+                        onChange={(event) => handleDateChange(setEndDate, event.target.value)}
+                    />
+                </div>
+            </div>
+
             <Card ref={composeCardRef}>
                 <CardHeader>
                     <CardTitle>Enviar mensaje</CardTitle>
@@ -1054,6 +1143,28 @@ export default function MensajesPage() {
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
             )}
+
+            <nav aria-label="Paginación de mensajes" className="flex items-center justify-center gap-4">
+                <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handlePageChange(page - 1)}
+                    disabled={page <= 1 || loading}
+                >
+                    Anterior
+                </Button>
+                <span aria-live="polite" className="text-sm text-muted-foreground">
+                    Página {page} de {totalPages}
+                </span>
+                <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handlePageChange(page + 1)}
+                    disabled={page >= totalPages || loading}
+                >
+                    Siguiente
+                </Button>
+            </nav>
 
             {!loading && mensajes.length === 0 && (
                 <Alert>
