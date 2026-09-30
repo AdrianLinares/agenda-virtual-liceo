@@ -20,6 +20,7 @@ export interface Database {
           email: string
           nombre_completo: string
           rol: UserRole
+          titulo_profesional: string | null
           telefono: string | null
           direccion: string | null
           foto_url: string | null
@@ -32,6 +33,7 @@ export interface Database {
           email: string
           nombre_completo: string
           rol: UserRole
+          titulo_profesional?: string | null
           telefono?: string | null
           direccion?: string | null
           foto_url?: string | null
@@ -44,6 +46,7 @@ export interface Database {
           email?: string
           nombre_completo?: string
           rol?: UserRole
+          titulo_profesional?: string | null
           telefono?: string | null
           direccion?: string | null
           foto_url?: string | null
@@ -425,6 +428,7 @@ export interface Database {
           destinatario_id: string
           asunto: string
           contenido: string
+          firma: string | null
           estado: MensajeEstado
           leido_en: string | null
           created_at: string
@@ -435,6 +439,7 @@ export interface Database {
           destinatario_id: string
           asunto: string
           contenido: string
+          firma?: string | null
           estado?: MensajeEstado
           leido_en?: string | null
           created_at?: string
@@ -445,6 +450,7 @@ export interface Database {
           destinatario_id?: string
           asunto?: string
           contenido?: string
+          firma?: string | null
           estado?: MensajeEstado
           leido_en?: string | null
           created_at?: string
