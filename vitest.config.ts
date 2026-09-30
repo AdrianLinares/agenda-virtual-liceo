@@ -13,7 +13,12 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
-    include: ['src/**/*.spec.{ts,tsx}', 'src/**/*.test.{ts,tsx}', 'e2e/__tests__/**/*.spec.ts'],
+    include: [
+      'src/**/*.spec.{ts,tsx}',
+      'src/**/*.test.{ts,tsx}',
+      'e2e/__tests__/**/*.spec.ts',
+      'supabase/**/*.test.ts',
+    ],
     clearMocks: true,
     pool: 'threads',
     poolOptions: {
