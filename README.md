@@ -342,6 +342,8 @@ Cambios relevantes recientes:
 
 La notificación por correo de mensajes internos se procesa con Google Workspace Gmail API desde la Edge Function `send-message-emails`.
 
+> **El correo NO es un canal de respuesta.** Es una notificación unidireccional desde un buzón compartido. No se emite `Reply-To` a propósito y el asunto real del mensaje no se expone en el correo: si se hiciera, los destinatarios responderían al buzón de notificaciones y esas respuestas nunca llegarían al docente. El botón del correo dice "Leer y responder" y lleva a la Agenda Virtual, que es el único lugar donde el flujo de respuesta queda registrado.
+
 Checklist de secretos en Supabase para producción:
 
 1. `CRON_SECRET` (obligatorio en producción para autorizar el worker)
