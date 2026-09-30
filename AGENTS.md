@@ -2,6 +2,16 @@
 
 Only include facts an agent would likely miss. Read README.md, package.json, tsconfig*, CI and openspec/ first.
 
+Current state (verified 2026-09-30)
+- Suite unitaria: 135 tests / 22 archivos (`pnpm run test:ci`). Lint y build en verde.
+- ultimas migraciones aplicadas: 20260930_mensajes_firma_titulo_profesional, 20260930_email_queue_remitente_fields.
+- Branch de trabajo: feat/messages-list-controls (incluye la firma institucional de mensajes).
+
+Where things actually are
+- Firma institucional: src/utils/message-signature.ts (puro y testeable), aplicado en MensajesPage antes del insert, guardado en mensajes.firma. NO es un trigger de Postgres.
+- Rutas con restricción de rol: solo /dashboard/boletines y /dashboard/admin (administrador). El resto usa ProtectedRoute + RLS.
+- admin/api.ts -> Edge Function manage-users. Pero editar perfiles lo hace AdminPage directo via RLS (policy "Only admins modify profiles" es FOR ALL), sin pasar por la edge function.
+
 Commands (exact)
 - Install (preferred): pnpm install
   - CI: pnpm install --frozen-lockfile

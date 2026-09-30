@@ -7,7 +7,7 @@ Plataforma completa de gestión académica desarrollada con React, TypeScript, V
 - ✅ **Sistema de autenticación basado en roles** (Administrador, Administrativo, Docente, Estudiante, Padre/Acudiente)
 - ✅ **Dashboard personalizado** según el rol del usuario
 - ✅ **Gestión académica completa**: boletines, notas, asistencias
-- ✅ **Sistema de comunicación**: mensajes internos y anuncios
+- ✅ **Sistema de comunicación**: mensajes internos (con firma institucional), anuncios y notificaciones por correo
 - ✅ **Calendario de eventos** y recordatorios
 - ✅ **Seguimiento estudiantil** académico y disciplinario
 - ✅ **Gestión de permisos y excusas**
@@ -226,9 +226,31 @@ En el ejemplo anterior, el segundo usuario usará la contraseña por defecto con
 
 ## 📱 Roles y Permisos
 
+El enum `user_role` define cinco roles: `administrador`, `administrativo`, `docente`, `estudiante` y `padre`.
+
+Solo dos rutas aplican restricción de rol en el router (`src/App.tsx`): `/dashboard/boletines` y `/dashboard/admin`, ambas restringidas a `administrador`. El resto de los módulos usa `ProtectedRoute` y controla el alcance de los datos mediante RLS y filtros por rol dentro de la página.
+
+| Módulo | Ruta | Acceso |
+| --- | --- | --- |
+| Inicio | `/` | Público |
+| Login, recuperar y restablecer contraseña | `/login`, `/recuperar-contrasena`, `/restablecer-contrasena` | Público |
+| Dashboard | `/dashboard` | Autenticado |
+| Boletines | `/dashboard/boletines` | Solo `administrador` |
+| Asistencia | `/dashboard/asistencia` | Autenticado, datos filtrados por rol |
+| Notas | `/dashboard/notas` | Autenticado, datos filtrados por rol |
+| Anuncios | `/dashboard/anuncios` | Autenticado, visibles por rol o destinatario |
+| Mensajes | `/dashboard/mensajes` | Autenticado, con destinatarios restringidos por rol |
+| Calendario | `/dashboard/calendario` | Autenticado |
+| Permisos | `/dashboard/permisos` | Autenticado |
+| Seguimiento | `/dashboard/seguimiento` | Autenticado |
+| Horarios | `/dashboard/horarios` | Autenticado |
+| Citaciones | `/dashboard/citaciones` | Autenticado |
+| Administración | `/dashboard/admin` | Solo `administrador` |
+| Cambiar contraseña | `/dashboard/cambiar-contrasena` | Autenticado |
+
 ### Administrador
 - Acceso completo a todos los módulos
-- Gestión de usuarios y roles
+- Gestión de usuarios, roles y carga masiva
 - Configuración del sistema
 
 ### Administrativo
@@ -246,12 +268,22 @@ En el ejemplo anterior, el segundo usuario usará la contraseña por defecto con
 - Consulta de notas y boletines
 - Visualización de asistencia
 - Solicitud de permisos
-- Mensajería con docentes
+- Mensajería solo con docentes
 
 ### Padre/Acudiente
 - Acceso completo a la información del estudiante asociado
 - Solicitud de permisos en nombre del estudiante
-- Comunicación con docentes y administrativos
+- Comunicación con docentes, administrativos y administradores
+
+### Quién puede enviar mensajes a quién
+
+Definido en `allowedRecipientRoles` (`src/pages/MensajesPage.tsx`). Cualquier otro rol no tiene restricción adicional:
+
+| Rol del remitente | Destinatarios permitidos |
+| --- | --- |
+| `estudiante` | `docente` |
+| `padre` | `docente`, `administrativo`, `administrador` |
+| Resto de roles | Sin restricción por rol |
 
 ## 🗂️ Estructura del Proyecto
 
@@ -266,24 +298,40 @@ agenda-virtual-liceo/
 │   ├── lib/
 │   │   ├── supabase.ts      # Cliente de Supabase
 │   │   ├── auth-store.ts    # Estado global de autenticación
+│   │   ├── admin-api.ts     # Wrapper de la Edge Function manage-users
+│   │   ├── async-utils.ts   # Helpers async (withTimeout, etc.)
+│   │   ├── telemetry.ts     # Telemetría
 │   │   └── utils.ts         # Utilidades
-│   ├── pages/               # Páginas/Vistas
-│   │   ├── LoginPage.tsx
-│   │   └── DashboardPage.tsx
+│   ├── pages/               # 17 páginas/vistas (ver tabla de rutas arriba)
+│   ├── utils/               # Lógica pura testeable (unitaria)
+│   │   ├── message-signature.ts  # Composición de la firma institucional
+│   │   ├── grade-order.ts        # Orden de grados y grupos
+│   │   ├── anuncios.ts           # Utilidades de anuncios
+│   │   ├── driveLinks.ts         # Validación de enlaces de Drive
+│   │   ├── normalizeEmail.ts     # Normalización de email
+│   │   └── calculations.ts
 │   ├── types/
-│   │   └── database.types.ts # Tipos de TypeScript para la BD
+│   │   └── database.types.ts # Tipos de TypeScript para la BD (Row/Insert/Update)
 │   ├── styles/
 │   │   └── globals.css      # Estilos globales
 │   ├── App.tsx              # Componente principal con rutas
 │   └── main.tsx             # Punto de entrada
+├── e2e/                     # Specs de Playwright
+├── migrations/              # Migraciones SQL incrementales (aplicar en orden)
+├── cloudflare/              # Workers de Cloudflare
+├── supabase/functions/      # Edge Functions (Deno)
+├── docs/testing/            # Documentación de testing
 ├── public/                  # Archivos estáticos
-├── supabase-schema.sql      # Schema completo de la base de datos
+├── supabase-schema.sql      # Schema canónico de la BD (para instalaciones nuevas)
 ├── package.json
 ├── vite.config.ts
+├── vitest.config.ts
 ├── tailwind.config.js
 ├── tsconfig.json
 └── README.md
 ```
+
+> `supabase-schema.sql` es el schema canónico para instalaciones nuevas. Las instalaciones existentes deben aplicar los archivos de `migrations/` en orden cronológico; al agregar una columna hay que actualizar ambos lugares.
 
 ## 🔒 Seguridad
 
@@ -315,15 +363,67 @@ Módulos operativos en producción:
 3. Boletines (acceso restringido a administradores).
 4. Asistencia, notas, anuncios, mensajes y calendario.
 5. Permisos/excusas, seguimiento, horarios y citaciones.
-6. Panel de administración para gestión de usuarios.
+6. Panel de administración para gestión de usuarios, carga masiva y títulos profesionales.
+7. Firma institucional en mensajes internos.
+8. Notificaciones por correo de mensajes internos.
 
 Cambios relevantes recientes:
 
-1. Migración de despliegue a Cloudflare Pages con redirect SPA en `public/_redirects`.
-2. Sesión de autenticación con expiración al cerrar navegador/pestaña (`sessionStorage`).
-3. Ruta `/login` disponible siempre (sin auto-redirect por sesión activa).
-4. Endurecimiento de control de acceso para `/dashboard/admin`.
-5. Mejora de dependencias: `jspdf` actualizado y override de `dompurify`.
+1. Firma institucional en mensajes, derivada del perfil del remitente y congelada al enviar.
+2. Notificaciones por correo: nueva plantilla, remitente identificado y cabeceras anti-respuesta.
+3. Paginación de la bandeja de mensajes con filtros por fecha y por contraparte.
+4. Migración de despliegue a Cloudflare Pages con redirect SPA en `public/_redirects`.
+5. Sesión de autenticación con expiración al cerrar navegador/pestaña (`sessionStorage`).
+6. Ruta `/login` disponible siempre (sin auto-redirect por sesión activa).
+7. Endurecimiento de control de acceso para `/dashboard/admin`.
+8. Mejora de dependencias: `jspdf` actualizado y override de `dompurify`.
+
+### Verificación local
+
+```bash
+pnpm lint          # ESLint, los warnings fallan el build
+pnpm build         # typecheck (tsc) + bundle de Vite
+pnpm run test:ci   # Vitest, suite autoritativa
+```
+
+Estado actual: `pnpm run test:ci` con 135 tests en 22 archivos.
+
+Playwright (`pnpm run test:e2e`) requiere una instancia real de Supabase con `supabase-schema.sql` aplicado. No corre contra la suite unitaria.
+
+### Migraciones aplicadas
+
+`migrations/` se aplica en orden cronológico contra Supabase. Las más recientes:
+
+- `20260930_mensajes_firma_titulo_profesional.sql` — `profiles.titulo_profesional` y `mensajes.firma`.
+- `20260930_email_queue_remitente_fields.sql` — `remitente_nombre` y `remitente_email` en la cola de correos.
+
+## ✍️ Firma Institucional en Mensajes
+
+Los mensajes enviados por docentes, administrativos y administradores llevan una firma bajo el cuerpo, derivada del perfil del remitente:
+
+```text
+Ximena Patricia Ávila Díaz
+Lic. Ciencias Naturales y Educación Ambiental
+```
+
+La firma se compone en `buildMessageSignature` (`src/utils/message-signature.ts`), una función pura y testeable, y se aplica en `MensajesPage` antes del envío. Se guarda en la columna `mensajes.firma` y se renderiza aparte de `contenido`.
+
+Características:
+
+- **Por remitente, no global**: cada mensaje lleva la firma de quien lo envía.
+- **Roles con firma**: `docente`, `administrativo` y `administrador`.
+- **Gestionada por el admin**: el título profesional se carga en el panel de administración. No hay autoedición por parte del usuario.
+- **Congelada al enviar**: si después cambia el título, los mensajes ya enviados conservan la firma original.
+- **Degradación limpia**: sin título profesional, la firma es solo el nombre. Los espacios y saltos de línea sobrantes se colapsan para que el bloque ocupe siempre dos líneas.
+- **Separada de `contenido`**: el texto del autor queda intacto y las respuestas no arrastran la firma del remitente original al citar.
+
+Ejemplo SQL para cargarla directamente:
+
+```sql
+UPDATE profiles
+SET titulo_profesional = 'Lic. Ciencias Naturales y Educación Ambiental'
+WHERE email = 'docente@liceoag.com';
+```
 
 ## ✅ Checklist de Despliegue en Cloudflare Pages
 
@@ -335,8 +435,11 @@ Cambios relevantes recientes:
 3. Publish directory: `dist`
 4. Deploy command en Pages: **vacío** (no usar `wrangler deploy` para frontend).
 5. Confirmar que exista `public/_redirects` con `/* /index.html 200`.
-6. Aplicar migraciones SQL pendientes de `migrations/` en Supabase.
-7. Validar login, navegación por rutas internas y permisos por rol.
+6. Aplicar migraciones SQL pendientes de `migrations/` en Supabase. Si agregaste una columna, actualizar también `supabase-schema.sql` y `src/types/database.types.ts`.
+7. Si agregaste una columna, actualizar también `supabase-schema.sql` y `src/types/database.types.ts`.
+8. Validar login, navegación por rutas internas y permisos por rol.
+
+> El CLI de Supabase (`supabase`) no es necesario para aplicar migraciones en este proyecto: se pueden aplicar desde el SQL Editor de Supabase o vía MCP.
 
 ## 📧 Notificaciones por Correo para Mensajes
 
@@ -353,6 +456,10 @@ Checklist de secretos en Supabase para producción:
 5. `EMAIL_NOTIFICATIONS_DRY_RUN=false`
 6. `EMAIL_NOTIFICATIONS_BATCH_SIZE=20`
 7. `EMAIL_NOTIFICATIONS_MAX_ATTEMPTS=5`
+
+El campo `mensajes.firma` guarda la firma institucional del remitente (nombre y título profesional) congelada en el momento del envío. Se renderiza debajo del cuerpo del mensaje y no forma parte de `contenido`, de modo que el texto del autor queda intacto y las respuestas no arrastran la firma del remitente original. Los mensajes históricos tienen `firma = NULL` porque la columna solo se puebla al enviar.
+
+El título profesional de cada usuario lo carga un administrador desde el panel de administración (pestaña Usuarios → Editar). Solo aplica a los roles `docente`, `administrativo` y `administrador`; para estudiantes y padres la columna se ignora. Ver más detalle en la sección de firma institucional.
 
 Autenticación Gmail (elige un modo):
 
