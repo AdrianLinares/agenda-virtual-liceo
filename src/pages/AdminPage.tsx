@@ -231,12 +231,14 @@ export default function AdminPage() {
     const [editForm, setEditForm] = useState<{
         nombre_completo: string
         rol: UserRole
+        titulo_profesional: string
         telefono: string
         direccion: string
         activo: boolean
     }>({
         nombre_completo: '',
         rol: 'estudiante',
+        titulo_profesional: '',
         telefono: '',
         direccion: '',
         activo: true
@@ -714,6 +716,7 @@ export default function AdminPage() {
         setEditForm({
             nombre_completo: user.nombre_completo,
             rol: user.rol,
+            titulo_profesional: user.titulo_profesional ?? '',
             telefono: user.telefono ?? '',
             direccion: user.direccion ?? '',
             activo: user.activo
@@ -777,6 +780,7 @@ export default function AdminPage() {
             ...user,
             nombre_completo: editForm.nombre_completo,
             rol: editForm.rol,
+            titulo_profesional: editForm.titulo_profesional || null,
             telefono: editForm.telefono || null,
             direccion: editForm.direccion || null,
             activo: editForm.activo,
@@ -790,6 +794,7 @@ export default function AdminPage() {
             const updates: Database['public']['Tables']['profiles']['Update'] = {
                 nombre_completo: editForm.nombre_completo,
                 rol: editForm.rol,
+                titulo_profesional: editForm.titulo_profesional || null,
                 telefono: editForm.telefono || null,
                 direccion: editForm.direccion || null,
                 activo: editForm.activo
@@ -2712,6 +2717,18 @@ export default function AdminPage() {
                                     </div>
 
                                     <div className="grid md:grid-cols-2 gap-4">
+                                        <div>
+                                            <Label htmlFor="edit-titulo-profesional">Título profesional</Label>
+                                            <Input
+                                                id="edit-titulo-profesional"
+                                                value={editForm.titulo_profesional}
+                                                onChange={(e) => setEditForm((prev) => ({ ...prev, titulo_profesional: e.target.value }))}
+                                            />
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                                Se muestra en la firma de los mensajes que envía este usuario, junto a su
+                                                nombre. Solo aplica a los roles docente, administrativo y administrador.
+                                            </p>
+                                        </div>
                                         <div>
                                             <Label htmlFor="edit-telefono">Teléfono</Label>
                                             <Input

@@ -17,6 +17,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertCircle, CheckCircle2, Inbox, Loader2, Mail, RefreshCw, Send } from 'lucide-react'
 import type { Database } from '@/types/database.types'
 import { sortByGradeAndGroupName } from '@/utils/grade-order'
+import { buildMessageSignature } from '@/utils/message-signature'
 
 interface Mensaje {
     id: string
@@ -24,6 +25,7 @@ interface Mensaje {
     destinatario_id: string
     asunto: string
     contenido: string
+    firma: string | null
     estado: Database['public']['Enums']['mensaje_estado']
     leido_en: string | null
     created_at: string
@@ -589,6 +591,10 @@ export default function MensajesPage() {
             const INTER_BATCH_DELAY = 100 // Retraso entre lotes para evitar picos de carga en la BD; ajustar según producción
             const batches: Array<Database['public']['Tables']['mensajes']['Insert'][]> = []
 
+            // La firma se congela al enviar: si despues cambia el titulo del remitente,
+            // el mensaje ya enviado conserva la firma que se mostraba en su momento.
+            const firma = buildMessageSignature(profile)
+
             // Dividir en lotes
             for (let i = 0; i < targetRecipientIds.length; i += BATCH_SIZE) {
                 const batchIds = targetRecipientIds.slice(i, i + BATCH_SIZE)
@@ -597,6 +603,7 @@ export default function MensajesPage() {
                     destinatario_id: recipientId,
                     asunto: asunto.trim(),
                     contenido: contenido.trim(),
+                    firma,
                     estado: 'enviado',
                 } satisfies Database['public']['Tables']['mensajes']['Insert']))
                 batches.push(batchPayload)
@@ -1316,6 +1323,14 @@ export default function MensajesPage() {
                                     <div className="rounded-lg border border-border bg-muted p-4 text-sm text-foreground whitespace-pre-line">
                                         {selectedMessage.contenido}
                                     </div>
+                                    {selectedMessage.firma && (
+                                        <div
+                                            data-testid="mensaje-firma"
+                                            className="rounded-lg border border-border bg-background p-4 text-sm text-muted-foreground whitespace-pre-line"
+                                        >
+                                            {selectedMessage.firma}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </CardContent>

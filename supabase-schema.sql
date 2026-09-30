@@ -23,6 +23,7 @@ CREATE TABLE profiles (
     email TEXT UNIQUE NOT NULL,
     nombre_completo TEXT NOT NULL,
     rol user_role NOT NULL,
+    titulo_profesional TEXT,
     telefono TEXT,
     direccion TEXT,
     foto_url TEXT,
@@ -206,6 +207,7 @@ CREATE TABLE mensajes (
     destinatario_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
     asunto TEXT NOT NULL,
     contenido TEXT NOT NULL,
+    firma TEXT,
     estado mensaje_estado DEFAULT 'enviado',
     leido_en TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW()
